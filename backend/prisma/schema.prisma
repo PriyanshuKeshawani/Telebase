@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StorageType {
+  TELEGRAM
+  SUPABASE
+}
+
+model Project {
+  id              String   @id @default(uuid())
+  name            String
+  api_key         String   @unique
+  channel_id      String?
+  storage_type    StorageType @default(TELEGRAM)
+  supabase_url    String?
+  supabase_key    String?
+  created_at      DateTime @default(now())
+
+  bots            Bot[]
+  files           File[]
+}
+
+model Bot {
+  id              String   @id @default(uuid())
+  project_id      String
+  token           String
+  created_at      DateTime @default(now())
+
+  project         Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model File {
+  uuid            String   @id @default(uuid())
+  project_id      String
+  user_uuid       String   // from JWT sub
+  version         Int      @default(1)
+  chunk_count     Int
+  file_hash       String
+  size            Int      // original file size
+  created_at      DateTime @default(now())
+
+  project         Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  chunks          FileChunk[]
+}
+
+model FileChunk {
+  id              String   @id @default(uuid())
+  file_uuid       String
+  chunk_index     Int
+  message_id      String   @unique
+  iv              String?  // hex string for AES decryption
+  auth_tag        String?  // hex string for AES GCM tag
+  created_at      DateTime @default(now())
+
+  file            File     @relation(fields: [file_uuid], references: [uuid], onDelete: Cascade)
+}

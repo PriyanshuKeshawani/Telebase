@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-dark-bg: #09090b;
+  --color-dark-card: #18181b;
+  --color-dark-border: #27272a;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-dark-bg);
+    color: #f4f4f5;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+.glass {
+  background: rgba(24, 24, 27, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
