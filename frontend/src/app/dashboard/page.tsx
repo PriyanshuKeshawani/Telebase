@@ -1,370 +1,2305 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Database, Zap, Lock, HardDrive, Cpu, Radio, Plus, Trash2, 
   Download, RefreshCw, Key, Shield, AlertCircle, CheckCircle2,
-  FileText, PlusCircle, ArrowLeft, Bot, Server
+  FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X, 
+  HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
+  ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder
 } from "lucide-react";
 import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 interface Project {
   id: string;
   name: string;
-  apiKey: string;
-  channelId: string;
-  storageType: "TELEGRAM" | "SUPABASE";
-  botsCount: number;
+  api_key: string;
+  channel_id: string;
+  storage_type: "TELEGRAM" | "SUPABASE";
+  bots: string[];
+  created_at: string;
 }
 
 interface StoredFile {
   uuid: string;
+  project_id: string;
   filename: string;
-  size: string;
-  chunks: number;
+  size: number;
+  chunks: {
+    chunk_index: number;
+    message_id: string;
+    iv: string;
+    auth_tag: string;
+  }[];
+  chunk_count: number;
   version: number;
-  hash: string;
-  createdAt: string;
+  file_hash: string;
+  created_at: string;
+}
+
+interface DBTable {
+  name: string;
+  uuid: string;
+  sizeBytes: number;
+  updatedAt: string;
+  version: number;
+  schema?: {
+    name: string;
+    fields: Record<string, 'string' | 'number' | 'boolean'>;
+    indexes: string[];
+  };
 }
 
 export default function Dashboard() {
-  const [projects, setProjects] = useState<Project[]>([
-    { id: "1", name: "Telebase Production", apiKey: "sk_proj_9e83cfd10842fe91aa0d6", channelId: "-100192837465", storageType: "TELEGRAM", botsCount: 3 },
-    { id: "2", name: "Analytics Logs Backup", apiKey: "sk_proj_ff209c74ab9c34a9e91", channelId: "-100183749281", storageType: "TELEGRAM", botsCount: 1 }
-  ]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("1");
-  const [files, setFiles] = useState<StoredFile[]>([
-    { uuid: "9c8a-b570643beaaa", filename: "user_database_backup.json", size: "24.5 MB", chunks: 2, version: 1, hash: "d68eecccf4aff424d68e...", createdAt: "2026-05-19 14:02" },
-    { uuid: "f995-4371-9c8a-b570", filename: "media_assets_v2.zip", size: "389.2 MB", chunks: 21, version: 2, hash: "f3faa0c39ad07b3axieq...", createdAt: "2026-05-19 18:24" },
-    { uuid: "b29b-18ae4817ed3c", filename: "system_logs_archive.json", size: "1.2 MB", chunks: 1, version: 1, hash: "8fd31bd6436e3cb2e776...", createdAt: "2026-05-20 00:15" }
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [files, setFiles] = useState<StoredFile[]>([]);
+  const [activeTab, setActiveTab] = useState<"db" | "files" | "bots" | "speed" | "ai">("db");
+
+  // Auth Protection Redirect
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  // Structured DB States
+  const [dbTables, setDbTables] = useState<DBTable[]>([]);
+  const [selectedTableName, setSelectedTableName] = useState<string>("");
+  const [tableRecords, setTableRecords] = useState<any[]>([]);
+  const [sqlQueryInput, setSqlQueryInput] = useState<string>("SELECT * FROM users");
+  const [queryResult, setQueryResult] = useState<any | null>(null);
+  const [walLogs, setWalLogs] = useState<any[]>([]);
+  const [isQueryRunning, setIsQueryRunning] = useState(false);
+  const [forceLockCrash, setForceLockCrash] = useState(false);
+  const [recoveryLogs, setRecoveryLogs] = useState<string[]>([]);
+  const [isNewTableModalOpen, setIsNewTableModalOpen] = useState(false);
+  
+  // Table schema creator states
+  const [newTableName, setNewTableName] = useState("");
+  const [newTableFields, setNewTableFields] = useState<{ name: string; type: 'string' | 'number' | 'boolean' }[]>([
+    { name: 'name', type: 'string' },
+    { name: 'age', type: 'number' }
   ]);
 
-  // Modal State
+  // Speed Benchmark States
+  const [isBenchmarking, setIsBenchmarking] = useState(false);
+  const [benchmarkResult, setBenchmarkResult] = useState<{
+    isKVConfigured: boolean;
+    telegramLatencyMs: number;
+    kvLatencyMs: number;
+    telegramStatus: string;
+    kvStatus: string;
+    kvErrorMessage: string | null;
+  } | null>(null);
+
+  // Onboarding/Loading states
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // New Project Modal State
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newChannelId, setNewChannelId] = useState("");
-  const [botTokens, setBotTokens] = useState<string[]>([""]);
+  const [newBots, setNewBots] = useState<string[]>([""]);
 
-  const [isLoading, setIsLoading] = useState(false);
+  // Bot Manager States
+  const [newBotTokenInput, setNewBotTokenInput] = useState("");
+  const [isAddingBot, setIsAddingBot] = useState(false);
 
-  const handleAddBotTokenField = () => {
-    setBotTokens([...botTokens, ""]);
+  // Drag and Drop Uploader States
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "compressing" | "chunking" | "uploading" | "success" | "error">("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Download/Delete state tracking
+  const [downloadingUuid, setDownloadingUuid] = useState<string | null>(null);
+  const [deletingUuid, setDeletingUuid] = useState<string | null>(null);
+  
+  // API key copy state
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  // AI Connect Tab states
+  const [copiedAI, setCopiedAI] = useState(false);
+  const [showAPIKeyInAI, setShowAPIKeyInAI] = useState(false);
+  const [aiSnippetTab, setAiSnippetTab] = useState<"js_sql" | "js_nosql" | "upload" | "retrieve">("js_sql");
+
+  // Sidebar collapse
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const currentProject = projects.find(p => p.id === selectedProjectId);
+  const projectFiles = files.filter(f => f.project_id === selectedProjectId);
+
+  // Load database state
+  const loadDatabase = async (forceSync = false) => {
+    try {
+      if (forceSync) setIsSyncing(true);
+      
+      const res = await fetch('/api/projects');
+      const data = await res.json();
+      
+      if (data.success) {
+        setProjects(data.projects || []);
+        setFiles(data.files || []);
+        
+        if (data.projects && data.projects.length > 0) {
+          const selectedId = selectedProjectId || data.projects[0].id;
+          setSelectedProjectId(selectedId);
+          await loadDBMetadata(selectedId, data.projects);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load telebase state:", error);
+    } finally {
+      setIsPageLoading(false);
+      setIsSyncing(false);
+    }
   };
 
-  const handleBotTokenChange = (index: number, val: string) => {
-    const updated = [...botTokens];
-    updated[index] = val;
-    setBotTokens(updated);
+  // Load Structured DB Metadata (tables and live logs)
+  const loadDBMetadata = async (projectId: string, projectList = projects) => {
+    const proj = projectList.find(p => p.id === projectId);
+    if (!proj) return;
+
+    try {
+      const res = await fetch(`/api/db?apiKey=${proj.api_key}`);
+      const data = await res.json();
+      if (data.success) {
+        setDbTables(data.tables || []);
+        setWalLogs(data.walLogs || []);
+        
+        // Auto select first table if none selected
+        if (data.tables && data.tables.length > 0) {
+          const newSelect = selectedTableName && data.tables.some((t: any) => t.name === selectedTableName) 
+            ? selectedTableName 
+            : data.tables[0].name;
+          setSelectedTableName(newSelect);
+          await fetchTableRecords(newSelect, proj.api_key);
+        } else {
+          setSelectedTableName("");
+          setTableRecords([]);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load DB metadata:", e);
+    }
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const fetchTableRecords = async (tableName: string, apiKey: string) => {
+    if (!tableName || !apiKey) return;
+    try {
+      const res = await fetch(`/api/db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify({ action: 'SELECT', tableName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTableRecords(data.records || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch table records:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      loadDatabase();
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadDBMetadata(selectedProjectId);
+    }
+  }, [selectedProjectId]);
+
+  const handleForceSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        await loadDatabase(true);
+      }
+    } catch (e) {
+      console.error("Force sync failed:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName) return;
 
-    const newProj: Project = {
-      id: (projects.length + 1).toString(),
-      name: newProjectName,
-      apiKey: `sk_proj_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`,
-      channelId: newChannelId || "-100123456789",
-      storageType: "TELEGRAM",
-      botsCount: botTokens.filter(t => t.trim() !== "").length || 1
-    };
+    try {
+      const validBots = newBots.filter(b => b.trim() !== "");
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newProjectName,
+          channel_id: newChannelId,
+          bots: validBots,
+          storage_type: 'TELEGRAM'
+        })
+      });
 
-    setProjects([...projects, newProj]);
-    setSelectedProjectId(newProj.id);
-    setIsNewProjectModalOpen(false);
-    setNewProjectName("");
-    setNewChannelId("");
-    setBotTokens([""]);
+      const data = await res.json();
+      if (data.success) {
+        setProjects(prev => [...prev, data.project]);
+        setSelectedProjectId(data.project.id);
+        setIsNewProjectModalOpen(false);
+        setNewProjectName("");
+        setNewChannelId("");
+        setNewBots([""]);
+        await loadDatabase();
+      }
+    } catch (error) {
+      console.error("Create project failed:", error);
+    }
   };
 
-  const handleTriggerSync = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
+  const handleDeleteProject = async (projectId: string, projectName: string) => {
+    if (!confirm(`Are you sure you want to delete project "${projectName}"? This will permanently wipe all associated backup storage index records.`)) return;
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        if (selectedProjectId === projectId) {
+          const remaining = projects.filter(p => p.id !== projectId);
+          if (remaining.length > 0) {
+            setSelectedProjectId(remaining[0].id);
+          } else {
+            setSelectedProjectId("");
+          }
+        }
+        await loadDatabase();
+      } else {
+        alert(`Delete Failed: ${data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Delete project failed:", error);
+      alert(`Delete Failed: ${error.message}`);
+    }
   };
 
+  // Structured DB Creation
+  const handleCreateTable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentProject || !newTableName.trim()) return;
+
+    try {
+      const schemaFields: Record<string, string> = { id: 'string' };
+      newTableFields.forEach(f => {
+        if (f.name.trim()) schemaFields[f.name.trim()] = f.type;
+      });
+
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          action: 'CREATE_TABLE',
+          tableName: newTableName.trim(),
+          schema: {
+            name: newTableName.trim(),
+            fields: schemaFields,
+            indexes: ['id']
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setIsNewTableModalOpen(false);
+        setSelectedTableName(newTableName.trim());
+        setNewTableName("");
+        setNewTableFields([{ name: 'name', type: 'string' }, { name: 'age', type: 'number' }]);
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Failed to create table:", error);
+    }
+  };
+
+  const handleAddSchemaField = () => {
+    setNewTableFields([...newTableFields, { name: '', type: 'string' }]);
+  };
+
+  const handleSchemaFieldChange = (index: number, key: 'name' | 'type', value: any) => {
+    const updated = [...newTableFields];
+    updated[index] = { ...updated[index], [key]: value };
+    setNewTableFields(updated);
+  };
+
+  const handleRemoveSchemaField = (index: number) => {
+    setNewTableFields(newTableFields.filter((_, idx) => idx !== index));
+  };
+
+  // Execute DB SQL Query
+  const handleExecuteQuery = async (queryOverride?: string) => {
+    if (!currentProject || !selectedTableName) return;
+    
+    setIsQueryRunning(true);
+    setQueryResult(null);
+    const query = queryOverride || sqlQueryInput;
+
+    try {
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          tableName: selectedTableName,
+          sqlQuery: query,
+          forceLockCrash
+        })
+      });
+
+      const data = await res.json();
+      setQueryResult(data);
+      if (data.success) {
+        await fetchTableRecords(selectedTableName, currentProject.api_key);
+        await loadDBMetadata(currentProject.id);
+      }
+    } catch (e: any) {
+      setQueryResult({ success: false, error: e.message });
+    } finally {
+      setIsQueryRunning(false);
+    }
+  };
+
+  // WAL Crash Recovery Trigger
+  const handleRunRecovery = async () => {
+    if (!currentProject || !selectedTableName) return;
+    setRecoveryLogs(['[System Recovery Initiated] Connecting to Master WAL...']);
+    
+    try {
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({ action: 'RECOVER', tableName: selectedTableName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecoveryLogs(data.logs || ['Success']);
+        await fetchTableRecords(selectedTableName, currentProject.api_key);
+        await loadDBMetadata(currentProject.id);
+      } else {
+        setRecoveryLogs(prev => [...prev, `❌ Recovery failed: ${data.error}`]);
+      }
+    } catch (e: any) {
+      setRecoveryLogs(prev => [...prev, `❌ Network error: ${e.message}`]);
+    }
+  };
+
+  const handleClearWALLogs = async () => {
+    if (!currentProject) return;
+    try {
+      await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({ action: 'CLEAR_LOGS', tableName: 'dummy' })
+      });
+      await loadDBMetadata(currentProject.id);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Bot Pool rotation changes
+  const handleRegisterBot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentProject || !newBotTokenInput.trim()) return;
+
+    setIsAddingBot(true);
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/add-bot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_token: newBotTokenInput.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewBotTokenInput("");
+        await loadDatabase();
+      }
+    } catch (error) {
+      console.error("Add bot token failed:", error);
+    } finally {
+      setIsAddingBot(false);
+    }
+  };
+
+  const handleRemoveBot = async (token: string) => {
+    if (!currentProject) return;
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/remove-bot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_token: token })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadDatabase();
+      }
+    } catch (error) {
+      console.error("Remove bot token failed:", error);
+    }
+  };
+
+  // Secure File Upload via API
+  const handleFileUpload = async (file: File) => {
+    if (!currentProject) return;
+
+    setUploadStatus("compressing");
+    setUploadStatusText("Compressing file payload (gzipSync)...");
+    setUploadProgress(15);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setTimeout(() => {
+        setUploadStatus("chunking");
+        setUploadStatusText("Chunking & encrypting chunks (AES-256-GCM)...");
+        setUploadProgress(45);
+      }, 800);
+
+      setTimeout(() => {
+        setUploadStatus("uploading");
+        setUploadStatusText("Uploading loads to Telegram channel...");
+        setUploadProgress(75);
+      }, 1600);
+
+      const res = await fetch("/api/data/upload", {
+        method: "POST",
+        headers: {
+          "x-api-key": currentProject.api_key
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setUploadStatus("success");
+        setUploadStatusText(`Successfully saved! Size: ${(data.file.size / 1024 / 1024).toFixed(2)} MB`);
+        setUploadProgress(100);
+        await loadDatabase();
+        setTimeout(() => {
+          setUploadStatus("idle");
+        }, 3000);
+      } else {
+        throw new Error(data.error || "Upload failed");
+      }
+    } catch (error: any) {
+      setUploadStatus("error");
+      setUploadStatusText(`Error: ${error.message}`);
+      setUploadProgress(0);
+    }
+  };
+
+  // Drag-and-drop triggers
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileSelectChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  // High performance browser streaming download (Zero RAM Bloating)
+  const handleDownloadFile = (fileRec: StoredFile) => {
+    if (!currentProject) return;
+    window.location.href = `/api/data/${fileRec.uuid}?apiKey=${currentProject.api_key}`;
+  };
+
+  // Handle Delete
+  const handleDeleteFile = async (uuid: string) => {
+    if (!currentProject) return;
+
+    if (!confirm("Are you sure you want to remove this backup index?")) return;
+
+    setDeletingUuid(uuid);
+    try {
+      const res = await fetch(`/api/data/${uuid}`, {
+        method: "DELETE",
+        headers: {
+          "x-api-key": currentProject.api_key
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadDatabase();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (e: any) {
+      alert(`Delete Failed: ${e.message}`);
+    } finally {
+      setDeletingUuid(null);
+    }
+  };
+
+  const runSpeedBenchmark = async () => {
+    setIsBenchmarking(true);
+    try {
+      const res = await fetch("/api/benchmark");
+      const data = await res.json();
+      if (data.success) {
+        setBenchmarkResult({
+          isKVConfigured: data.isKVConfigured,
+          telegramLatencyMs: data.telegramLatencyMs,
+          kvLatencyMs: data.kvLatencyMs,
+          telegramStatus: data.telegramStatus,
+          kvStatus: data.kvStatus,
+          kvErrorMessage: data.kvErrorMessage
+        });
+      }
+    } catch (e) {
+      console.error("Benchmark failed:", e);
+    } finally {
+      setIsBenchmarking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "speed" && !benchmarkResult) {
+      runSpeedBenchmark();
+    }
+  }, [activeTab]);
+
+  const handleAddBotField = () => {
+    setNewBots([...newBots, ""]);
+  };
+
+  const handleNewBotChange = (index: number, val: string) => {
+    const updated = [...newBots];
+    updated[index] = val;
+    setNewBots(updated);
+  };
+
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleCopyAIContext = () => {
+    if (!currentProject) return;
+
+    // Get table schemas formatted as Markdown
+    const tablesMarkdown = dbTables.length === 0
+      ? "* No tables have been created in this project yet."
+      : dbTables.map(t => {
+          const fieldsStr = t.schema?.fields
+            ? Object.entries(t.schema.fields)
+                .map(([name, type]) => `    - \`${name}\` (${type})`)
+                .join('\n')
+            : "    - (No columns defined)";
+          return `- **Table Name**: \`${t.name}\`\n  - **Size**: ${formatBytes(t.sizeBytes)}\n  - **Columns/Schema**:\n${fieldsStr}`;
+        }).join('\n\n');
+
+    const firstTable = dbTables[0]?.name || "users";
+    const sampleFieldsKeys = dbTables[0]?.schema?.fields
+      ? Object.keys(dbTables[0].schema.fields).filter(k => k !== 'id').join(', ')
+      : "name, age";
+    const sampleFieldsValues = dbTables[0]?.schema?.fields
+      ? Object.entries(dbTables[0].schema.fields)
+          .filter(([k]) => k !== 'id')
+          .map(([_, t]) => t === 'number' ? '28' : t === 'boolean' ? 'true' : "'Emma'")
+          .join(', ')
+      : "'Emma', 28";
+    const sampleFieldsObject = dbTables[0]?.schema?.fields
+      ? Object.entries(dbTables[0].schema.fields)
+          .filter(([k]) => k !== 'id')
+          .map(([k, t]) => `      ${k}: ${t === 'number' ? '28' : t === 'boolean' ? 'true' : "'Emma'"}`)
+          .join(',\n')
+      : "      name: 'Emma',\n      age: 28";
+
+    const promptText = `# TELEBASE SYSTEM & DATABASE CONNECTION CONTEXT
+
+You are an AI assistant helping a developer build/integrate an application with Telebase.
+Telebase is a serverless ACID-compliant database and file storage engine that uses Telegram as physical storage media. It exposes a local HTTP REST API for data query, manipulation, and secure media uploads.
+
+Here is the connection parameters and active database schema. Use this context to write perfect integrations, database models, and CRUD services.
+
+---
+
+## 🔑 CONNECTION CREDENTIALS
+- **Host Endpoint Base URL**: \`http://localhost:3000\`
+- **Active Project ID**: \`${currentProject.id}\`
+- **Active Project Name**: \`${currentProject.name}\`
+- **API Access Key (X-API-KEY Header)**: \`${currentProject.api_key}\`
+- **Telegram Channel ID**: \`${currentProject.channel_id || "Default"}\`
+- **Storage Encryption**: E2E Encrypted (AES-256-GCM + Zlib compression)
+
+---
+
+## 📊 ACTIVE DATABASE SCHEMA
+Below is the list of active tables, their current fields/columns, and sizes:
+
+${tablesMarkdown}
+
+---
+
+## 🛠️ API ENDPOINTS & INTEGRATION SAMPLES
+
+### 1. 🗄️ Database Operations (\\/api\\/db)
+Execute database queries (both SQL-like query strings and NoSQL body structures) using simple REST POST requests.
+
+#### A. Fetch/Select Records (SQL)
+\`\`\`javascript
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${firstTable}',
+    sqlQuery: 'SELECT * FROM ${firstTable}'
+  })
+});
+const data = await response.json();
+console.log(data.records);
+\`\`\`
+
+#### B. Fetch/Select Records (NoSQL Mongo-Style Query)
+\`\`\`javascript
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${firstTable}',
+    action: 'SELECT',
+    noSqlQuery: {
+      // Find where age >= 18
+      age: { $gte: 18 }
+    }
+  })
+});
+const data = await response.json();
+console.log(data.records);
+\`\`\`
+
+#### C. Insert Record (SQL)
+\`\`\`javascript
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${firstTable}',
+    sqlQuery: "INSERT INTO ${firstTable} (${sampleFieldsKeys}) VALUES (${sampleFieldsValues})"
+  })
+});
+const data = await response.json();
+\`\`\`
+
+#### D. Insert Record (NoSQL)
+\`\`\`javascript
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${firstTable}',
+    action: 'INSERT',
+    insertData: {
+${sampleFieldsObject}
+    }
+  })
+});
+const data = await response.json();
+\`\`\`
+
+#### E. Update Record (SQL)
+\`\`\`javascript
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${firstTable}',
+    sqlQuery: "UPDATE ${firstTable} SET ${dbTables[0]?.schema?.fields ? Object.keys(dbTables[0].schema.fields).filter(k => k !== 'id')[0] || 'name' : 'name'} = 'Emma' WHERE id = 'some-uuid'"
+  })
+});
+const data = await response.json();
+\`\`\`
+
+#### F. Delete Record (SQL)
+\`\`\`javascript
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${firstTable}',
+    sqlQuery: "DELETE FROM ${firstTable} WHERE id = 'some-uuid'"
+  })
+});
+const data = await response.json();
+\`\`\`
+
+---
+
+### 2. 📁 Storage Operations
+
+#### A. Upload Media / File / Binary (\\/api\\/data\\/upload)
+Allows streaming chunks to Telegram with on-the-fly encryption and compression.
+Send as \`multipart/form-data\` with \`file\` field.
+\`\`\`javascript
+const formData = new FormData();
+formData.append('file', fileInput.files[0]);
+
+const response = await fetch('http://localhost:3000/api/data/upload', {
+  method: 'POST',
+  headers: {
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: formData
+});
+const data = await response.json();
+console.log('File UUID:', data.file.uuid);
+\`\`\`
+
+#### B. Retrieve / Stream File Content (\\/api\\/data\\/[uuid])
+Streams, decrypts and decompresses chunks on-the-fly directly to the browser.
+\`\`\`javascript
+// Direct link for downloads or image src tags:
+const fileUrl = \`http://localhost:3000/api/data/\\\${fileUuid}?apiKey=${currentProject.api_key}\`;
+\`\`\`
+
+---
+
+## 🎯 INSTRUCTIONS FOR AI IDE DEVELOPER AGENT
+When writing code for the developer:
+1. Always authenticate using the \`x-api-key\` header with \`${currentProject.api_key}\`.
+2. Do not attempt direct sqlite or postgres connection unless specifically asked; instead, use simple http calls to the Telebase REST endpoints listed above.
+3. Handle responses with robust error checking (\`success\` property in response JSON).
+4. Utilize dynamic SQL and NoSQL constructs according to the database tables schema provided in this prompt.
+`;
+
+    navigator.clipboard.writeText(promptText);
+    setCopiedAI(true);
+    setTimeout(() => setCopiedAI(false), 2500);
+  };
+
+  // ─── TABS CONFIG ───
+  const tabs = [
+    { id: "db" as const, label: "Database", icon: Database },
+    { id: "files" as const, label: "Storage", icon: HardDrive },
+    { id: "bots" as const, label: "Bot Pool", icon: Bot },
+    { id: "speed" as const, label: "Performance", icon: Zap },
+    { id: "ai" as const, label: "AI Connect", icon: Cpu },
+  ];
+
+  // ─── AUTH LOADING SKELETON ───
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#050506] gap-5">
+        <div className="relative">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/20 flex items-center justify-center"
+          >
+            <Database className="text-blue-400 w-6 h-6" />
+          </motion.div>
+          <div className="absolute -bottom-1 -right-1 status-dot" />
+        </div>
+        <div className="text-sm font-medium text-zinc-500 tracking-wide">Securing TeleBase Console...</div>
+      </div>
+    );
+  }
+
+  // ─── MAIN DASHBOARD ───
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-white">
-      {/* Dynamic BG Gradients */}
-      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[150px] rounded-full pointer-events-none" />
+    <div className="flex h-screen bg-[#050506] text-zinc-100 overflow-hidden selection:bg-blue-500/30">
 
-      {/* Main Container */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      {/* ════════ SIDEBAR ════════ */}
+      <aside className="w-[280px] flex-shrink-0 border-r border-zinc-800/50 bg-[#0a0a0d] flex flex-col h-full">
         
-        {/* Header Section */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800/80 pb-6 mb-8">
+        {/* Sidebar Header */}
+        <div className="p-5 border-b border-zinc-800/50">
           <div className="flex items-center gap-3">
-            <Link href="/" className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors">
-              <ArrowLeft size={18} />
-            </Link>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Database className="w-4.5 h-4.5 text-white" size={18} />
+            </div>
             <div>
-              <div className="flex items-center gap-2">
-                <Database className="text-blue-500 w-6 h-6" />
-                <h1 className="text-2xl font-bold tracking-tight">TeleBase Dashboard</h1>
-              </div>
-              <p className="text-sm text-zinc-400">Professional-Grade Telegram Cloud Storage DX</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleTriggerSync}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300 font-medium text-sm transition-all"
-            >
-              <RefreshCw size={15} className={`${isLoading ? "animate-spin" : ""}`} />
-              <span>{isLoading ? "Restoring Index..." : "Force Sync State"}</span>
-            </button>
-            <button 
-              onClick={() => setIsNewProjectModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-all shadow-lg shadow-blue-500/10"
-            >
-              <PlusCircle size={15} />
-              <span>New Project</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Stats Grid */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[
-            { title: "Total Saved Storage", val: "414.9 MB", desc: "Unlimited Free Telegram Space", icon: HardDrive, color: "text-blue-400" },
-            { title: "Active Rotated Bots", val: projects.find(p => p.id === selectedProjectId)?.botsCount || 0, desc: "Token Load-Balancer pool", icon: Bot, color: "text-indigo-400" },
-            { title: "AES-256 Auth Tag Pass", val: "100%", desc: "Verified GCM Cryptographic integrity", icon: Shield, color: "text-emerald-400" },
-            { title: "Avg Network Latency", val: "84ms", desc: "Parallel multi-bot chunk fetches", icon: Radio, color: "text-violet-400" },
-          ].map((stat, i) => (
-            <div key={i} className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-md relative overflow-hidden group hover:border-zinc-700/80 transition-all">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <stat.icon className="w-12 h-12" />
-              </div>
-              <div className="flex items-center gap-2 mb-2">
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                <span className="text-xs text-zinc-400 font-medium">{stat.title}</span>
-              </div>
-              <div className="text-2xl font-bold mb-1">{stat.val}</div>
-              <p className="text-xs text-zinc-500">{stat.desc}</p>
-            </div>
-          ))}
-        </section>
-
-        {/* Workspace Matrix Split */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Left Hand: Project Panel */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-md">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Server size={18} className="text-blue-500" />
-                <span>Active Project</span>
-              </h2>
-              
-              <div className="space-y-3 mb-6">
-                {projects.map((proj) => (
-                  <button
-                    key={proj.id}
-                    onClick={() => setSelectedProjectId(proj.id)}
-                    className={`w-full text-left p-4 rounded-lg border transition-all ${
-                      selectedProjectId === proj.id 
-                        ? "bg-blue-600/10 border-blue-500/50 text-white" 
-                        : "bg-zinc-900/40 border-zinc-800/80 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200"
-                    }`}
-                  >
-                    <div className="font-semibold text-sm mb-1">{proj.name}</div>
-                    <div className="flex items-center gap-2 text-xs opacity-80">
-                      <span className="bg-zinc-800 px-1.5 py-0.5 rounded text-[10px] font-mono border border-zinc-700">{proj.storageType}</span>
-                      <span>•</span>
-                      <span>{proj.botsCount} Bots Rotation</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Selected Project Credentials display */}
-              {(() => {
-                const currentProj = projects.find(p => p.id === selectedProjectId);
-                if (!currentProj) return null;
-                return (
-                  <div className="border-t border-zinc-800/80 pt-4 space-y-4">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs text-zinc-400 mb-1.5">
-                        <Key size={12} className="text-zinc-500" />
-                        <span>Project API Key</span>
-                      </div>
-                      <div className="flex items-center gap-2 bg-zinc-950 p-2.5 rounded border border-zinc-800 font-mono text-[10px] select-all relative overflow-hidden">
-                        <div className="truncate text-zinc-300 w-[90%]">{currentProj.apiKey}</div>
-                        <CheckCircle2 size={12} className="text-emerald-500 absolute right-2" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs text-zinc-400 mb-1.5">
-                        <Database size={12} className="text-zinc-500" />
-                        <span>Telegram Channel ID</span>
-                      </div>
-                      <div className="bg-zinc-950 p-2.5 rounded border border-zinc-800 font-mono text-[10px] text-zinc-300">
-                        {currentProj.channelId}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Quick Security Tips */}
-            <div className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-md">
-              <h3 className="text-sm font-bold flex items-center gap-1.5 text-zinc-200 mb-3">
-                <Shield size={16} className="text-emerald-500" />
-                <span>AES-256-GCM Secure Cloud</span>
-              </h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                All uploaded chunks are fully encrypted on-the-fly inside our Node proxy using authenticated <strong>AES-256-GCM</strong>. Anyone inspecting the Telegram channel directly will only see raw encrypted binary noise.
-              </p>
-            </div>
-          </div>
-
-          {/* Right Hand: Files List */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-md">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <FileText size={18} className="text-blue-500" />
-                <span>Stored Secure Files</span>
-              </h2>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-zinc-800/80 text-zinc-400 text-xs font-semibold">
-                      <th className="py-3 px-4">Filename</th>
-                      <th className="py-3 px-4">Size</th>
-                      <th className="py-3 px-4">Chunks</th>
-                      <th className="py-3 px-4">Status / Integrity</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {files.map((file) => (
-                      <tr key={file.uuid} className="border-b border-zinc-800/30 hover:bg-zinc-900/20 transition-all text-sm">
-                        <td className="py-4 px-4">
-                          <div className="font-semibold text-zinc-200 flex items-center gap-1.5">
-                            <span className="truncate max-w-[180px]">{file.filename}</span>
-                            <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1 py-0.5 rounded border border-blue-500/20">v{file.version}</span>
-                          </div>
-                          <div className="text-[10px] font-mono text-zinc-500 mt-1">UUID: {file.uuid}</div>
-                        </td>
-                        <td className="py-4 px-4 text-zinc-300 font-mono text-xs">{file.size}</td>
-                        <td className="py-4 px-4">
-                          <span className="text-xs bg-zinc-800 px-2 py-1 rounded font-mono text-zinc-300">{file.chunks} chunks</span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-                            <CheckCircle2 size={13} className="text-emerald-500" />
-                            <span>SHA-256 Passed</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button className="p-2 rounded-lg bg-zinc-800/50 hover:bg-blue-600 hover:text-white text-zinc-400 transition-all">
-                              <Download size={14} />
-                            </button>
-                            <button className="p-2 rounded-lg bg-zinc-800/50 hover:bg-rose-600/20 hover:text-rose-400 text-zinc-400 transition-all">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <h1 className="text-base font-bold tracking-tight text-white">TeleBase</h1>
+              <p className="text-[10px] text-zinc-500 font-medium tracking-wide uppercase">Serverless DB Console</p>
             </div>
           </div>
         </div>
 
-      </div>
+        {/* Project List */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex items-center justify-between px-2 mb-3">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Projects</span>
+            <button 
+              onClick={() => setIsNewProjectModalOpen(true)}
+              className="w-6 h-6 rounded-lg bg-zinc-800/60 hover:bg-blue-500/20 border border-zinc-700/50 hover:border-blue-500/30 flex items-center justify-center text-zinc-400 hover:text-blue-400 transition-all"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
 
-      {/* New Project Modal */}
+          <div className="space-y-1">
+            {projects.map((proj) => (
+              <div
+                key={proj.id}
+                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
+                  selectedProjectId === proj.id 
+                    ? "sidebar-active text-white" 
+                    : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200"
+                }`}
+                onClick={() => setSelectedProjectId(proj.id)}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  selectedProjectId === proj.id 
+                    ? "bg-blue-500/15 text-blue-400" 
+                    : "bg-zinc-800/50 text-zinc-500 group-hover:text-zinc-300"
+                }`}>
+                  <Folder size={14} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold truncate">{proj.name}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[9px] font-mono bg-zinc-800/80 px-1.5 py-0.5 rounded text-zinc-500 border border-zinc-700/30">{proj.storage_type}</span>
+                    <span className="text-[9px] text-zinc-600">{proj.bots.length} bots</span>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteProject(proj.id, proj.name);
+                  }}
+                  className="absolute right-2 p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
+                  title="Delete Project"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {projects.length === 0 && (
+            <div className="text-center py-10 px-4">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-800/40 border border-zinc-700/30 flex items-center justify-center mx-auto mb-3">
+                <Database className="text-zinc-600 w-5 h-5" />
+              </div>
+              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">No projects yet.<br/>Create your first database.</p>
+              <button 
+                onClick={() => setIsNewProjectModalOpen(true)}
+                className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                + New Project
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-zinc-800/50 space-y-2">
+          <button 
+            onClick={handleForceSync}
+            disabled={isSyncing}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-all text-xs font-medium disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
+            <span>{isSyncing ? "Syncing..." : "Sync Master Index"}</span>
+          </button>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-xs font-medium"
+          >
+            <LogOut size={14} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ════════ MAIN CONTENT ════════ */}
+      <main className="flex-1 flex flex-col min-w-0 h-full">
+        
+        {/* ── Top Bar ── */}
+        <header className="h-14 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/80 backdrop-blur-xl flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            {currentProject ? (
+              <>
+                <span className="text-sm font-bold text-white">{currentProject.name}</span>
+                <ChevronRight size={14} className="text-zinc-600" />
+                <span className="text-sm text-zinc-400 font-medium capitalize">{activeTab === "db" ? "Database" : activeTab === "files" ? "Storage" : activeTab === "bots" ? "Bot Pool" : "Performance"}</span>
+              </>
+            ) : (
+              <span className="text-sm text-zinc-500">Select a project</span>
+            )}
+          </div>
+
+          {currentProject && (
+            <div className="flex items-center gap-2">
+              <div className="status-dot" />
+              <span className="text-[10px] text-emerald-400/80 font-semibold tracking-wide uppercase">Connected</span>
+            </div>
+          )}
+        </header>
+
+        {/* ── Tab Navigation ── */}
+        {currentProject && (
+          <nav className="h-12 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/50 flex items-center gap-1 px-6">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                  activeTab === tab.id
+                    ? "bg-zinc-800/60 text-white border border-zinc-700/50"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20"
+                }`}
+              >
+                <tab.icon size={14} />
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {/* ── Page Content ── */}
+        <div className="flex-1 overflow-y-auto">
+          {isPageLoading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-5">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/20 flex items-center justify-center"
+              >
+                <Database className="text-blue-400 w-6 h-6" />
+              </motion.div>
+              <div className="text-sm font-medium text-zinc-500">Initializing Engine...</div>
+            </div>
+          ) : !currentProject ? (
+            <div className="flex flex-col items-center justify-center h-full gap-5">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/10 flex items-center justify-center">
+                <Database className="text-blue-400/60 w-9 h-9" />
+              </div>
+              <div className="text-center">
+                <h2 className="text-lg font-bold text-zinc-300 mb-1.5">Create Your First Database</h2>
+                <p className="text-sm text-zinc-500 max-w-md leading-relaxed">Connect a private Telegram channel and start using it as a serverless database with full CRUD operations.</p>
+              </div>
+              <button 
+                onClick={() => setIsNewProjectModalOpen(true)}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+              >
+                <PlusCircle size={16} />
+                <span>New Project</span>
+              </button>
+            </div>
+          ) : (
+            <div className="p-6 space-y-6 animate-fade-in-up">
+              
+              {/* ── Stats Row ── */}
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { label: "Tables", value: dbTables.length, icon: Table2, color: "text-blue-400", bg: "from-blue-500/10 to-blue-500/5" },
+                  { label: "Stored Files", value: projectFiles.length, icon: FileText, color: "text-indigo-400", bg: "from-indigo-500/10 to-indigo-500/5" },
+                  { label: "Bot Rotations", value: currentProject.bots.length, icon: Bot, color: "text-violet-400", bg: "from-violet-500/10 to-violet-500/5" },
+                  { label: "Engine Status", value: "ACID", icon: Shield, color: "text-emerald-400", bg: "from-emerald-500/10 to-emerald-500/5" },
+                ].map((stat, i) => (
+                  <div key={i} className="relative group p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] hover:border-zinc-700/50 transition-all overflow-hidden">
+                    <div className={`absolute inset-0 bg-gradient-to-br ${stat.bg} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                    <div className="relative">
+                      <div className="flex items-center gap-2 mb-2">
+                        <stat.icon size={14} className={stat.color} />
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{stat.label}</span>
+                      </div>
+                      <div className="text-xl font-bold text-white">{stat.value}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Project Config Bar ── */}
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <Key size={12} />
+                    <span className="font-semibold">API Key</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-zinc-900/80 px-3 py-1.5 rounded-lg border border-zinc-800/60">
+                    <code className="text-[11px] text-zinc-400 font-mono select-all truncate max-w-[280px]">{currentProject.api_key}</code>
+                    <button 
+                      onClick={() => copyToClipboard(currentProject.api_key)}
+                      className="text-zinc-500 hover:text-blue-400 transition-colors flex-shrink-0"
+                    >
+                      {copiedKey ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="h-6 w-px bg-zinc-800" />
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <Hash size={12} />
+                  <span className="font-semibold">Channel</span>
+                  <code className="text-[11px] text-zinc-400 font-mono">{currentProject.channel_id || "Default"}</code>
+                </div>
+              </div>
+
+              {/* ════════ DATABASE TAB ════════ */}
+              {activeTab === "db" && (
+                <div className="grid grid-cols-12 gap-6">
+                  
+                  {/* Left: Tables List */}
+                  <div className="col-span-3 space-y-4">
+                    <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Tables</h3>
+                        <button
+                          onClick={() => setIsNewTableModalOpen(true)}
+                          className="w-6 h-6 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-400 transition-all"
+                        >
+                          <Plus size={11} />
+                        </button>
+                      </div>
+
+                      {dbTables.length === 0 ? (
+                        <div className="text-center py-8">
+                          <Table2 className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+                          <p className="text-[11px] text-zinc-600">No tables yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {dbTables.map(t => (
+                            <button
+                              key={t.uuid}
+                              onClick={() => {
+                                setSelectedTableName(t.name);
+                                if (currentProject) fetchTableRecords(t.name, currentProject.api_key);
+                              }}
+                              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all flex items-center justify-between group ${
+                                selectedTableName === t.name 
+                                  ? "bg-blue-500/10 text-blue-300 border border-blue-500/20" 
+                                  : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200 border border-transparent"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <Table2 size={13} className={selectedTableName === t.name ? "text-blue-400" : "text-zinc-600"} />
+                                <span className="font-mono font-medium">{t.name}</span>
+                              </div>
+                              <span className="text-[9px] text-zinc-600 font-sans">{formatBytes(t.sizeBytes)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ACID Status */}
+                    <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Shield size={13} className="text-emerald-400" />
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Engine Status</span>
+                      </div>
+                      <div className="space-y-2">
+                        {["Atomicity", "Consistency", "Isolation", "Durability"].map((prop, i) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <span className="text-[11px] text-zinc-500">{prop}</span>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              <span className="text-[9px] font-bold text-emerald-400">ACTIVE</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Query Console & Records */}
+                  <div className="col-span-9 space-y-6">
+                    
+                    {/* SQL Console */}
+                    <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                      {/* Console Header */}
+                      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/40 bg-zinc-900/20">
+                        <div className="flex items-center gap-3">
+                          <div className="flex gap-1.5">
+                            <span className="w-3 h-3 rounded-full bg-rose-500/70" />
+                            <span className="w-3 h-3 rounded-full bg-amber-500/70" />
+                            <span className="w-3 h-3 rounded-full bg-emerald-500/70" />
+                          </div>
+                          <span className="text-xs font-semibold text-zinc-400 ml-1">SQL Query Console</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={forceLockCrash}
+                              onChange={(e) => setForceLockCrash(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-900 text-rose-500 focus:ring-0 focus:ring-offset-0"
+                            />
+                            <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">
+                              <AlertTriangle size={10} /> Simulate Crash
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      {/* Code Input */}
+                      <div className="relative">
+                        <textarea
+                          rows={3}
+                          value={sqlQueryInput}
+                          onChange={(e) => setSqlQueryInput(e.target.value)}
+                          placeholder="SELECT * FROM table"
+                          className="w-full bg-[#0c0c10] p-5 outline-none border-none text-zinc-200 resize-none code-editor text-[13px] leading-relaxed focus:ring-0 placeholder:text-zinc-700"
+                          spellCheck={false}
+                        />
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex items-center gap-2 px-5 py-2.5 border-t border-zinc-800/30 bg-zinc-900/10">
+                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider mr-2">Quick:</span>
+                        {[
+                          { label: "SELECT ALL", query: `SELECT * FROM ${selectedTableName || 'users'}` },
+                          { label: "INSERT", query: `INSERT INTO ${selectedTableName || 'users'} (name, age) VALUES ('Emma', 28)` },
+                          { label: "UPDATE", query: `UPDATE ${selectedTableName || 'users'} SET age = 29 WHERE name = 'Emma'` },
+                          { label: "DELETE", query: `DELETE FROM ${selectedTableName || 'users'} WHERE name = 'Emma'` },
+                        ].map((preset, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setSqlQueryInput(preset.query)}
+                            className="px-2.5 py-1 rounded-md bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-800/50 text-[10px] font-semibold text-zinc-500 hover:text-zinc-300 transition-all"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                        <div className="flex-1" />
+                        <button
+                          onClick={() => handleExecuteQuery()}
+                          disabled={isQueryRunning || !selectedTableName}
+                          className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-500/10"
+                        >
+                          {isQueryRunning ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" />
+                              <span>Executing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play size={12} fill="white" />
+                              <span>Run Query</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Query Result */}
+                    <AnimatePresence>
+                      {queryResult && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className={`p-5 rounded-xl border ${
+                            queryResult.success 
+                              ? "border-zinc-800/40 bg-[#0a0a0d]" 
+                              : "border-rose-500/20 bg-rose-500/5"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              {queryResult.success ? (
+                                <CheckCircle2 size={14} className="text-emerald-400" />
+                              ) : (
+                                <AlertCircle size={14} className="text-rose-400" />
+                              )}
+                              <span className="text-xs font-bold text-zinc-300">
+                                {queryResult.success ? "Query Successful" : "Query Failed"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-500">
+                              <span>Latency: <strong className="text-zinc-300">{queryResult.latencyMs || 0}ms</strong></span>
+                              <span>Cache: <strong className={queryResult.cacheHit ? "text-emerald-400" : "text-amber-400"}>{queryResult.cacheHit ? "HIT" : "MISS"}</strong></span>
+                              {queryResult.affectedRows !== undefined && (
+                                <span>Rows: <strong className="text-zinc-300">{queryResult.affectedRows}</strong></span>
+                              )}
+                            </div>
+                          </div>
+
+                          {queryResult.success ? (
+                            <div className="space-y-3">
+                              {/* Optimization Stats */}
+                              {queryResult.optimization && (
+                                <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800/30 text-[10px]">
+                                  <div className="text-zinc-500">
+                                    Strategy: <strong className={queryResult.optimization.strategy === 'INDEX_SCAN' ? 'text-emerald-400' : 'text-amber-400'}>{queryResult.optimization.strategy}</strong>
+                                  </div>
+                                  <div className="text-zinc-500">
+                                    Index: <strong className="text-zinc-300">{queryResult.optimization.indexUsed || 'None'}</strong>
+                                  </div>
+                                  <div className="text-zinc-500">
+                                    Scanned: <strong className="text-zinc-300">{queryResult.optimization.statistics?.scannedRecords ?? 0}/{queryResult.optimization.statistics?.totalRecords ?? 0}</strong>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Execution Plan */}
+                              {queryResult.plan && (
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider">Execution Plan</span>
+                                  {queryResult.plan.map((step: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 text-[10px] font-mono">
+                                      <span className="text-zinc-400">{step.operation}</span>
+                                      <span className="text-zinc-600 truncate max-w-[60%] text-right">{step.details}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-[12px] text-rose-400 font-medium">
+                              {queryResult.error || "A transaction failure occurred."}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Table Data Grid */}
+                    <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40">
+                        <div className="flex items-center gap-2.5">
+                          <Table2 size={15} className="text-blue-400" />
+                          <h3 className="text-sm font-bold text-zinc-200">{selectedTableName || "No Table"}</h3>
+                        </div>
+                        {selectedTableName && (
+                          <span className="text-[10px] bg-zinc-800/60 px-2.5 py-1 rounded-md font-mono text-zinc-400 border border-zinc-700/30">
+                            {tableRecords.length} records
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                        {!selectedTableName ? (
+                          <div className="py-16 text-center">
+                            <Table2 className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                            <p className="text-xs text-zinc-600">Select or create a table to browse records</p>
+                          </div>
+                        ) : tableRecords.length === 0 ? (
+                          <div className="py-16 text-center">
+                            <Layers className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                            <p className="text-xs text-zinc-600">Table is empty — run an INSERT query</p>
+                          </div>
+                        ) : (
+                          <table className="w-full text-left">
+                            <thead>
+                              <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
+                                {Object.keys(tableRecords[0]).map((col) => (
+                                  <th key={col} className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{col}</th>
+                                ))}
+                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tableRecords.map((row, idx) => (
+                                <tr key={idx} className="border-b border-zinc-800/20 table-row-hover transition-colors">
+                                  {Object.entries(row).map(([k, v]: any, valIdx) => (
+                                    <td key={valIdx} className="py-3 px-5 text-xs text-zinc-300 font-mono max-w-[200px] truncate">
+                                      {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                                    </td>
+                                  ))}
+                                  <td className="py-3 px-5 text-right">
+                                    <button
+                                      onClick={() => {
+                                        setSqlQueryInput(`DELETE FROM ${selectedTableName} WHERE id = '${row.id}'`);
+                                        setTimeout(() => handleExecuteQuery(`DELETE FROM ${selectedTableName} WHERE id = '${row.id}'`), 50);
+                                      }}
+                                      className="p-1.5 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-600 hover:text-rose-400 transition-all"
+                                      title="Delete record"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* WAL & Recovery */}
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* WAL Logs */}
+                      <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <Activity size={14} className="text-blue-400" />
+                            <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Write-Ahead Logs</h3>
+                          </div>
+                          {walLogs.length > 0 && (
+                            <button onClick={handleClearWALLogs} className="text-[9px] font-bold text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider">
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        <div className="bg-[#08080a] rounded-lg border border-zinc-800/30 max-h-[200px] overflow-y-auto p-3 space-y-1.5 font-mono text-[10px]">
+                          {walLogs.length === 0 ? (
+                            <div className="text-zinc-700 text-center py-8">No active transaction logs</div>
+                          ) : (
+                            [...walLogs].reverse().map(log => (
+                              <div key={log.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 border border-zinc-800/20">
+                                <div className="text-zinc-500 truncate">
+                                  <span className="text-zinc-400">{log.operation}</span> · {log.tableName}:{log.recordId}
+                                </div>
+                                <span className={`text-[9px] font-bold flex-shrink-0 ml-2 ${
+                                  log.status === 'COMMITTED' ? 'text-emerald-400' : 
+                                  log.status === 'FAILED' ? 'text-rose-400' : 'text-amber-400'
+                                }`}>
+                                  {log.status}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Recovery */}
+                      <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                        <div className="flex items-center gap-2 mb-3">
+                          <RotateCcw size={14} className="text-indigo-400" />
+                          <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Crash Recovery</h3>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                          Enable "Simulate Crash" above, run a write query, then use recovery to restore the consistent state from WAL.
+                        </p>
+                        <button
+                          onClick={handleRunRecovery}
+                          disabled={!selectedTableName}
+                          className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/10 flex items-center justify-center gap-2"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Replay WAL & Recover</span>
+                        </button>
+                        {recoveryLogs.length > 0 && (
+                          <div className="mt-3 bg-[#08080a] rounded-lg border border-zinc-800/30 p-2.5 font-mono text-[9px] text-zinc-500 space-y-1 max-h-[80px] overflow-y-auto">
+                            {recoveryLogs.map((log, i) => (
+                              <div key={i}>{log}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ════════ STORAGE TAB ════════ */}
+              {activeTab === "files" && (
+                <div className="space-y-6">
+                  {/* Security Notice */}
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5">
+                    <Shield className="text-emerald-400 w-5 h-5 flex-shrink-0" />
+                    <p className="text-[12px] text-emerald-300/80 leading-relaxed">
+                      <strong>End-to-End Encrypted.</strong> All uploads are compressed (zlib) and fully encrypted via AES-256-GCM. Telegram servers only see encrypted binary data.
+                    </p>
+                  </div>
+
+                  {/* Upload Area */}
+                  <div 
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`p-8 border-2 border-dashed rounded-2xl transition-all text-center ${
+                      isDragActive 
+                        ? "border-blue-500/50 bg-blue-500/5" 
+                        : "border-zinc-800/50 bg-[#0a0a0d] hover:border-zinc-700/50"
+                    }`}
+                  >
+                    {uploadStatus === "idle" ? (
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-zinc-800/40 border border-zinc-700/30 flex items-center justify-center text-zinc-500">
+                          <UploadCloud size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-zinc-300 mb-1">Drop files here or click to upload</h3>
+                          <p className="text-xs text-zinc-600">JSON, ZIP, PDF, binary backups — up to 100MB</p>
+                        </div>
+                        <input type="file" ref={fileInputRef} onChange={handleFileSelectChange} className="hidden" />
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-5 py-2 bg-zinc-800/60 hover:bg-zinc-700/60 border border-zinc-700/40 rounded-xl text-xs font-semibold text-zinc-300 transition-all"
+                        >
+                          Choose File
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="py-4 space-y-4 max-w-md mx-auto">
+                        <div className="flex justify-between items-center text-xs font-medium">
+                          <span className="text-zinc-400">{uploadStatusText}</span>
+                          <span className="text-blue-400 font-bold">{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
+                          <motion.div 
+                            className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${uploadProgress}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        {uploadStatus === "success" && (
+                          <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold bg-emerald-500/10 p-3 rounded-xl justify-center border border-emerald-500/20">
+                            <CheckCircle2 size={14} />
+                            <span>Encrypted & stored in Telegram successfully!</span>
+                          </div>
+                        )}
+                        {uploadStatus === "error" && (
+                          <div className="flex items-center gap-2 text-xs text-rose-400 font-semibold bg-rose-500/10 p-3 rounded-xl justify-center border border-rose-500/20">
+                            <AlertCircle size={14} />
+                            <span>Upload failed</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Files List */}
+                  <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40">
+                      <div className="flex items-center gap-2.5">
+                        <FileText size={15} className="text-blue-400" />
+                        <h3 className="text-sm font-bold text-zinc-200">Stored Files</h3>
+                      </div>
+                      <span className="text-[10px] text-zinc-500 font-semibold">{projectFiles.length} files</span>
+                    </div>
+
+                    {projectFiles.length === 0 ? (
+                      <div className="py-16 text-center">
+                        <FileText className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                        <p className="text-xs text-zinc-600">No files stored. Drag a file to upload.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
+                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Filename</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Size</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Chunks</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Integrity</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {projectFiles.map((file) => (
+                              <tr key={file.uuid} className="border-b border-zinc-800/20 table-row-hover transition-colors">
+                                <td className="py-3.5 px-5">
+                                  <div className="flex items-center gap-2">
+                                    <FileText size={14} className="text-zinc-600 flex-shrink-0" />
+                                    <div>
+                                      <div className="text-xs font-semibold text-zinc-200 truncate max-w-[180px]">{file.filename}</div>
+                                      <div className="text-[9px] font-mono text-zinc-600 mt-0.5 truncate max-w-[180px]">{file.uuid}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-5 text-xs text-zinc-400 font-mono">{formatBytes(file.size)}</td>
+                                <td className="py-3.5 px-5">
+                                  <span className="text-[10px] bg-zinc-800/50 px-2 py-0.5 rounded-md font-mono text-zinc-400 border border-zinc-700/30">{file.chunk_count}</span>
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
+                                    <CheckCircle2 size={11} />
+                                    <span>SHA-256 ✓</span>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-5 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button 
+                                      onClick={() => handleDownloadFile(file)}
+                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-blue-500/10 text-zinc-500 hover:text-blue-400 transition-all"
+                                      title="Download"
+                                    >
+                                      <Download size={13} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteFile(file.uuid)}
+                                      disabled={deletingUuid === file.uuid}
+                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-all disabled:opacity-40"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={13} className={deletingUuid === file.uuid ? "animate-pulse" : ""} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ════════ BOT POOL TAB ════════ */}
+              {activeTab === "bots" && (
+                <div className="max-w-2xl space-y-6">
+                  <div className="p-6 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <Bot size={16} className="text-violet-400" />
+                      <h3 className="text-sm font-bold text-zinc-200">Bot Token Rotation Pool</h3>
+                    </div>
+                    <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
+                      Rotated bots handle chunk fetches and uploads concurrently, circumventing Telegram API rate limits. Add multiple bot tokens for high-throughput workloads.
+                    </p>
+
+                    <form onSubmit={handleRegisterBot} className="flex gap-2 mb-6">
+                      <input
+                        type="text"
+                        required
+                        value={newBotTokenInput}
+                        onChange={(e) => setNewBotTokenInput(e.target.value)}
+                        placeholder="Enter bot token (e.g. 123456:ABCdef...)"
+                        className="flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl px-4 py-2.5 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAddingBot}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-semibold text-white transition-all disabled:opacity-50 shadow-lg shadow-blue-500/10"
+                      >
+                        {isAddingBot ? "Adding..." : "Add Bot"}
+                      </button>
+                    </form>
+
+                    {currentProject && currentProject.bots.length > 0 ? (
+                      <div className="space-y-2">
+                        {currentProject.bots.map((bot, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-[#08080a] border border-zinc-800/30 group">
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                                <Bot size={12} className="text-violet-400" />
+                              </div>
+                              <div>
+                                <div className="font-mono text-[11px] text-zinc-400 truncate max-w-[350px]">{bot}</div>
+                                <div className="text-[9px] text-zinc-600 mt-0.5">Token #{idx + 1}</div>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => handleRemoveBot(bot)}
+                              className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 border border-zinc-800/20 rounded-xl bg-zinc-900/10">
+                        <Bot className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+                        <p className="text-[11px] text-zinc-600">No bots registered. Using default master token.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ════════ PERFORMANCE TAB ════════ */}
+              {activeTab === "speed" && (
+                <div className="max-w-2xl space-y-6">
+                  <div className="p-6 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-2.5">
+                        <Zap size={16} className="text-amber-400" />
+                        <h3 className="text-sm font-bold text-zinc-200">Edge Query Speed Test</h3>
+                      </div>
+                      <button
+                        onClick={runSpeedBenchmark}
+                        disabled={isBenchmarking}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-700/30 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all disabled:opacity-50"
+                      >
+                        <RefreshCw size={12} className={isBenchmarking ? "animate-spin" : ""} />
+                        <span>{isBenchmarking ? "Testing..." : "Run Benchmark"}</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {/* Telegram Speed */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-400 font-medium">Standard Telegram Fetch</span>
+                          <span className="text-amber-400 font-mono font-bold">
+                            {isBenchmarking ? "..." : benchmarkResult ? `${benchmarkResult.telegramLatencyMs}ms` : "—"}
+                          </span>
+                        </div>
+                        <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
+                          <motion.div
+                            className="bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full"
+                            initial={{ width: "0%" }}
+                            animate={{
+                              width: isBenchmarking ? "15%" : benchmarkResult ? "100%" : "0%"
+                            }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* KV Speed */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                            <Zap size={12} className="text-blue-400" />
+                            <span>Cloudflare KV Edge Cache</span>
+                          </div>
+                          <span className="text-blue-400 font-mono font-bold">
+                            {isBenchmarking ? "..." : benchmarkResult ? `${benchmarkResult.kvLatencyMs}ms` : "—"}
+                          </span>
+                        </div>
+                        <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
+                          <motion.div
+                            className="bg-gradient-to-r from-blue-400 to-indigo-500 h-full rounded-full"
+                            initial={{ width: "0%" }}
+                            animate={{
+                              width: isBenchmarking
+                                ? "30%"
+                                : benchmarkResult
+                                ? `${Math.max(5, Math.min(100, (benchmarkResult.kvLatencyMs / (benchmarkResult.telegramLatencyMs || 1000)) * 100))}%`
+                                : "0%"
+                            }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Result Summary */}
+                    {benchmarkResult && (
+                      <div className="mt-6 p-4 rounded-xl border border-zinc-800/30 bg-zinc-900/20 text-center">
+                        {benchmarkResult.isKVConfigured ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center gap-2">
+                              <Zap size={14} className="text-emerald-400" />
+                              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">KV Accelerated</span>
+                            </div>
+                            <p className="text-sm text-zinc-400">
+                              Queries running <strong className="text-white text-lg">{Math.round((benchmarkResult.telegramLatencyMs || 1200) / (benchmarkResult.kvLatencyMs || 25))}×</strong> faster than standard Telegram lookups
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center gap-2">
+                              <AlertCircle size={14} className="text-amber-400" />
+                              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">KV Not Configured</span>
+                            </div>
+                            <p className="text-sm text-zinc-400">
+                              Enable Cloudflare KV for up to <strong className="text-white">{Math.round((benchmarkResult.telegramLatencyMs || 1200) / 20)}×</strong> faster database operations
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ════════ AI CONNECT TAB ════════ */}
+              {activeTab === "ai" && (
+                <div className="space-y-6">
+                  {/* Top Header Card */}
+                  <div className="relative group p-6 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-violet-500/10 opacity-70" />
+                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
+                            <Cpu size={14} className="text-blue-400" />
+                          </div>
+                          <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">AI Connection Hub</span>
+                        </div>
+                        <h3 className="text-lg font-extrabold text-white tracking-tight">Sync Project Context with AI IDEs</h3>
+                        <p className="text-xs text-zinc-400 max-w-xl leading-relaxed">
+                          Provide Cursor, Windsurf, Copilot, or ChatGPT with instant context. This copies credentials, live table structures, and fetch snippets so your AI can write perfect database integration code.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleCopyAIContext}
+                        className="flex-shrink-0 flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/35 border border-white/10 active:scale-98"
+                      >
+                        {copiedAI ? (
+                          <>
+                            <CheckCircle2 size={15} className="text-emerald-300 animate-bounce" />
+                            <span className="text-emerald-100 font-bold uppercase tracking-wider">Copied AI Prompt Context!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} className="animate-pulse" />
+                            <span className="uppercase tracking-wider">Copy AI Developer Prompt</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Main 2-Column Details Split */}
+                  <div className="grid grid-cols-12 gap-6">
+                    {/* Left Column: Live Config Map */}
+                    <div className="col-span-5 space-y-6">
+                      <div className="p-5 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-zinc-800/40">
+                          <Shield size={13} className="text-zinc-500" />
+                          <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Credentials Map</h4>
+                        </div>
+
+                        <div className="space-y-3.5">
+                          {/* Endpoint */}
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">API Endpoint Base</span>
+                            <div className="bg-[#07070a] border border-zinc-800/50 rounded-xl px-3 py-2 flex items-center justify-between">
+                              <code className="text-xs text-zinc-300 font-mono">http://localhost:3000</code>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText("http://localhost:3000");
+                                  alert("Endpoint base URL copied!");
+                                }}
+                                className="text-zinc-500 hover:text-blue-400 transition-colors"
+                              >
+                                <Copy size={11} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Key */}
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Project API Key</span>
+                            <div className="bg-[#07070a] border border-zinc-800/50 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                {showAPIKeyInAI ? (
+                                  <Key size={11} className="text-amber-400 flex-shrink-0" />
+                                ) : (
+                                  <Lock size={11} className="text-zinc-600 flex-shrink-0" />
+                                )}
+                                <code className="text-[11px] text-zinc-400 font-mono truncate select-all">
+                                  {showAPIKeyInAI ? currentProject.api_key : "••••••••••••••••••••••••••••••••••••••••"}
+                                </code>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                  onClick={() => setShowAPIKeyInAI(!showAPIKeyInAI)}
+                                  className="text-[9px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700/50 hover:bg-zinc-700/50 text-zinc-400 transition-colors"
+                                >
+                                  {showAPIKeyInAI ? "Hide" : "Show"}
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(currentProject.api_key);
+                                    alert("API Key copied!");
+                                  }}
+                                  className="text-zinc-500 hover:text-blue-400 transition-colors"
+                                >
+                                  <Copy size={11} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Stats */}
+                          <div className="grid grid-cols-2 gap-3 pt-2">
+                            <div className="bg-zinc-900/30 p-2.5 rounded-xl border border-zinc-800/40">
+                              <span className="block text-[9px] text-zinc-500 font-semibold uppercase">Active Tables</span>
+                              <span className="text-sm font-bold text-white font-mono">{dbTables.length}</span>
+                            </div>
+                            <div className="bg-zinc-900/30 p-2.5 rounded-xl border border-zinc-800/40">
+                              <span className="block text-[9px] text-zinc-500 font-semibold uppercase">Storage Pool</span>
+                              <span className="text-sm font-bold text-white font-mono">{currentProject.storage_type}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Schema summary view */}
+                      <div className="p-5 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
+                          <div className="flex items-center gap-2">
+                            <Table2 size={13} className="text-zinc-500" />
+                            <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Dynamic Tables</h4>
+                          </div>
+                          <span className="text-[10px] bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 text-blue-400 font-mono">Live</span>
+                        </div>
+
+                        {dbTables.length === 0 ? (
+                          <div className="text-center py-6">
+                            <Table2 className="w-7 h-7 text-zinc-800 mx-auto mb-2" />
+                            <p className="text-[11px] text-zinc-600">No tables created yet</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                            {dbTables.map(t => (
+                              <div key={t.uuid} className="p-2.5 rounded-xl bg-zinc-900/30 border border-zinc-800/30 flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-zinc-200 font-mono font-semibold">{t.name}</span>
+                                  <span className="text-[9px] text-zinc-500">{formatBytes(t.sizeBytes)}</span>
+                                </div>
+                                {t.schema?.fields ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {Object.entries(t.schema.fields).map(([name, type]) => (
+                                      <span key={name} className="text-[9px] bg-zinc-800/80 px-1.5 py-0.5 rounded text-zinc-400 border border-zinc-700/20 font-mono">
+                                        {name}:{type}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-[9px] text-zinc-600">No columns defined</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right Column: Code snippets preview */}
+                    <div className="col-span-7 p-5 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] flex flex-col h-full min-h-[480px]">
+                      <div className="flex items-center justify-between pb-3 border-b border-zinc-800/40">
+                        <div className="flex items-center gap-2">
+                          <Terminal size={14} className="text-blue-400" />
+                          <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Integration Snippets</h4>
+                        </div>
+                        <button
+                          onClick={() => {
+                            let snippet = "";
+                            if (aiSnippetTab === 'js_sql') {
+                              snippet = `fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${dbTables[0]?.name || "users"}',
+    sqlQuery: 'SELECT * FROM ${dbTables[0]?.name || "users"}'
+  })
+}).then(r => r.json()).then(data => console.log(data.records));`;
+                            } else if (aiSnippetTab === 'js_nosql') {
+                              snippet = `fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${dbTables[0]?.name || "users"}',
+    action: 'INSERT',
+    insertData: {
+      name: 'Emma',
+      age: 28
+    }
+  })
+}).then(r => r.json());`;
+                            } else if (aiSnippetTab === 'upload') {
+                              snippet = `const formData = new FormData();
+formData.append('file', fileInput.files[0]);
+
+fetch('http://localhost:3000/api/data/upload', {
+  method: 'POST',
+  headers: {
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: formData
+}).then(r => r.json()).then(data => console.log(data.file.uuid));`;
+                            } else if (aiSnippetTab === 'retrieve') {
+                              snippet = `// Decrypts & streams binary payloads on the fly:
+const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;`;
+                            }
+                            navigator.clipboard.writeText(snippet);
+                            alert("Snippet copied to clipboard!");
+                          }}
+                          className="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-wider flex items-center gap-1.5"
+                        >
+                          <Copy size={11} />
+                          <span>Copy Snippet</span>
+                        </button>
+                      </div>
+
+                      {/* Code Snippet Tabs */}
+                      <div className="flex gap-1.5 my-3">
+                        {[
+                          { id: "js_sql" as const, label: "JS SQL Select" },
+                          { id: "js_nosql" as const, label: "JS NoSQL Insert" },
+                          { id: "upload" as const, label: "File Upload" },
+                          { id: "retrieve" as const, label: "File URL" },
+                        ].map(subTab => (
+                          <button
+                            key={subTab.id}
+                            onClick={() => setAiSnippetTab(subTab.id)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${
+                              aiSnippetTab === subTab.id
+                                ? "bg-zinc-800 text-white border-zinc-700/60"
+                                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                            }`}
+                          >
+                            {subTab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Snippet Code block */}
+                      <div className="flex-1 bg-[#050507] border border-zinc-900 rounded-xl p-4 font-mono text-xs overflow-x-auto text-zinc-300 max-h-[300px] overflow-y-auto leading-relaxed">
+                        {aiSnippetTab === "js_sql" && (
+                          <pre className="text-blue-300/90 whitespace-pre-wrap select-all">
+{`// 1. Fetch records using standard SQL SELECT query
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${dbTables[0]?.name || "users"}',
+    sqlQuery: 'SELECT * FROM ${dbTables[0]?.name || "users"}'
+  })
+});
+const data = await response.json();
+console.log('Query records:', data.records);`}
+                          </pre>
+                        )}
+
+                        {aiSnippetTab === "js_nosql" && (
+                          <pre className="text-violet-300/90 whitespace-pre-wrap select-all">
+{`// 2. Insert records using Mongo-style NoSQL payload
+const response = await fetch('http://localhost:3000/api/db', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: JSON.stringify({
+    tableName: '${dbTables[0]?.name || "users"}',
+    action: 'INSERT',
+    insertData: {
+      name: 'Emma',
+      age: 28,
+      is_active: true
+    }
+  })
+});
+const data = await response.json();
+console.log('Insert success:', data.success);`}
+                          </pre>
+                        )}
+
+                        {aiSnippetTab === "upload" && (
+                          <pre className="text-emerald-300/90 whitespace-pre-wrap select-all">
+{`// 3. Encrypted binary/media uploads (multipart/form-data)
+const formData = new FormData();
+formData.append('file', fileSelectorInput.files[0]);
+
+const response = await fetch('http://localhost:3000/api/data/upload', {
+  method: 'POST',
+  headers: {
+    'x-api-key': '${currentProject.api_key}'
+  },
+  body: formData
+});
+const data = await response.json();
+console.log('Decrypted File UUID in DB:', data.file.uuid);`}
+                          </pre>
+                        )}
+
+                        {aiSnippetTab === "retrieve" && (
+                          <pre className="text-amber-300/90 whitespace-pre-wrap select-all">
+{`// 4. Retrieve/Stream media link with dynamic decryption
+const fileUuid = 'your-file-uuid';
+const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;
+
+// Directly use in HTML tags (e.g. <img src={fileUrl} />)`}
+                          </pre>
+                        )}
+                      </div>
+                      <div className="mt-4 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-[10px] text-blue-400/90 flex gap-2">
+                        <Cpu size={12} className="flex-shrink-0 mt-0.5" />
+                        <p className="leading-relaxed">
+                          <strong>Protip:</strong> Copy the primary AI Developer Prompt at the top to give your AI model the entire database structure, dynamic tables and detailed setup guide at once.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ════════ NEW PROJECT MODAL ════════ */}
       <AnimatePresence>
         {isNewProjectModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-lg bg-[#0e0e11] border border-zinc-800 rounded-2xl p-6 shadow-2xl relative"
+              className="w-full max-w-lg bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
-                <PlusCircle size={20} className="text-blue-500" />
-                <span>Create New TeleBase Project</span>
-              </h3>
-              <p className="text-xs text-zinc-500 mb-6">Connect a new private Telegram channel to use as database-less storage.</p>
+              <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                      <PlusCircle size={16} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">New Project</h3>
+                      <p className="text-[11px] text-zinc-500">Connect a Telegram channel as database storage</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsNewProjectModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
 
-              <form onSubmit={handleCreateProject} className="space-y-4">
+              <form onSubmit={handleCreateProject} className="p-6 space-y-5">
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Project Name</label>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Project Name</label>
                   <input 
                     type="text" 
                     required
                     value={newProjectName} 
                     onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="e.g. Telebase Prod Cloud" 
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none text-white"
+                    placeholder="e.g. My Production DB" 
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Telegram Channel ID</label>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Telegram Channel ID</label>
                   <input 
                     type="text" 
+                    required
                     value={newChannelId} 
                     onChange={(e) => setNewChannelId(e.target.value)}
-                    placeholder="e.g. -100XXXXXXXXXX" 
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none text-white font-mono"
+                    placeholder="e.g. -1003959092433" 
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <label className="text-xs font-semibold text-zinc-400">Rotated Bot Tokens</label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Bot Tokens</label>
                     <button 
                       type="button" 
-                      onClick={handleAddBotTokenField}
-                      className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold"
+                      onClick={handleAddBotField}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold transition-colors"
                     >
-                      + Add Bot (Load Balancer)
+                      + Add Token
                     </button>
                   </div>
 
-                  <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
-                    {botTokens.map((token, i) => (
+                  <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
+                    {newBots.map((token, i) => (
                       <input 
                         key={i}
                         type="text" 
                         required={i === 0}
                         value={token} 
-                        onChange={(e) => handleBotTokenChange(i, e.target.value)}
-                        placeholder={`Bot Token #${i + 1}`}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none text-white font-mono text-xs"
+                        onChange={(e) => handleNewBotChange(i, e.target.value)}
+                        placeholder={i === 0 ? "e.g. 8743065502:AAGDjQ2PM..." : `Bot Token #${i + 1}`}
+                        className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                       />
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-zinc-800/80 mt-6">
+                <div className="flex items-center gap-3 pt-2">
                   <button 
                     type="button" 
                     onClick={() => setIsNewProjectModalOpen(false)}
-                    className="w-full py-2.5 rounded-lg border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold transition-all"
+                    className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/10"
+                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Create Project
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════ NEW TABLE MODAL ════════ */}
+      <AnimatePresence>
+        {isNewTableModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-lg bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                      <Table2 size={16} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Create Table</h3>
+                      <p className="text-[11px] text-zinc-500">Define your schema and column types</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsNewTableModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleCreateTable} className="p-6 space-y-5">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Table Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={newTableName} 
+                    onChange={(e) => setNewTableName(e.target.value)}
+                    placeholder="e.g. users" 
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Columns</label>
+                    <button 
+                      type="button" 
+                      onClick={handleAddSchemaField}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                    >
+                      + Add Column
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    {/* Default ID column */}
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        disabled
+                        value="id" 
+                        className="flex-1 bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-2.5 text-xs text-zinc-600 font-mono outline-none cursor-not-allowed"
+                      />
+                      <select 
+                        disabled
+                        className="bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-2.5 text-xs text-zinc-600 outline-none cursor-not-allowed"
+                      >
+                        <option>string (PK)</option>
+                      </select>
+                      <div className="w-9" />
+                    </div>
+
+                    {newTableFields.map((field, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          required
+                          value={field.name} 
+                          onChange={(e) => handleSchemaFieldChange(i, 'name', e.target.value)}
+                          placeholder="Column Name"
+                          className="flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl p-2.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none placeholder:text-zinc-700"
+                        />
+                        <select 
+                          value={field.type}
+                          onChange={(e) => handleSchemaFieldChange(i, 'type', e.target.value)}
+                          className="bg-[#08080a] border border-zinc-800/50 rounded-xl p-2.5 text-xs text-white focus:border-blue-500/50 outline-none"
+                        >
+                          <option value="string">string</option>
+                          <option value="number">number</option>
+                          <option value="boolean">boolean</option>
+                        </select>
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSchemaField(i)}
+                          className="p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800/30 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsNewTableModalOpen(false)}
+                    className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
+                  >
+                    Create Table
                   </button>
                 </div>
               </form>
