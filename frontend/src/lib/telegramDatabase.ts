@@ -167,51 +167,40 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       });
       
       if (res.status === 404) {
-        console.log('[TeleStore] Cloudflare Worker KV: State not found. Starting fresh empty state.');
-        const emptyState: DatabaseSchema = { projects: [], files: [] };
-        stateCache = emptyState;
+        console.log('[TeleStore] Cloudflare Worker KV: State not found in KV. Falling back to other stores.');
+      } else {
+        if (!res.ok) {
+          throw new Error(`Cloudflare Worker GET failed: ${res.statusText}`);
+        }
+        
+        const encryptedHex = await res.text();
+        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+
+        if (encryptedBuffer.length < 28) {
+          throw new Error('Cloudflare Worker KV state document is too small or corrupted.');
+        }
+
+        // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
+        const iv = encryptedBuffer.subarray(0, 12);
+        const authTag = encryptedBuffer.subarray(12, 28);
+        const cipherText = encryptedBuffer.subarray(28);
+
+        const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+        decipher.setAuthTag(authTag);
+        
+        let decrypted = decipher.update(cipherText, undefined, 'utf8');
+        decrypted += decipher.final('utf8');
+
+        const state = JSON.parse(decrypted) as DatabaseSchema;
+        
+        stateCache = state;
         lastCacheFetchTime = now;
-        return emptyState;
+        
+        console.log(`[TeleStore] State successfully synchronized from Cloudflare Worker KV! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
+        return state;
       }
-      
-      if (!res.ok) {
-        throw new Error(`Cloudflare Worker GET failed: ${res.statusText}`);
-      }
-      
-      const encryptedHex = await res.text();
-      const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-
-      if (encryptedBuffer.length < 28) {
-        throw new Error('Cloudflare Worker KV state document is too small or corrupted.');
-      }
-
-      // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-      const iv = encryptedBuffer.subarray(0, 12);
-      const authTag = encryptedBuffer.subarray(12, 28);
-      const cipherText = encryptedBuffer.subarray(28);
-
-      const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-      decipher.setAuthTag(authTag);
-      
-      let decrypted = decipher.update(cipherText, undefined, 'utf8');
-      decrypted += decipher.final('utf8');
-
-      const state = JSON.parse(decrypted) as DatabaseSchema;
-      
-      stateCache = state;
-      lastCacheFetchTime = now;
-      
-      console.log(`[TeleStore] State successfully synchronized from Cloudflare Worker KV! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
-      return state;
     } catch (error: any) {
-      console.error('[TeleStore] Cloudflare Worker KV sync failed, falling back to local file state cache:', error.message);
-      const localState = loadLocalState();
-      if (localState && (localState.projects.length > 0 || localState.files.length > 0)) {
-        console.log('[TeleStore] Successfully fell back to up-to-date local file state cache.');
-        stateCache = localState;
-        lastCacheFetchTime = now;
-        return localState;
-      }
+      console.error('[TeleStore] Cloudflare Worker KV sync failed, falling back to other stores:', error.message);
     }
   }
 
@@ -229,51 +218,40 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       });
       
       if (res.status === 404) {
-        console.log('[TeleStore] Cloudflare KV: State not found. Starting fresh empty state.');
-        const emptyState: DatabaseSchema = { projects: [], files: [] };
-        stateCache = emptyState;
+        console.log('[TeleStore] Cloudflare KV: State not found in KV. Falling back to other stores.');
+      } else {
+        if (!res.ok) {
+          throw new Error(`Cloudflare KV GET failed: ${res.statusText}`);
+        }
+        
+        const encryptedHex = await res.text();
+        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+
+        if (encryptedBuffer.length < 28) {
+          throw new Error('Cloudflare KV state document is too small or corrupted.');
+        }
+
+        // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
+        const iv = encryptedBuffer.subarray(0, 12);
+        const authTag = encryptedBuffer.subarray(12, 28);
+        const cipherText = encryptedBuffer.subarray(28);
+
+        const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+        decipher.setAuthTag(authTag);
+        
+        let decrypted = decipher.update(cipherText, undefined, 'utf8');
+        decrypted += decipher.final('utf8');
+
+        const state = JSON.parse(decrypted) as DatabaseSchema;
+        
+        stateCache = state;
         lastCacheFetchTime = now;
-        return emptyState;
+        
+        console.log(`[TeleStore] State successfully synchronized from Cloudflare KV! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
+        return state;
       }
-      
-      if (!res.ok) {
-        throw new Error(`Cloudflare KV GET failed: ${res.statusText}`);
-      }
-      
-      const encryptedHex = await res.text();
-      const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-
-      if (encryptedBuffer.length < 28) {
-        throw new Error('Cloudflare KV state document is too small or corrupted.');
-      }
-
-      // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-      const iv = encryptedBuffer.subarray(0, 12);
-      const authTag = encryptedBuffer.subarray(12, 28);
-      const cipherText = encryptedBuffer.subarray(28);
-
-      const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-      decipher.setAuthTag(authTag);
-      
-      let decrypted = decipher.update(cipherText, undefined, 'utf8');
-      decrypted += decipher.final('utf8');
-
-      const state = JSON.parse(decrypted) as DatabaseSchema;
-      
-      stateCache = state;
-      lastCacheFetchTime = now;
-      
-      console.log(`[TeleStore] State successfully synchronized from Cloudflare KV! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
-      return state;
     } catch (error: any) {
-      console.error('[TeleStore] Cloudflare KV sync failed, falling back to local file state cache:', error.message);
-      const localState = loadLocalState();
-      if (localState && (localState.projects.length > 0 || localState.files.length > 0)) {
-        console.log('[TeleStore] Successfully fell back to up-to-date local file state cache.');
-        stateCache = localState;
-        lastCacheFetchTime = now;
-        return localState;
-      }
+      console.error('[TeleStore] Cloudflare KV sync failed, falling back to other stores:', error.message);
     }
   } else {
     // -------------------------------------------------------------
@@ -401,6 +379,31 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
     lastCacheFetchTime = now;
     
     console.log(`[TeleStore] State successfully synchronized from Telegram! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
+
+    // Auto-sync back to Cloudflare KV / Cloudflare Worker immediately so they stay in perfect sync!
+    try {
+      const encryptedHex = encryptedBuffer.toString('hex');
+      if (isCFWorkerConfigured) {
+        const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
+          body: encryptedHex
+        });
+        console.log('[TeleStore] Telegram state synchronized to Cloudflare Worker KV.');
+      } else if (isKVConfigured) {
+        const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state`;
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' },
+          body: encryptedHex
+        });
+        console.log('[TeleStore] Telegram state synchronized to Cloudflare KV REST API.');
+      }
+    } catch (kvSyncErr: any) {
+      console.warn('[TeleStore] Failed to write downloaded Telegram state to KV:', kvSyncErr.message);
+    }
+
     return state;
 
   } catch (error: any) {
