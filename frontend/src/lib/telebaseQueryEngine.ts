@@ -8,8 +8,11 @@ const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
 // Local storage fallback path when Telegram credentials are not present
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
-const LOCAL_STORE_DIR = path.join(process.cwd(), '.telebase_data');
+const LOCAL_STORE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
+  ? path.join(os.tmpdir(), '.telebase_data')
+  : path.join(process.cwd(), '.telebase_data');
 const LOCAL_STORE_FILE = path.join(LOCAL_STORE_DIR, 'local_db.json');
 
 // Memory Cache for Database Tables

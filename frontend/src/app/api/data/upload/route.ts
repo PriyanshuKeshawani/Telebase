@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import zlib from 'zlib';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { promisify } from 'util';
 import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, FileChunk, isCFWorkerConfigured, isKVConfigured, updateStateCache, encryptPayload, saveKVValue, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
@@ -156,7 +157,9 @@ export async function POST(req: NextRequest) {
       kvKey: string;
     }> = [];
 
-    const LOCAL_STORE_DIR = path.join(process.cwd(), '.telebase_data');
+    const LOCAL_STORE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
+      ? path.join(os.tmpdir(), '.telebase_data')
+      : path.join(process.cwd(), '.telebase_data');
     const LOCAL_STATE_FILE = path.join(LOCAL_STORE_DIR, 'local_state.json');
     const CHUNKS_DIR = path.join(LOCAL_STORE_DIR, 'chunks');
     if (!fs.existsSync(CHUNKS_DIR)) {

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 export function formatTelegramChannelId(channelId: string): string {
   if (!channelId) return '';
@@ -24,7 +25,9 @@ export function formatTelegramChannelId(channelId: string): string {
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
 
-const LOCAL_STATE_DIR = path.join(process.cwd(), '.telebase_data');
+const LOCAL_STATE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
+  ? path.join(os.tmpdir(), '.telebase_data')
+  : path.join(process.cwd(), '.telebase_data');
 const LOCAL_STATE_FILE = path.join(LOCAL_STATE_DIR, 'local_state.json');
 
 function ensureLocalStateDir() {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, isCFWorkerConfigured, isKVConfigured } from '@/lib/telegramDatabase';
 
 export const dynamic = 'force-dynamic';
@@ -117,7 +118,9 @@ export async function GET(
             const kvKey = `chunk_${fileRecord.uuid}_${chunk.chunk_index}`;
 
             // 0. Try to read from L1 Local Disk SSD Cache (Lightspeed <1ms read)
-            const LOCAL_STORE_DIR = path.join(process.cwd(), '.telebase_data');
+            const LOCAL_STORE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
+              ? path.join(os.tmpdir(), '.telebase_data')
+              : path.join(process.cwd(), '.telebase_data');
             const localChunkPath = path.join(LOCAL_STORE_DIR, 'chunks', `chunk_${fileRecord.uuid}_${chunk.chunk_index}`);
             if (fs.existsSync(localChunkPath)) {
               try {
