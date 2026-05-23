@@ -7,7 +7,8 @@ import {
   Download, RefreshCw, Key, Shield, AlertCircle, CheckCircle2,
   FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X, 
   HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
-  ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder
+  ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder,
+  Search, History, BookOpen, ChevronLeft, Menu
 } from "lucide-react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
@@ -62,6 +63,9 @@ export default function Dashboard() {
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [activeTab, setActiveTab] = useState<"db" | "files" | "bots" | "speed" | "ai">("db");
 
+  // Mobile layout state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   // Auth Protection Redirect
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -80,7 +84,37 @@ export default function Dashboard() {
   const [forceLockCrash, setForceLockCrash] = useState(false);
   const [recoveryLogs, setRecoveryLogs] = useState<string[]>([]);
   const [isNewTableModalOpen, setIsNewTableModalOpen] = useState(false);
+
+  // Visual Interactive Explorer states
+  const [dbSubTab, setDbSubTab] = useState<'explorer' | 'terminal'>('explorer');
+  const [gridSearchQuery, setGridSearchQuery] = useState('');
+  const [gridFilterCol, setGridFilterCol] = useState('all');
+  const [gridFilterOp, setGridFilterOp] = useState('contains');
+  const [gridFilterVal, setGridFilterVal] = useState('');
   
+  // Visual record CRUD states
+  const [isAddRecordModalOpen, setIsAddRecordModalOpen] = useState(false);
+  const [isEditRecordModalOpen, setIsEditRecordModalOpen] = useState(false);
+  const [modalRecordData, setModalRecordData] = useState<Record<string, any>>({});
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [recordEditorMode, setRecordEditorMode] = useState<'form' | 'json'>('form');
+  const [rawJsonInput, setRawJsonInput] = useState<string>("{}");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  // Visual column builder states
+  const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false);
+  const [newColName, setNewColName] = useState('');
+  const [newColType, setNewColType] = useState<'string' | 'number' | 'boolean'>('string');
+
+  // Supabase SQL Editor and Filtering states
+  const [searchTableQuery, setSearchTableQuery] = useState('');
+  const [sqlQueryHistory, setSqlQueryHistory] = useState<string[]>([
+    "SELECT * FROM users",
+    "-- Insert a mock user\nINSERT INTO users (id, name, age) VALUES ('user_99', 'Supabase Agent', 30)",
+    "SELECT * FROM users WHERE age > 20"
+  ]);
+  const [sqlTerminalTab, setSqlTerminalTab] = useState<'results' | 'templates' | 'history'>('results');
+
   // Table schema creator states
   const [newTableName, setNewTableName] = useState("");
   const [newTableFields, setNewTableFields] = useState<{ name: string; type: 'string' | 'number' | 'boolean' }[]>([
@@ -137,6 +171,29 @@ export default function Dashboard() {
 
   const currentProject = projects.find(p => p.id === selectedProjectId);
   const projectFiles = files.filter(f => f.project_id === selectedProjectId);
+
+  const getFilteredRecords = () => {
+    if (!tableRecords || tableRecords.length === 0) return [];
+    return tableRecords.filter(row => {
+      if (gridSearchQuery.trim()) {
+        const q = gridSearchQuery.toLowerCase();
+        const match = Object.values(row).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(q));
+        if (!match) return false;
+      }
+      if (gridFilterCol !== 'all' && gridFilterVal.trim() !== '') {
+        const val = row[gridFilterCol];
+        if (val === undefined || val === null) return false;
+        const strVal = String(val).toLowerCase();
+        const strFilter = gridFilterVal.trim().toLowerCase();
+        if (gridFilterOp === 'contains') return strVal.includes(strFilter);
+        if (gridFilterOp === 'eq') return strVal === strFilter;
+        if (gridFilterOp === 'gt') return Number(val) > Number(gridFilterVal);
+        if (gridFilterOp === 'lt') return Number(val) < Number(gridFilterVal);
+      }
+      return true;
+    });
+  };
+  const filteredRecords = getFilteredRecords();
 
   // Load database state
   const loadDatabase = async (forceSync = false) => {
@@ -351,6 +408,279 @@ export default function Dashboard() {
     setNewTableFields(newTableFields.filter((_, idx) => idx !== index));
   };
 
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!currentProject || !selectedTableName) return;
+    if (!confirm("Are you sure you want to delete this record?")) return;
+
+    try {
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          action: 'DELETE',
+          tableName: selectedTableName,
+          noSqlQuery: { id: { $eq: recordId } }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchTableRecords(selectedTableName, currentProject.api_key);
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed to delete record: ${data.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error: ${e.message}`);
+    }
+  };
+
+  const handleTruncateTable = async () => {
+    if (!currentProject || !selectedTableName) return;
+    if (!confirm(`WARNING: Are you sure you want to wipe all records in "${selectedTableName}"? This cannot be undone.`)) return;
+
+    try {
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          action: 'DELETE',
+          tableName: selectedTableName,
+          noSqlQuery: {}
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchTableRecords(selectedTableName, currentProject.api_key);
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed to truncate table: ${data.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error: ${e.message}`);
+    }
+  };
+
+  const handleDeleteTable = async (tableName: string) => {
+    if (!currentProject) return;
+    if (!confirm(`CRITICAL WARNING: Are you sure you want to drop the table "${tableName}" completely? All schema and rows will be permanently deleted.`)) return;
+
+    try {
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          action: 'DROP_TABLE',
+          tableName
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedTableName("");
+        setTableRecords([]);
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed to delete table: ${data.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error: ${e.message}`);
+    }
+  };
+
+  const handleSaveRecord = async (isEdit: boolean) => {
+    if (!currentProject || !selectedTableName) return;
+
+    let payloadData: Record<string, any> = {};
+
+    if (recordEditorMode === 'json') {
+      try {
+        payloadData = JSON.parse(rawJsonInput);
+        setJsonError(null);
+      } catch (err: any) {
+        setJsonError(`Invalid JSON: ${err.message}`);
+        return;
+      }
+    } else {
+      payloadData = { ...modalRecordData };
+    }
+
+    try {
+      const activeTable = dbTables.find(t => t.name === selectedTableName);
+      const fields = activeTable?.schema?.fields || {};
+
+      // Enforce schema type casting for form submissions
+      Object.keys(fields).forEach(key => {
+        if (payloadData[key] !== undefined && payloadData[key] !== null) {
+          const type = fields[key];
+          if (type === 'number') {
+            payloadData[key] = Number(payloadData[key]);
+          } else if (type === 'boolean') {
+            payloadData[key] = payloadData[key] === 'true' || payloadData[key] === true;
+          } else {
+            payloadData[key] = String(payloadData[key]);
+          }
+        }
+      });
+
+      const bodyPayload: Record<string, any> = {
+        tableName: selectedTableName,
+      };
+
+      if (isEdit) {
+        bodyPayload.action = 'UPDATE';
+        bodyPayload.noSqlQuery = { id: { $eq: editingRecordId } };
+        bodyPayload.updateSet = payloadData;
+      } else {
+        bodyPayload.action = 'INSERT';
+        bodyPayload.insertData = payloadData;
+      }
+
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify(bodyPayload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAddRecordModalOpen(false);
+        setIsEditRecordModalOpen(false);
+        setModalRecordData({});
+        setEditingRecordId(null);
+        setRawJsonInput("{}");
+        await fetchTableRecords(selectedTableName, currentProject.api_key);
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed to save record: ${data.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error: ${e.message}`);
+    }
+  };
+
+  const handleAddColumn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentProject || !selectedTableName || !newColName.trim()) return;
+
+    try {
+      const activeTable = dbTables.find(t => t.name === selectedTableName);
+      if (!activeTable) return;
+
+      const currentFields = activeTable.schema?.fields || { id: 'string' };
+      
+      if (currentFields[newColName.trim()]) {
+        alert(`Column "${newColName.trim()}" already exists.`);
+        return;
+      }
+
+      const updatedFields = { ...currentFields, [newColName.trim()]: newColType };
+
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          action: 'UPDATE_SCHEMA',
+          tableName: selectedTableName,
+          schema: {
+            name: selectedTableName,
+            fields: updatedFields,
+            indexes: activeTable.schema?.indexes || ['id']
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAddColumnModalOpen(false);
+        setNewColName("");
+        setNewColType("string");
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed to add column: ${data.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteColumn = async (colName: string) => {
+    if (!currentProject || !selectedTableName) return;
+    if (colName === 'id' || colName === 'created_at') {
+      alert("Key columns 'id' and 'created_at' cannot be deleted.");
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to drop column "${colName}" from "${selectedTableName}"? This deletes metadata references.`)) return;
+
+    try {
+      const activeTable = dbTables.find(t => t.name === selectedTableName);
+      if (!activeTable) return;
+
+      const currentFields = { ...activeTable.schema?.fields };
+      delete currentFields[colName];
+
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': currentProject.api_key },
+        body: JSON.stringify({
+          action: 'UPDATE_SCHEMA',
+          tableName: selectedTableName,
+          schema: {
+            name: selectedTableName,
+            fields: currentFields,
+            indexes: activeTable.schema?.indexes || ['id']
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadDBMetadata(currentProject.id);
+      } else {
+        alert(`Failed to drop column: ${data.error}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+    }
+  };
+
+  const handleExportJSON = () => {
+    if (!selectedTableName || tableRecords.length === 0) return;
+    const blob = new Blob([JSON.stringify(tableRecords, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedTableName}_export_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    if (!selectedTableName || tableRecords.length === 0) return;
+    const headers = Object.keys(tableRecords[0]);
+    const csvRows = [
+      headers.join(','),
+      ...tableRecords.map(row => 
+        headers.map(fieldName => {
+          const val = row[fieldName];
+          const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+          return `"${stringVal.replace(/"/g, '""')}"`;
+        }).join(',')
+      )
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedTableName}_export_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Execute DB SQL Query
   const handleExecuteQuery = async (queryOverride?: string) => {
     if (!currentProject || !selectedTableName) return;
@@ -358,6 +688,13 @@ export default function Dashboard() {
     setIsQueryRunning(true);
     setQueryResult(null);
     const query = queryOverride || sqlQueryInput;
+
+    if (query && query.trim()) {
+      setSqlQueryHistory(prev => {
+        const filtered = prev.filter(q => q.trim() !== query.trim());
+        return [query, ...filtered].slice(0, 15);
+      });
+    }
 
     try {
       const res = await fetch('/api/db', {
@@ -866,15 +1203,11 @@ When writing code for the developer:
     );
   }
 
-  // ─── MAIN DASHBOARD ───
-  return (
-    <div className="flex h-screen bg-[#050506] text-zinc-100 overflow-hidden selection:bg-blue-500/30">
-
-      {/* ════════ SIDEBAR ════════ */}
-      <aside className="w-[280px] flex-shrink-0 border-r border-zinc-800/50 bg-[#0a0a0d] flex flex-col h-full">
-        
+  const renderSidebarContent = (isMobile = false) => {
+    return (
+      <>
         {/* Sidebar Header */}
-        <div className="p-5 border-b border-zinc-800/50">
+        <div className="p-5 border-b border-zinc-800/50 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <Database className="w-4.5 h-4.5 text-white" size={18} />
@@ -884,6 +1217,14 @@ When writing code for the developer:
               <p className="text-[10px] text-zinc-500 font-medium tracking-wide uppercase">Serverless DB Console</p>
             </div>
           </div>
+          {isMobile && (
+            <button
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="p-1.5 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors lg:hidden"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         {/* Project List */}
@@ -907,7 +1248,10 @@ When writing code for the developer:
                     ? "sidebar-active text-white" 
                     : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200"
                 }`}
-                onClick={() => setSelectedProjectId(proj.id)}
+                onClick={() => {
+                  setSelectedProjectId(proj.id);
+                  if (isMobile) setIsMobileSidebarOpen(false);
+                }}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   selectedProjectId === proj.id 
@@ -955,7 +1299,7 @@ When writing code for the developer:
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-zinc-800/50 space-y-2">
+        <div className="p-3 border-t border-zinc-800/50 space-y-2 flex-shrink-0">
           <button 
             onClick={handleForceSync}
             disabled={isSyncing}
@@ -972,19 +1316,81 @@ When writing code for the developer:
             <span>Sign Out</span>
           </button>
         </div>
+      </>
+    );
+  };
+
+  // ─── AUTH LOADING SKELETON ───
+  if ((status as any) === "loading" || (status as any) === "unauthenticated") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#050506] gap-5">
+        <div className="relative">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/20 flex items-center justify-center"
+          >
+            <Database className="text-blue-400 w-6 h-6" />
+          </motion.div>
+          <div className="absolute -bottom-1 -right-1 status-dot" />
+        </div>
+        <div className="text-sm font-medium text-zinc-500 tracking-wide">Securing TeleBase Console...</div>
+      </div>
+    );
+  }
+
+  // ─── MAIN DASHBOARD ───
+  return (
+    <div className="flex h-screen bg-[#050506] text-zinc-100 overflow-hidden selection:bg-blue-500/30">
+
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-zinc-800/50 bg-[#0a0a0d] flex flex-col h-full">
+        {renderSidebarContent(false)}
       </aside>
+
+      {/* Mobile Sidebar Drawer overlay */}
+      <AnimatePresence>
+        {isMobileSidebarOpen && (
+          <>
+            {/* Backdrop blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
+            />
+            {/* Slide Drawer */}
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 z-50 w-[280px] bg-[#0a0a0d] border-r border-zinc-800/50 flex flex-col h-full lg:hidden shadow-2xl"
+            >
+              {renderSidebarContent(true)}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ════════ MAIN CONTENT ════════ */}
       <main className="flex-1 flex flex-col min-w-0 h-full">
         
         {/* ── Top Bar ── */}
-        <header className="h-14 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/80 backdrop-blur-xl flex items-center justify-between px-6">
+        <header className="h-14 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800 text-zinc-400 hover:text-white lg:hidden"
+            >
+              <Menu size={16} />
+            </button>
             {currentProject ? (
               <>
-                <span className="text-sm font-bold text-white">{currentProject.name}</span>
-                <ChevronRight size={14} className="text-zinc-600" />
-                <span className="text-sm text-zinc-400 font-medium capitalize">{activeTab === "db" ? "Database" : activeTab === "files" ? "Storage" : activeTab === "bots" ? "Bot Pool" : "Performance"}</span>
+                <span className="text-sm font-bold text-white truncate max-w-[100px] sm:max-w-none">{currentProject.name}</span>
+                <ChevronRight size={14} className="text-zinc-600 flex-shrink-0" />
+                <span className="text-sm text-zinc-400 font-medium capitalize truncate max-w-[100px] sm:max-w-none">{activeTab === "db" ? "Database" : activeTab === "files" ? "Storage" : activeTab === "bots" ? "Bot Pool" : "Performance"}</span>
               </>
             ) : (
               <span className="text-sm text-zinc-500">Select a project</span>
@@ -993,20 +1399,20 @@ When writing code for the developer:
 
           {currentProject && (
             <div className="flex items-center gap-2">
-              <div className="status-dot" />
-              <span className="text-[10px] text-emerald-400/80 font-semibold tracking-wide uppercase">Connected</span>
+              <div className="status-dot animate-pulse" />
+              <span className="text-[10px] text-emerald-400/80 font-semibold tracking-wide uppercase hidden sm:inline">Connected</span>
             </div>
           )}
         </header>
 
-        {/* ── Tab Navigation ── */}
+        {/* ── Tab Navigation (Horizontally scrollable on Mobile) ── */}
         {currentProject && (
-          <nav className="h-12 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/50 flex items-center gap-1 px-6">
+          <nav className="h-12 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/50 flex items-center gap-1 px-4 md:px-6 overflow-x-auto scrollbar-none whitespace-nowrap flex-nowrap">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   activeTab === tab.id
                     ? "bg-zinc-800/60 text-white border border-zinc-700/50"
                     : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20"
@@ -1053,7 +1459,7 @@ When writing code for the developer:
             <div className="p-6 space-y-6 animate-fade-in-up">
               
               {/* ── Stats Row ── */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 {[
                   { label: "Tables", value: dbTables.length, icon: Table2, color: "text-blue-400", bg: "from-blue-500/10 to-blue-500/5" },
                   { label: "Stored Files", value: projectFiles.length, icon: FileText, color: "text-indigo-400", bg: "from-indigo-500/10 to-indigo-500/5" },
@@ -1074,14 +1480,14 @@ When writing code for the developer:
               </div>
 
               {/* ── Project Config Bar ── */}
-              <div className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
-                <div className="flex-1 flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 w-full">
                   <div className="flex items-center gap-2 text-xs text-zinc-500">
-                    <Key size={12} />
-                    <span className="font-semibold">API Key</span>
+                    <Key size={12} className="flex-shrink-0" />
+                    <span className="font-semibold whitespace-nowrap">API Key</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-zinc-900/80 px-3 py-1.5 rounded-lg border border-zinc-800/60">
-                    <code className="text-[11px] text-zinc-400 font-mono select-all truncate max-w-[280px]">{currentProject.api_key}</code>
+                  <div className="flex items-center justify-between gap-2 bg-zinc-900/80 px-3 py-1.5 rounded-lg border border-zinc-800/60 w-full sm:w-auto min-w-0">
+                    <code className="text-[11px] text-zinc-400 font-mono select-all truncate max-w-full">{currentProject.api_key}</code>
                     <button 
                       onClick={() => copyToClipboard(currentProject.api_key)}
                       className="text-zinc-500 hover:text-blue-400 transition-colors flex-shrink-0"
@@ -1090,11 +1496,11 @@ When writing code for the developer:
                     </button>
                   </div>
                 </div>
-                <div className="h-6 w-px bg-zinc-800" />
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <Hash size={12} />
-                  <span className="font-semibold">Channel</span>
-                  <code className="text-[11px] text-zinc-400 font-mono">{currentProject.channel_id || "Default"}</code>
+                <div className="hidden sm:block h-6 w-px bg-zinc-800" />
+                <div className="flex items-center gap-2 text-xs text-zinc-500 w-full sm:w-auto">
+                  <Hash size={12} className="flex-shrink-0" />
+                  <span className="font-semibold whitespace-nowrap">Channel</span>
+                  <code className="text-[11px] text-zinc-400 font-mono truncate max-w-full">{currentProject.channel_id || "Default"}</code>
                 </div>
               </div>
 
@@ -1103,9 +1509,9 @@ When writing code for the developer:
                 <div className="grid grid-cols-12 gap-6">
                   
                   {/* Left: Tables List */}
-                  <div className="col-span-3 space-y-4">
+                  <div className="col-span-12 lg:col-span-3 space-y-4">
                     <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center justify-between mb-3">
                         <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Tables</h3>
                         <button
                           onClick={() => setIsNewTableModalOpen(true)}
@@ -1115,35 +1521,64 @@ When writing code for the developer:
                         </button>
                       </div>
 
-                      {dbTables.length === 0 ? (
-                        <div className="text-center py-8">
-                          <Table2 className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                          <p className="text-[11px] text-zinc-600">No tables yet</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {dbTables.map(t => (
+                      {dbTables.length > 0 && (
+                        <div className="relative mb-3">
+                          <input
+                            type="text"
+                            placeholder="Search tables..."
+                            value={searchTableQuery}
+                            onChange={(e) => setSearchTableQuery(e.target.value)}
+                            className="w-full bg-[#08080a] border border-zinc-800/50 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-blue-500/50 outline-none placeholder:text-zinc-600 font-mono"
+                          />
+                          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                          {searchTableQuery && (
                             <button
-                              key={t.uuid}
-                              onClick={() => {
-                                setSelectedTableName(t.name);
-                                if (currentProject) fetchTableRecords(t.name, currentProject.api_key);
-                              }}
-                              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all flex items-center justify-between group ${
-                                selectedTableName === t.name 
-                                  ? "bg-blue-500/10 text-blue-300 border border-blue-500/20" 
-                                  : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200 border border-transparent"
-                              }`}
+                              onClick={() => setSearchTableQuery('')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
                             >
-                              <div className="flex items-center gap-2.5">
-                                <Table2 size={13} className={selectedTableName === t.name ? "text-blue-400" : "text-zinc-600"} />
-                                <span className="font-mono font-medium">{t.name}</span>
-                              </div>
-                              <span className="text-[9px] text-zinc-600 font-sans">{formatBytes(t.sizeBytes)}</span>
+                              <X size={10} />
                             </button>
-                          ))}
+                          )}
                         </div>
                       )}
+
+                      {(() => {
+                        const filteredTables = dbTables.filter(t => t.name.toLowerCase().includes(searchTableQuery.toLowerCase()));
+                        
+                        if (filteredTables.length === 0) {
+                          return (
+                            <div className="text-center py-8">
+                              <Table2 className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
+                              <p className="text-[11px] text-zinc-600">No tables found</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+                            {filteredTables.map(t => (
+                              <button
+                                key={t.uuid}
+                                onClick={() => {
+                                  setSelectedTableName(t.name);
+                                  if (currentProject) fetchTableRecords(t.name, currentProject.api_key);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between group ${
+                                  selectedTableName === t.name 
+                                    ? "bg-blue-500/10 text-blue-300 border border-blue-500/20" 
+                                    : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200 border border-transparent"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <Table2 size={13} className={selectedTableName === t.name ? "text-blue-400" : "text-zinc-600"} />
+                                  <span className="font-mono font-medium truncate max-w-[100px]">{t.name}</span>
+                                </div>
+                                <span className="text-[9px] text-zinc-600 font-sans">{formatBytes(t.sizeBytes)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* ACID Status */}
@@ -1166,283 +1601,747 @@ When writing code for the developer:
                     </div>
                   </div>
 
-                  {/* Right: Query Console & Records */}
-                  <div className="col-span-9 space-y-6">
+                  {/* Right: Dual Sub-Tabs (Interactive Explorer / Advanced Console) */}
+                  <div className="col-span-12 lg:col-span-9 space-y-6">
                     
-                    {/* SQL Console */}
-                    <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
-                      {/* Console Header */}
-                      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/40 bg-zinc-900/20">
-                        <div className="flex items-center gap-3">
-                          <div className="flex gap-1.5">
-                            <span className="w-3 h-3 rounded-full bg-rose-500/70" />
-                            <span className="w-3 h-3 rounded-full bg-amber-500/70" />
-                            <span className="w-3 h-3 rounded-full bg-emerald-500/70" />
-                          </div>
-                          <span className="text-xs font-semibold text-zinc-400 ml-1">SQL Query Console</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={forceLockCrash}
-                              onChange={(e) => setForceLockCrash(e.target.checked)}
-                              className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-900 text-rose-500 focus:ring-0 focus:ring-offset-0"
-                            />
-                            <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">
-                              <AlertTriangle size={10} /> Simulate Crash
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-                      
-                      {/* Code Input */}
-                      <div className="relative">
-                        <textarea
-                          rows={3}
-                          value={sqlQueryInput}
-                          onChange={(e) => setSqlQueryInput(e.target.value)}
-                          placeholder="SELECT * FROM table"
-                          className="w-full bg-[#0c0c10] p-5 outline-none border-none text-zinc-200 resize-none code-editor text-[13px] leading-relaxed focus:ring-0 placeholder:text-zinc-700"
-                          spellCheck={false}
-                        />
-                      </div>
-
-                      {/* Quick Presets */}
-                      <div className="flex items-center gap-2 px-5 py-2.5 border-t border-zinc-800/30 bg-zinc-900/10">
-                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider mr-2">Quick:</span>
-                        {[
-                          { label: "SELECT ALL", query: `SELECT * FROM ${selectedTableName || 'users'}` },
-                          { label: "INSERT", query: `INSERT INTO ${selectedTableName || 'users'} (name, age) VALUES ('Emma', 28)` },
-                          { label: "UPDATE", query: `UPDATE ${selectedTableName || 'users'} SET age = 29 WHERE name = 'Emma'` },
-                          { label: "DELETE", query: `DELETE FROM ${selectedTableName || 'users'} WHERE name = 'Emma'` },
-                        ].map((preset, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setSqlQueryInput(preset.query)}
-                            className="px-2.5 py-1 rounded-md bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-800/50 text-[10px] font-semibold text-zinc-500 hover:text-zinc-300 transition-all"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                        <div className="flex-1" />
+                    {/* DB Workspace Sub-Tabs Selector */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-1.5 md:p-1 bg-[#0a0a0d] border border-zinc-800/40 rounded-xl">
+                      <div className="flex flex-wrap gap-1">
                         <button
-                          onClick={() => handleExecuteQuery()}
-                          disabled={isQueryRunning || !selectedTableName}
-                          className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-500/10"
-                        >
-                          {isQueryRunning ? (
-                            <>
-                              <RefreshCw size={12} className="animate-spin" />
-                              <span>Executing...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play size={12} fill="white" />
-                              <span>Run Query</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Query Result */}
-                    <AnimatePresence>
-                      {queryResult && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -8 }}
-                          className={`p-5 rounded-xl border ${
-                            queryResult.success 
-                              ? "border-zinc-800/40 bg-[#0a0a0d]" 
-                              : "border-rose-500/20 bg-rose-500/5"
+                          onClick={() => setDbSubTab('explorer')}
+                          className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                            dbSubTab === 'explorer'
+                              ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
+                              : "text-zinc-500 hover:text-zinc-300"
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              {queryResult.success ? (
-                                <CheckCircle2 size={14} className="text-emerald-400" />
-                              ) : (
-                                <AlertCircle size={14} className="text-rose-400" />
-                              )}
-                              <span className="text-xs font-bold text-zinc-300">
-                                {queryResult.success ? "Query Successful" : "Query Failed"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-500">
-                              <span>Latency: <strong className="text-zinc-300">{queryResult.latencyMs || 0}ms</strong></span>
-                              <span>Cache: <strong className={queryResult.cacheHit ? "text-emerald-400" : "text-amber-400"}>{queryResult.cacheHit ? "HIT" : "MISS"}</strong></span>
-                              {queryResult.affectedRows !== undefined && (
-                                <span>Rows: <strong className="text-zinc-300">{queryResult.affectedRows}</strong></span>
-                              )}
-                            </div>
-                          </div>
-
-                          {queryResult.success ? (
-                            <div className="space-y-3">
-                              {/* Optimization Stats */}
-                              {queryResult.optimization && (
-                                <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800/30 text-[10px]">
-                                  <div className="text-zinc-500">
-                                    Strategy: <strong className={queryResult.optimization.strategy === 'INDEX_SCAN' ? 'text-emerald-400' : 'text-amber-400'}>{queryResult.optimization.strategy}</strong>
-                                  </div>
-                                  <div className="text-zinc-500">
-                                    Index: <strong className="text-zinc-300">{queryResult.optimization.indexUsed || 'None'}</strong>
-                                  </div>
-                                  <div className="text-zinc-500">
-                                    Scanned: <strong className="text-zinc-300">{queryResult.optimization.statistics?.scannedRecords ?? 0}/{queryResult.optimization.statistics?.totalRecords ?? 0}</strong>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Execution Plan */}
-                              {queryResult.plan && (
-                                <div className="space-y-1">
-                                  <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider">Execution Plan</span>
-                                  {queryResult.plan.map((step: any, idx: number) => (
-                                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 text-[10px] font-mono">
-                                      <span className="text-zinc-400">{step.operation}</span>
-                                      <span className="text-zinc-600 truncate max-w-[60%] text-right">{step.details}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-[12px] text-rose-400 font-medium">
-                              {queryResult.error || "A transaction failure occurred."}
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Table Data Grid */}
-                    <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
-                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40">
-                        <div className="flex items-center gap-2.5">
-                          <Table2 size={15} className="text-blue-400" />
-                          <h3 className="text-sm font-bold text-zinc-200">{selectedTableName || "No Table"}</h3>
-                        </div>
-                        {selectedTableName && (
-                          <span className="text-[10px] bg-zinc-800/60 px-2.5 py-1 rounded-md font-mono text-zinc-400 border border-zinc-700/30">
-                            {tableRecords.length} records
+                          <Table2 size={13} />
+                          <span>✨ Interactive Explorer</span>
+                        </button>
+                        <button
+                          onClick={() => setDbSubTab('terminal')}
+                          className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                            dbSubTab === 'terminal'
+                              ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
+                              : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          <Terminal size={13} />
+                          <span>💻 Advanced SQL Console</span>
+                        </button>
+                      </div>
+                      
+                      {selectedTableName && (
+                        <div className="flex items-center gap-2 pr-3 self-end md:self-auto">
+                          <span className="text-[10px] uppercase font-bold text-zinc-600 font-mono">Active Table:</span>
+                          <span className="text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-blue-400 font-bold px-2 py-0.5 rounded">
+                            {selectedTableName}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                        {!selectedTableName ? (
-                          <div className="py-16 text-center">
-                            <Table2 className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-                            <p className="text-xs text-zinc-600">Select or create a table to browse records</p>
-                          </div>
-                        ) : tableRecords.length === 0 ? (
-                          <div className="py-16 text-center">
-                            <Layers className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-                            <p className="text-xs text-zinc-600">Table is empty — run an INSERT query</p>
-                          </div>
-                        ) : (
-                          <table className="w-full text-left">
-                            <thead>
-                              <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
-                                {Object.keys(tableRecords[0]).map((col) => (
-                                  <th key={col} className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{col}</th>
-                                ))}
-                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {tableRecords.map((row, idx) => (
-                                <tr key={idx} className="border-b border-zinc-800/20 table-row-hover transition-colors">
-                                  {Object.entries(row).map(([k, v]: any, valIdx) => (
-                                    <td key={valIdx} className="py-3 px-5 text-xs text-zinc-300 font-mono max-w-[200px] truncate">
-                                      {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                                    </td>
-                                  ))}
-                                  <td className="py-3 px-5 text-right">
-                                    <button
-                                      onClick={() => {
-                                        setSqlQueryInput(`DELETE FROM ${selectedTableName} WHERE id = '${row.id}'`);
-                                        setTimeout(() => handleExecuteQuery(`DELETE FROM ${selectedTableName} WHERE id = '${row.id}'`), 50);
-                                      }}
-                                      className="p-1.5 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-600 hover:text-rose-400 transition-all"
-                                      title="Delete record"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* WAL & Recovery */}
-                    <div className="grid grid-cols-2 gap-6">
-                      {/* WAL Logs */}
-                      <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <Activity size={14} className="text-blue-400" />
-                            <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Write-Ahead Logs</h3>
-                          </div>
-                          {walLogs.length > 0 && (
-                            <button onClick={handleClearWALLogs} className="text-[9px] font-bold text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider">
-                              Clear
-                            </button>
-                          )}
-                        </div>
-                        <div className="bg-[#08080a] rounded-lg border border-zinc-800/30 max-h-[200px] overflow-y-auto p-3 space-y-1.5 font-mono text-[10px]">
-                          {walLogs.length === 0 ? (
-                            <div className="text-zinc-700 text-center py-8">No active transaction logs</div>
-                          ) : (
-                            [...walLogs].reverse().map(log => (
-                              <div key={log.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 border border-zinc-800/20">
-                                <div className="text-zinc-500 truncate">
-                                  <span className="text-zinc-400">{log.operation}</span> · {log.tableName}:{log.recordId}
+                    {dbSubTab === 'explorer' ? (
+                      /* ════════ INTERACTIVE EXPLORER TAB ════════ */
+                      <div className="space-y-6">
+                        {/* Search and Filter Dock */}
+                        {selectedTableName && (
+                          <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] flex flex-col md:flex-row gap-4 items-center justify-between">
+                            {/* Search and Filters */}
+                            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                              {/* Search text input */}
+                              <div className="relative w-full md:w-48">
+                                <input
+                                  type="text"
+                                  placeholder="Search records..."
+                                  value={gridSearchQuery}
+                                  onChange={(e) => setGridSearchQuery(e.target.value)}
+                                  className="w-full bg-[#08080a] border border-zinc-800/50 rounded-lg pl-3.5 pr-8 py-2 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                                />
+                                {gridSearchQuery && (
+                                  <button
+                                    onClick={() => setGridSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Column Selector */}
+                              <select
+                                value={gridFilterCol}
+                                onChange={(e) => {
+                                  setGridFilterCol(e.target.value);
+                                  if (e.target.value === 'all') setGridFilterVal('');
+                                }}
+                                className="bg-[#08080a] border border-zinc-800/50 rounded-lg px-2.5 py-2 text-xs text-zinc-400 focus:border-blue-500/50 outline-none cursor-pointer font-sans"
+                              >
+                                <option value="all">All Columns</option>
+                                {(() => {
+                                  const tableDef = dbTables.find(t => t.name === selectedTableName);
+                                  if (tableDef?.schema?.fields) {
+                                    return Object.keys(tableDef.schema.fields).map(col => (
+                                      <option key={col} value={col}>{col}</option>
+                                    ));
+                                  }
+                                  if (tableRecords.length > 0) {
+                                    return Object.keys(tableRecords[0]).map(col => (
+                                      <option key={col} value={col}>{col}</option>
+                                    ));
+                                  }
+                                  return null;
+                                })()}
+                              </select>
+
+                              {/* Operator Selector */}
+                              {gridFilterCol !== 'all' && (
+                                <select
+                                  value={gridFilterOp}
+                                  onChange={(e) => setGridFilterOp(e.target.value as any)}
+                                  className="bg-[#08080a] border border-zinc-800/50 rounded-lg px-2 py-2 text-xs text-zinc-400 focus:border-blue-500/50 outline-none cursor-pointer"
+                                >
+                                  <option value="contains">contains</option>
+                                  <option value="eq">equals (=)</option>
+                                  <option value="gt">greater than (&gt;)</option>
+                                  <option value="lt">less than (&lt;)</option>
+                                </select>
+                              )}
+
+                              {/* Filter value input */}
+                              {gridFilterCol !== 'all' && (
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    placeholder="Filter value..."
+                                    value={gridFilterVal}
+                                    onChange={(e) => setGridFilterVal(e.target.value)}
+                                    className="bg-[#08080a] border border-zinc-800/50 rounded-lg px-3 py-2 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700 w-28 md:w-36"
+                                  />
+                                  {gridFilterVal && (
+                                    <button
+                                      onClick={() => setGridFilterVal('')}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  )}
                                 </div>
-                                <span className={`text-[9px] font-bold flex-shrink-0 ml-2 ${
-                                  log.status === 'COMMITTED' ? 'text-emerald-400' : 
-                                  log.status === 'FAILED' ? 'text-rose-400' : 'text-amber-400'
-                                }`}>
-                                  {log.status}
+                              )}
+
+                              {/* Clear Filters indicator */}
+                              {(gridSearchQuery || gridFilterVal) && (
+                                <button
+                                  onClick={() => {
+                                    setGridSearchQuery('');
+                                    setGridFilterCol('all');
+                                    setGridFilterVal('');
+                                  }}
+                                  className="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-wider flex items-center gap-1 bg-blue-500/5 px-2 py-1 rounded border border-blue-500/10"
+                                >
+                                  <RotateCcw size={10} />
+                                  <span>Reset Filters</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* visual row & schema mutators */}
+                            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                              <button
+                                onClick={() => {
+                                  setModalRecordData({});
+                                  setRawJsonInput("{}");
+                                  setRecordEditorMode('form');
+                                  setIsAddRecordModalOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-md shadow-blue-500/10"
+                              >
+                                <PlusCircle size={13} />
+                                <span>Add Record</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setNewColName("");
+                                  setNewColType("string");
+                                  setIsAddColumnModalOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs border border-zinc-700/50 transition-all"
+                              >
+                                <Plus size={13} />
+                                <span>Add Column</span>
+                              </button>
+
+                              <div className="flex rounded-lg overflow-hidden border border-zinc-800/80">
+                                <button
+                                  onClick={handleExportJSON}
+                                  className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors border-r border-zinc-800/80 text-[10px] font-bold"
+                                  title="Export JSON"
+                                >
+                                  JSON
+                                </button>
+                                <button
+                                  onClick={handleExportCSV}
+                                  className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors text-[10px] font-bold"
+                                  title="Export CSV"
+                                >
+                                  CSV
+                                </button>
+                              </div>
+
+                              <button
+                                onClick={handleTruncateTable}
+                                className="p-2 rounded-lg bg-zinc-900 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 border border-transparent hover:border-rose-500/20 transition-all"
+                                title="Truncate Table Records"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteTable(selectedTableName)}
+                                className="p-2 rounded-lg bg-zinc-900 hover:bg-rose-500/15 text-zinc-500 hover:text-rose-400 border border-transparent hover:border-rose-500/25 transition-all"
+                                title="Drop Table Schema"
+                              >
+                                <Settings size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Visual Table Data Grid */}
+                        <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40 bg-zinc-900/10">
+                            <div className="flex items-center gap-2.5">
+                              <Table2 size={15} className="text-blue-400" />
+                              <h3 className="text-sm font-bold text-zinc-200">{selectedTableName || "Interactive Grid Explorer"}</h3>
+                            </div>
+                            {selectedTableName && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] bg-zinc-800/60 px-2.5 py-1 rounded-md font-mono text-zinc-400 border border-zinc-700/30">
+                                  {filteredRecords.length} of {tableRecords.length} records filtered
                                 </span>
                               </div>
-                            ))
-                          )}
+                            )}
+                          </div>
+
+                          <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+                            {!selectedTableName ? (
+                              <div className="py-20 text-center">
+                                <Table2 className="w-12 h-12 text-zinc-800 mx-auto mb-3" />
+                                <h3 className="text-sm font-bold text-zinc-400 mb-1">Select table to explore</h3>
+                                <p className="text-xs text-zinc-600 max-w-sm mx-auto leading-relaxed">Choose a structured table from the sidebar prefix list, or initialize a new schema visually.</p>
+                              </div>
+                            ) : tableRecords.length === 0 ? (
+                              <div className="py-20 text-center">
+                                <Layers className="w-12 h-12 text-zinc-800 mx-auto mb-3" />
+                                <h3 className="text-sm font-bold text-zinc-400 mb-1">Table is empty</h3>
+                                <p className="text-xs text-zinc-600 max-w-sm mx-auto leading-relaxed mb-4">This table schema exists but contains zero records. Click add record below to get started.</p>
+                                <button
+                                  onClick={() => {
+                                    setModalRecordData({});
+                                    setRawJsonInput("{}");
+                                    setRecordEditorMode('form');
+                                    setIsAddRecordModalOpen(true);
+                                  }}
+                                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-lg shadow-blue-500/10"
+                                >
+                                  + Create First Record
+                                </button>
+                              </div>
+                            ) : filteredRecords.length === 0 ? (
+                              <div className="py-20 text-center">
+                                <RotateCcw className="w-12 h-12 text-zinc-800 mx-auto mb-3" />
+                                <h3 className="text-sm font-bold text-zinc-400 mb-1">No matching results</h3>
+                                <p className="text-xs text-zinc-600 max-w-sm mx-auto leading-relaxed">No rows match your dynamic grid filter. Try clearing the fields to view all records.</p>
+                              </div>
+                            ) : (
+                              <table className="w-full text-left">
+                                <thead>
+                                  <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
+                                    {(() => {
+                                      const activeTable = dbTables.find(t => t.name === selectedTableName);
+                                      const fields = activeTable?.schema?.fields 
+                                        ? Object.keys(activeTable.schema.fields)
+                                        : Object.keys(tableRecords[0]);
+                                      
+                                      return fields.map((col) => (
+                                        <th key={col} className="group/head py-3.5 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider relative font-mono">
+                                          <div className="flex items-center justify-between gap-1.5 w-full">
+                                            <div className="flex items-center gap-1.5">
+                                              <span>{col}</span>
+                                              {activeTable?.schema?.fields?.[col] && (
+                                                <span className="text-[8px] font-sans font-normal text-zinc-600 lowercase bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800">
+                                                  {activeTable.schema.fields[col]}
+                                                </span>
+                                              )}
+                                            </div>
+                                            {col !== 'id' && col !== 'created_at' && (
+                                              <button
+                                                onClick={() => handleDeleteColumn(col)}
+                                                className="opacity-0 group-hover/head:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-rose-500 transition-opacity ml-auto"
+                                                title={`Drop ${col} column`}
+                                              >
+                                                <X size={10} />
+                                              </button>
+                                            )}
+                                          </div>
+                                        </th>
+                                      ));
+                                    })()}
+                                    <th className="py-3.5 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredRecords.map((row, idx) => {
+                                    const activeTable = dbTables.find(t => t.name === selectedTableName);
+                                    const fields = activeTable?.schema?.fields 
+                                      ? Object.keys(activeTable.schema.fields)
+                                      : Object.keys(tableRecords[0]);
+                                    
+                                    return (
+                                      <tr key={`${row.id || 'row'}_${idx}`} className="border-b border-zinc-800/20 table-row-hover transition-colors">
+                                        {fields.map((fieldName, valIdx) => {
+                                          const v = row[fieldName];
+                                          return (
+                                            <td key={valIdx} className="py-3 px-5 text-xs text-zinc-300 font-mono max-w-[240px] truncate select-all">
+                                              {v === undefined || v === null ? (
+                                                <span className="text-zinc-700 italic">null</span>
+                                              ) : typeof v === 'object' ? (
+                                                JSON.stringify(v)
+                                              ) : typeof v === 'boolean' ? (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-sans uppercase ${v ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+                                                  {String(v)}
+                                                </span>
+                                              ) : (
+                                                String(v)
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="py-3 px-5 text-right">
+                                          <div className="flex items-center gap-1 justify-end">
+                                            <button
+                                              onClick={() => {
+                                                setEditingRecordId(row.id);
+                                                setModalRecordData(row);
+                                                setRawJsonInput(JSON.stringify(row, null, 2));
+                                                setRecordEditorMode('form');
+                                                setIsEditRecordModalOpen(true);
+                                              }}
+                                              className="p-1.5 rounded-lg bg-zinc-900/60 hover:bg-blue-500/10 text-zinc-500 hover:text-blue-400 border border-zinc-800/40 transition-all"
+                                              title="Edit Record"
+                                            >
+                                              <Settings size={12} />
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteRecord(row.id)}
+                                              className="p-1.5 rounded-lg bg-zinc-900/60 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 border border-zinc-800/40 transition-all"
+                                              title="Delete record"
+                                            >
+                                              <Trash2 size={12} />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    ) : (
+                      /* ════════ ADVANCED SQL TERMINAL TAB ════════ */
+                      <div className="space-y-6">
+                        {/* SQL Console */}
+                        <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                          {/* Console Header */}
+                          <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/40 bg-zinc-900/20">
+                            <div className="flex items-center gap-3">
+                              <div className="flex gap-1.5">
+                                <span className="w-3 h-3 rounded-full bg-rose-500/70" />
+                                <span className="w-3 h-3 rounded-full bg-amber-500/70" />
+                                <span className="w-3 h-3 rounded-full bg-emerald-500/70" />
+                              </div>
+                              <span className="text-xs font-semibold text-zinc-400 ml-1">SQL Query Console</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={forceLockCrash}
+                                  onChange={(e) => setForceLockCrash(e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-900 text-rose-500 focus:ring-0 focus:ring-offset-0"
+                                />
+                                <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">
+                                  <AlertTriangle size={10} /> Simulate Crash
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                          
+                          {/* Code Input */}
+                          <div className="relative">
+                            <textarea
+                              rows={4}
+                              value={sqlQueryInput}
+                              onChange={(e) => setSqlQueryInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                  e.preventDefault();
+                                  handleExecuteQuery();
+                                }
+                              }}
+                              placeholder="SELECT * FROM table"
+                              className="w-full bg-[#0c0c10] p-5 outline-none border-none text-zinc-200 resize-none code-editor text-[13px] leading-relaxed focus:ring-0 placeholder:text-zinc-700 font-mono"
+                              spellCheck={false}
+                            />
+                          </div>
 
-                      {/* Recovery */}
-                      <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
-                        <div className="flex items-center gap-2 mb-3">
-                          <RotateCcw size={14} className="text-indigo-400" />
-                          <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Crash Recovery</h3>
+                          {/* Status Bar */}
+                          <div className="flex items-center justify-between px-5 py-2 bg-[#0c0c10] border-t border-zinc-900/60 text-[10px] text-zinc-500 font-mono">
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1.5 text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                🟢 edge-cache online
+                              </span>
+                              <span className="text-zinc-700">|</span>
+                              <span>🔒 ACID transaction safe</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span>💡 Protip: Press <kbd className="bg-zinc-850 px-1.5 py-0.5 rounded text-zinc-400 border border-zinc-800">Ctrl + Enter</kbd> to run</span>
+                            </div>
+                          </div>
+
+                          {/* Quick Presets */}
+                          <div className="flex items-center gap-2 px-5 py-2.5 border-t border-zinc-800/30 bg-zinc-900/10">
+                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider mr-2">Quick:</span>
+                            {[
+                              { label: "SELECT ALL", query: `SELECT * FROM ${selectedTableName || 'users'}` },
+                              { label: "INSERT", query: `INSERT INTO ${selectedTableName || 'users'} (name, age) VALUES ('Emma', 28)` },
+                              { label: "UPDATE", query: `UPDATE ${selectedTableName || 'users'} SET age = 29 WHERE name = 'Emma'` },
+                              { label: "DELETE", query: `DELETE FROM ${selectedTableName || 'users'} WHERE name = 'Emma'` },
+                            ].map((preset, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setSqlQueryInput(preset.query)}
+                                className="px-2.5 py-1 rounded-md bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-800/50 text-[10px] font-semibold text-zinc-500 hover:text-zinc-300 transition-all"
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                            <div className="flex-1" />
+                            <button
+                              onClick={() => handleExecuteQuery()}
+                              disabled={isQueryRunning || !selectedTableName}
+                              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-500/10"
+                            >
+                              {isQueryRunning ? (
+                                <>
+                                  <RefreshCw size={12} className="animate-spin" />
+                                  <span>Executing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play size={12} fill="white" />
+                                  <span>Run Query</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
-                          Enable "Simulate Crash" above, run a write query, then use recovery to restore the consistent state from WAL.
-                        </p>
-                        <button
-                          onClick={handleRunRecovery}
-                          disabled={!selectedTableName}
-                          className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/10 flex items-center justify-center gap-2"
-                        >
-                          <RotateCcw size={12} />
-                          <span>Replay WAL & Recover</span>
-                        </button>
-                        {recoveryLogs.length > 0 && (
-                          <div className="mt-3 bg-[#08080a] rounded-lg border border-zinc-800/30 p-2.5 font-mono text-[9px] text-zinc-500 space-y-1 max-h-[80px] overflow-y-auto">
-                            {recoveryLogs.map((log, i) => (
-                              <div key={i}>{log}</div>
+
+                        {/* Supabase Sub-Tabs Bar */}
+                        <div className="flex border-b border-zinc-800/50 bg-[#0a0a0d] p-1 rounded-xl gap-1">
+                          {[
+                            { id: 'results' as const, label: '📊 Results & Logs', icon: Table2 },
+                            { id: 'templates' as const, label: '📚 Query Templates', icon: BookOpen },
+                            { id: 'history' as const, label: '📜 Query History', icon: History }
+                          ].map(t => (
+                            <button
+                              key={t.id}
+                              onClick={() => setSqlTerminalTab(t.id)}
+                              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                                sqlTerminalTab === t.id
+                                  ? "bg-zinc-850 text-blue-400 border border-zinc-750/50 shadow-sm"
+                                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30"
+                              }`}
+                            >
+                              <t.icon size={13} />
+                              <span>{t.label}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Dynamic Sub-Tab Workspaces */}
+                        {sqlTerminalTab === 'results' && (
+                          <div className="space-y-6">
+                            {/* Query Result */}
+                            <AnimatePresence>
+                              {queryResult ? (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 8 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -8 }}
+                                  className={`p-5 rounded-xl border ${
+                                    queryResult.success 
+                                      ? "border-zinc-800/40 bg-[#0a0a0d]" 
+                                      : "border-rose-500/20 bg-rose-500/5"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                      {queryResult.success ? (
+                                        <CheckCircle2 size={14} className="text-emerald-400" />
+                                      ) : (
+                                        <AlertCircle size={14} className="text-rose-400" />
+                                      )}
+                                      <span className="text-xs font-bold text-zinc-300">
+                                        {queryResult.success ? "Query Successful" : "Query Failed"}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-500">
+                                      <span>Latency: <strong className="text-zinc-300">{queryResult.latencyMs || 0}ms</strong></span>
+                                      <span>Cache: <strong className={queryResult.cacheHit ? "text-emerald-400" : "text-amber-400"}>{queryResult.cacheHit ? "HIT" : "MISS"}</strong></span>
+                                      {queryResult.affectedRows !== undefined && (
+                                        <span>Rows: <strong className="text-zinc-300">{queryResult.affectedRows}</strong></span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {queryResult.success ? (
+                                    <div className="space-y-3">
+                                      {/* Optimization Stats */}
+                                      {queryResult.optimization && (
+                                        <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800/30 text-[10px]">
+                                          <div className="text-zinc-500">
+                                            Strategy: <strong className={queryResult.optimization.strategy === 'INDEX_SCAN' ? 'text-emerald-400' : 'text-amber-400'}>{queryResult.optimization.strategy}</strong>
+                                          </div>
+                                          <div className="text-zinc-500">
+                                            Index: <strong className="text-zinc-300">{queryResult.optimization.indexUsed || 'None'}</strong>
+                                          </div>
+                                          <div className="text-zinc-500">
+                                            Scanned: <strong className="text-zinc-300">{queryResult.optimization.statistics?.scannedRecords ?? 0}/{queryResult.optimization.statistics?.totalRecords ?? 0}</strong>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Execution Plan */}
+                                      {queryResult.plan && (
+                                        <div className="space-y-1">
+                                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider">Execution Plan</span>
+                                          {queryResult.plan.map((step: any, idx: number) => (
+                                            <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 text-[10px] font-mono">
+                                              <span className="text-zinc-400">{step.operation}</span>
+                                              <span className="text-zinc-600 truncate max-w-[60%] text-right">{step.details}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[12px] text-rose-400 font-medium">
+                                      {queryResult.error || "A transaction failure occurred."}
+                                    </div>
+                                  )}
+                                </motion.div>
+                              ) : (
+                                <div className="p-10 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] text-center">
+                                  <Terminal className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                                  <h4 className="text-xs font-bold text-zinc-400 mb-1">No execution results</h4>
+                                  <p className="text-[11px] text-zinc-650 max-w-sm mx-auto leading-relaxed">
+                                    Write a query in the console above and press Run (or Ctrl+Enter) to inspect raw JSON responses, execution paths, and performance stats.
+                                  </p>
+                                </div>
+                              )}
+                            </AnimatePresence>
+
+                            {/* WAL & Recovery */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {/* WAL Logs */}
+                              <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2">
+                                    <Activity size={14} className="text-blue-400" />
+                                    <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Write-Ahead Logs</h3>
+                                  </div>
+                                  {walLogs.length > 0 && (
+                                    <button onClick={handleClearWALLogs} className="text-[9px] font-bold text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider">
+                                      Clear
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="bg-[#08080a] rounded-lg border border-zinc-800/30 max-h-[200px] overflow-y-auto p-3 space-y-1.5 font-mono text-[10px]">
+                                  {walLogs.length === 0 ? (
+                                    <div className="text-zinc-700 text-center py-8">No active transaction logs</div>
+                                  ) : (
+                                    [...walLogs].reverse().map(log => (
+                                      <div key={log.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 border border-zinc-800/20">
+                                        <div className="text-zinc-500 truncate">
+                                          <span className="text-zinc-400">{log.operation}</span> · {log.tableName}:{log.recordId}
+                                        </div>
+                                        <span className={`text-[9px] font-bold flex-shrink-0 ml-2 ${
+                                          log.status === 'COMMITTED' ? 'text-emerald-400' : 
+                                          log.status === 'FAILED' ? 'text-rose-400' : 'text-amber-400'
+                                        }`}>
+                                          {log.status}
+                                        </span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Recovery */}
+                              <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <RotateCcw size={14} className="text-indigo-400" />
+                                  <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Crash Recovery</h3>
+                                </div>
+                                <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                                  Enable "Simulate Crash" above, run a write query, then use recovery to restore the consistent state from WAL.
+                                </p>
+                                <button
+                                  onClick={handleRunRecovery}
+                                  disabled={!selectedTableName}
+                                  className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/10 flex items-center justify-center gap-2"
+                                >
+                                  <RotateCcw size={12} />
+                                  <span>Replay WAL & Recover</span>
+                                </button>
+                                {recoveryLogs.length > 0 && (
+                                  <div className="mt-3 bg-[#08080a] rounded-lg border border-zinc-800/30 p-2.5 font-mono text-[9px] text-zinc-500 space-y-1 max-h-[80px] overflow-y-auto">
+                                    {recoveryLogs.map((log, i) => (
+                                      <div key={i}>{log}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {sqlTerminalTab === 'templates' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {[
+                              {
+                                title: "Create Profiles Table",
+                                desc: "Initialize a new table schema for user profiles with standard fields.",
+                                icon: Table2,
+                                query: `CREATE TABLE profiles (
+  id string,
+  name string,
+  avatar_url string,
+  is_admin boolean
+)`
+                              },
+                              {
+                                title: "Insert Sample Profile",
+                                desc: "Insert a mock administrator profile row into the database.",
+                                icon: PlusCircle,
+                                query: `INSERT INTO profiles (id, name, avatar_url, is_admin)
+VALUES ('prof_1', 'Priyanshu Keshawani', 'https://avatar.vercel.sh/priyanshu', true)`
+                              },
+                              {
+                                title: "Query Admin Profiles",
+                                desc: "Select all profiles that have administrator status enabled.",
+                                icon: Search,
+                                query: `SELECT * FROM profiles WHERE is_admin = true`
+                              },
+                              {
+                                title: "Delete Sample Data",
+                                desc: "Cleanly remove the test administrator profile record by ID.",
+                                icon: Trash2,
+                                query: `DELETE FROM profiles WHERE id = 'prof_1'`
+                              }
+                            ].map((tmpl, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  setSqlQueryInput(tmpl.query);
+                                  setSqlTerminalTab('results');
+                                }}
+                                className="text-left p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] hover:border-blue-500/20 hover:bg-blue-500/5 transition-all group"
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <tmpl.icon size={14} className="text-blue-400 group-hover:text-blue-300" />
+                                  <h4 className="text-xs font-bold text-zinc-200 group-hover:text-white transition-colors">{tmpl.title}</h4>
+                                </div>
+                                <p className="text-[11px] text-zinc-555 leading-relaxed mb-3">{tmpl.desc}</p>
+                                <div className="bg-[#050507] border border-zinc-900 rounded-lg p-2 font-mono text-[9px] text-zinc-400 truncate">
+                                  {tmpl.query}
+                                </div>
+                              </button>
                             ))}
                           </div>
                         )}
+
+                        {sqlTerminalTab === 'history' && (
+                          <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                            <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
+                              <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                                <History size={13} className="text-blue-400" />
+                                Recent Execution Logs
+                              </h4>
+                              <button
+                                onClick={() => setSqlQueryHistory([
+                                  "SELECT * FROM users",
+                                  "-- Insert a mock user\nINSERT INTO users (id, name, age) VALUES ('user_99', 'Supabase Agent', 30)",
+                                  "SELECT * FROM users WHERE age > 20"
+                                ])}
+                                className="text-[9px] font-bold text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider"
+                              >
+                                Reset Logs
+                              </button>
+                            </div>
+                            
+                            {sqlQueryHistory.length === 0 ? (
+                              <div className="text-center py-8">
+                                <History className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
+                                <p className="text-[11px] text-zinc-650">No query history found</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                {sqlQueryHistory.map((query, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/30 hover:border-zinc-700/40 transition-all flex items-start justify-between gap-3 group"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <pre className="font-mono text-[11px] text-zinc-300 whitespace-pre-wrap break-all leading-relaxed">
+                                        {query}
+                                      </pre>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          setSqlQueryInput(query);
+                                          setSqlTerminalTab('results');
+                                        }}
+                                        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-all"
+                                      >
+                                        Load
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(query);
+                                          alert("Query copied!");
+                                        }}
+                                        className="p-1 bg-zinc-800 hover:bg-zinc-750 text-zinc-400 hover:text-zinc-200 rounded border border-zinc-700/40 transition-all"
+                                        title="Copy query"
+                                      >
+                                        <Copy size={11} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2300,6 +3199,258 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                     className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Create Table
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════ ADD/EDIT RECORD DRAWER ════════ */}
+      <AnimatePresence>
+        {(isAddRecordModalOpen || isEditRecordModalOpen) && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
+            />
+            
+            {/* Slide-out Drawer */}
+            <motion.div 
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 190 }}
+              className="fixed top-0 right-0 h-full w-full sm:w-[450px] max-w-full z-50 bg-[#0c0c0f]/95 border-l border-zinc-800/80 backdrop-blur-xl shadow-2xl flex flex-col"
+            >
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                      <PlusCircle size={16} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">{isEditRecordModalOpen ? "Edit Record" : "Add Record"}</h3>
+                      <p className="text-[11px] text-zinc-500">Insert or update data in table "{selectedTableName}"</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }} 
+                    className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode Switcher */}
+              <div className="px-6 py-3 bg-zinc-900/20 border-b border-zinc-800/35 flex gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRecordEditorMode('form')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
+                    recordEditorMode === 'form'
+                      ? "bg-zinc-800 text-white border-zinc-700/60"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                  }`}
+                >
+                  Form Builder
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dataToConvert = isEditRecordModalOpen ? modalRecordData : { ...modalRecordData };
+                    setRawJsonInput(JSON.stringify(dataToConvert, null, 2));
+                    setRecordEditorMode('json');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
+                    recordEditorMode === 'json'
+                      ? "bg-zinc-800 text-white border-zinc-700/60"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                  }`}
+                >
+                  Raw JSON Editor
+                </button>
+              </div>
+
+              {/* Scrollable Form Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {recordEditorMode === 'json' ? (
+                  <div className="space-y-2 h-full flex flex-col">
+                    <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Raw JSON Object</label>
+                    <textarea
+                      value={rawJsonInput}
+                      onChange={(e) => setRawJsonInput(e.target.value)}
+                      className="w-full flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl p-3.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none resize-none leading-relaxed min-h-[250px]"
+                    />
+                    {jsonError && (
+                      <p className="text-rose-400 text-[10px] font-mono">{jsonError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {(() => {
+                      const activeTable = dbTables.find(t => t.name === selectedTableName);
+                      const fields = activeTable?.schema?.fields || { id: 'string' };
+                      
+                      return Object.entries(fields).map(([fieldName, fieldType]) => {
+                        // Skip ID for adding, but allow viewing/editing for Edit Mode (disabled)
+                        if (fieldName === 'id') {
+                          if (isEditRecordModalOpen) {
+                            return (
+                              <div key={fieldName} className="space-y-1.5">
+                                <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Record ID (PK)</label>
+                                <input
+                                  type="text"
+                                  disabled
+                                  value={editingRecordId || ""}
+                                  className="w-full bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-3 text-xs text-zinc-500 font-mono cursor-not-allowed"
+                                />
+                              </div>
+                            );
+                          }
+                          return null;
+                        }
+                        
+                        if (fieldName === 'created_at' || fieldName === 'updated_at') {
+                          return null; // System managed timestamps
+                        }
+
+                        return (
+                          <div key={fieldName} className="space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider">{fieldName}</label>
+                              <span className="text-[9px] font-sans text-zinc-600 lowercase bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800">
+                                {fieldType}
+                              </span>
+                            </div>
+                            
+                            {fieldType === 'boolean' ? (
+                              <select
+                                value={String(modalRecordData[fieldName] ?? 'false')}
+                                onChange={(e) => setModalRecordData({
+                                  ...modalRecordData,
+                                  [fieldName]: e.target.value === 'true'
+                                })}
+                                className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono"
+                              >
+                                <option value="false">false</option>
+                                <option value="true">true</option>
+                              </select>
+                            ) : (
+                              <input
+                                type={fieldType === 'number' ? 'number' : 'text'}
+                                value={modalRecordData[fieldName] ?? ""}
+                                onChange={(e) => setModalRecordData({
+                                  ...modalRecordData,
+                                  [fieldName]: e.target.value
+                                })}
+                                placeholder={`Enter ${fieldName}...`}
+                                className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                              />
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions Footer */}
+              <div className="px-6 py-4 bg-[#0a0a0d] border-t border-zinc-800/40 flex items-center gap-3 flex-shrink-0 mt-auto">
+                <button
+                  type="button"
+                  onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }}
+                  className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveRecord(isEditRecordModalOpen)}
+                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20 text-center"
+                >
+                  Save Record
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ════════ ADD COLUMN MODAL ════════ */}
+      <AnimatePresence>
+        {isAddColumnModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                      <PlusCircle size={16} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Add Column visually</h3>
+                      <p className="text-[11px] text-zinc-500 font-medium">Add field type to table "{selectedTableName}"</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsAddColumnModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleAddColumn} className="p-6 space-y-5">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Column Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newColName}
+                    onChange={(e) => setNewColName(e.target.value)}
+                    placeholder="e.g. email"
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Column Type</label>
+                  <select
+                    value={newColType}
+                    onChange={(e) => setNewColType(e.target.value as any)}
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white"
+                  >
+                    <option value="string">string</option>
+                    <option value="number">number</option>
+                    <option value="boolean">boolean</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddColumnModalOpen(false)}
+                    className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
+                  >
+                    Add Column
                   </button>
                 </div>
               </form>

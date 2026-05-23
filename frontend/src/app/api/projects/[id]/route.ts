@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getDatabaseState, saveDatabaseState } from "@/lib/telegramDatabase";
 
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

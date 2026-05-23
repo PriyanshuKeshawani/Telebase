@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isKVConfigured } from '@/lib/telegramDatabase';
 
+export const dynamic = 'force-dynamic';
+
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
@@ -65,9 +67,7 @@ export async function GET() {
       result.kvErrorMessage = e.message;
     }
   } else {
-    // If KV is not configured, simulate what a real edge-KV read latency would look like
-    // (typically between 12ms and 30ms on Cloudflare's Edge, versus standard 800ms+ for TG)
-    result.kvLatencyMs = Math.floor(Math.random() * 12) + 15; // 15ms - 27ms
+    result.kvLatencyMs = 0;
     result.kvStatus = 'not_configured';
   }
 

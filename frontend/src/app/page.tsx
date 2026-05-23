@@ -1,10 +1,27 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Database, Zap, Lock, HardDrive } from "lucide-react";
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-[#09090b]">
+        {/* Background Gradients static match */}
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/20 blur-[120px] rounded-full" />
+      </main>
+    );
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#09090b]">
       {/* Background Gradients */}

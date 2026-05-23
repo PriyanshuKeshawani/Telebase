@@ -14,6 +14,19 @@ function ensureLocalStateDir() {
   }
 }
 
+export function loadLocalState(): DatabaseSchema {
+  ensureLocalStateDir();
+  if (fs.existsSync(LOCAL_STATE_FILE)) {
+    try {
+      const raw = fs.readFileSync(LOCAL_STATE_FILE, 'utf-8');
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('[TeleStore] Failed to read local state backup:', e);
+    }
+  }
+  return { projects: [], files: [] };
+}
+
 // Optional Cloudflare KV REST API integration to unlock real DB speed (<15ms reads, <150ms writes)
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
@@ -94,6 +107,21 @@ let stateCache: DatabaseSchema | null = null;
 let lastCacheFetchTime = 0;
 const CACHE_TTL_MS = 2000; // 2 seconds cache TTL to allow fast consecutive reads
 
+export function updateStateCache(state: DatabaseSchema) {
+  stateCache = state;
+  lastCacheFetchTime = Date.now();
+}
+
+export function encryptState(state: DatabaseSchema): string {
+  const payload = JSON.stringify(state);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
+  return finalBuffer.toString('hex');
+}
+
 /**
  * Downloads the encrypted state from Telegram, decrypts and parses it.
  */
@@ -110,6 +138,7 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
       const res = await fetch(url, {
+        cache: 'no-store',
         headers: {
           'x-worker-key': CLOUDFLARE_WORKER_KEY
         }
@@ -153,7 +182,14 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       console.log(`[TeleStore] State successfully synchronized from Cloudflare Worker KV! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
       return state;
     } catch (error: any) {
-      console.error('[TeleStore] Cloudflare Worker KV sync failed, falling back to Telegram backup:', error.message);
+      console.error('[TeleStore] Cloudflare Worker KV sync failed, falling back to local file state cache:', error.message);
+      const localState = loadLocalState();
+      if (localState && (localState.projects.length > 0 || localState.files.length > 0)) {
+        console.log('[TeleStore] Successfully fell back to up-to-date local file state cache.');
+        stateCache = localState;
+        lastCacheFetchTime = now;
+        return localState;
+      }
     }
   }
 
@@ -162,24 +198,9 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
   // -------------------------------------------------------------
   if (isKVConfigured) {
     try {
-      if (CLOUDFLARE_ACCOUNT_ID === 'mock' || CLOUDFLARE_API_TOKEN.startsWith('mock')) {
-        console.log('[TeleStore] Simulating Cloudflare KV Edge Cache (Local Mock Dev Mode)...');
-        const localState = (() => {
-          ensureLocalStateDir();
-          if (fs.existsSync(LOCAL_STATE_FILE)) {
-            try {
-              const raw = fs.readFileSync(LOCAL_STATE_FILE, 'utf-8');
-              return JSON.parse(raw);
-            } catch (e) {}
-          }
-          return { projects: [], files: [] };
-        })();
-        stateCache = localState;
-        lastCacheFetchTime = now;
-        return localState;
-      }
       const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state`;
       const res = await fetch(url, {
+        cache: 'no-store',
         headers: {
           'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`
         }
@@ -223,7 +244,14 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       console.log(`[TeleStore] State successfully synchronized from Cloudflare KV! Loaded ${state.projects.length} projects, ${state.files.length} files.`);
       return state;
     } catch (error: any) {
-      console.error('[TeleStore] Cloudflare KV sync failed, falling back to Telegram backup:', error.message);
+      console.error('[TeleStore] Cloudflare KV sync failed, falling back to local file state cache:', error.message);
+      const localState = loadLocalState();
+      if (localState && (localState.projects.length > 0 || localState.files.length > 0)) {
+        console.log('[TeleStore] Successfully fell back to up-to-date local file state cache.');
+        stateCache = localState;
+        lastCacheFetchTime = now;
+        return localState;
+      }
     }
   } else {
     // -------------------------------------------------------------
@@ -233,7 +261,7 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       const bucketId = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
       const url = `https://kvdb.io/${bucketId}/telebase_state`;
       console.log(`[TeleStore] Free KV Fallback (kvdb.io): Synchronizing from bucket ${bucketId}...`);
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       
       if (res.status === 404) {
         console.log('[TeleStore] Free KV (kvdb.io): State not found. Starting fresh empty state.');
@@ -267,19 +295,6 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       console.error('[TeleStore] Free KV (kvdb.io) sync failed:', error.message);
     }
   }
-
-  const loadLocalState = (): DatabaseSchema => {
-    ensureLocalStateDir();
-    if (fs.existsSync(LOCAL_STATE_FILE)) {
-      try {
-        const raw = fs.readFileSync(LOCAL_STATE_FILE, 'utf-8');
-        return JSON.parse(raw);
-      } catch (e) {
-        console.error('[TeleStore] Failed to read local state backup:', e);
-      }
-    }
-    return { projects: [], files: [] };
-  };
 
   if (!BOT_TOKEN || !TELEGRAM_CHANNEL_ID) {
     console.warn('[TeleStore] BOT_TOKEN or TELEGRAM_CHANNEL_ID is missing. Operating in local fallback.');
@@ -338,7 +353,7 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
     const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
 
     // 3. Download encrypted binary
-    const downloadRes = await fetch(downloadUrl);
+    const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
     const encryptedArrayBuffer = await downloadRes.arrayBuffer();
     const encryptedBuffer = Buffer.from(encryptedArrayBuffer);
 
@@ -406,6 +421,87 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
     // -------------------------------------------------------------
     // CLOUDFLARE WORKER + KV FAST-PATH (UNDER 150MS WRITES!)
     // -------------------------------------------------------------
+    const triggerBackgroundTelegramBackup = () => {
+      if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
+        (async () => {
+          try {
+            console.log('[TeleStore BG] Triggering background Telegram backup to keep Telegram in-sync...');
+            const formData = new FormData();
+            formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+            const fileBlob = new Blob([finalBuffer], { type: 'application/octet-stream' });
+            formData.append('document', fileBlob, 'telebase_db.enc');
+
+            const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+              method: 'POST',
+              body: formData
+            });
+            const uploadData = await uploadRes.json();
+            if (uploadData.ok) {
+              const newMessageId = uploadData.result.message_id;
+              
+              // Pin the new index message
+              const pinRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/pinChatMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: TELEGRAM_CHANNEL_ID,
+                  message_id: newMessageId,
+                  disable_notification: true
+                })
+              });
+              const pinData = await pinRes.json();
+              if (!pinData.ok) {
+                console.warn('[TeleStore BG] Pin new message failed:', JSON.stringify(pinData));
+              }
+
+              // Clean up previous message
+              if (state.last_pinned_message_id) {
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    message_id: state.last_pinned_message_id
+                  })
+                }).catch(() => {});
+              }
+
+              // Update local state and remote KV with the new pinned ID silently
+              state.last_pinned_message_id = newMessageId;
+              
+              // Save updated state file locally to stay perfectly synchronized
+              try {
+                fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+              } catch (e) {}
+
+              const updatedHex = encryptState(state);
+              if (isCFWorkerConfigured) {
+                const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
+                await fetch(url, {
+                  method: 'PUT',
+                  headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
+                  body: updatedHex
+                }).catch(() => {});
+              } else if (isKVConfigured) {
+                const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state`;
+                await fetch(url, {
+                  method: 'PUT',
+                  headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' },
+                  body: updatedHex
+                }).catch(() => {});
+              }
+
+              console.log(`[TeleStore BG] Background Telegram backup and pin complete! Message ID: ${newMessageId}`);
+            } else {
+              console.warn('[TeleStore BG] Telegram backup upload returned not OK:', JSON.stringify(uploadData));
+            }
+          } catch (err: any) {
+            console.error('[TeleStore BG] Background Telegram backup failed:', err.message);
+          }
+        })();
+      }
+    };
+
     if (isCFWorkerConfigured) {
       try {
         const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
@@ -426,6 +522,7 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
         }
         
         console.log('[TeleStore] State successfully synced & secured in Cloudflare Worker KV!');
+        triggerBackgroundTelegramBackup();
         return;
       } catch (error: any) {
         console.error('[TeleStore] Cloudflare Worker KV write failed, falling back to Telegram backup:', error.message);
@@ -437,10 +534,6 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
     // -------------------------------------------------------------
     if (isKVConfigured) {
       try {
-        if (CLOUDFLARE_ACCOUNT_ID === 'mock' || CLOUDFLARE_API_TOKEN.startsWith('mock')) {
-          console.log('[TeleStore] State successfully synced & secured in Cloudflare KV (Local Mock Dev Mode)!');
-          return;
-        }
         const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state`;
         const encryptedHex = finalBuffer.toString('hex');
         
@@ -459,6 +552,7 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
         }
         
         console.log('[TeleStore] State successfully synced & secured in Cloudflare KV!');
+        triggerBackgroundTelegramBackup();
         return;
       } catch (error: any) {
         console.error('[TeleStore] Cloudflare KV write failed, falling back to Telegram backup:', error.message);
@@ -560,4 +654,68 @@ export async function verifyProjectApiKey(apiKey: string): Promise<Project | nul
   const state = await getDatabaseState();
   const project = state.projects.find((p) => p.api_key === apiKey);
   return project || null;
+}
+
+/**
+ * Encrypts arbitrary string payload using the database master key.
+ */
+export function encryptPayload(payload: string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
+  return finalBuffer.toString('hex');
+}
+
+/**
+ * Decrypts arbitrary string payload using the database master key.
+ */
+export function decryptPayload(encryptedHex: string): string {
+  const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+  if (encryptedBuffer.length < 28) {
+    throw new Error('Payload is too small or corrupted.');
+  }
+  const iv = encryptedBuffer.subarray(0, 12);
+  const authTag = encryptedBuffer.subarray(12, 28);
+  const cipherText = encryptedBuffer.subarray(28);
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(cipherText, undefined, 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+/**
+ * Synchronously (within HTTP response timeframe) saves a key-value value directly to Cloudflare KV.
+ */
+export async function saveKVValue(key: string, value: string): Promise<boolean> {
+  if (isCFWorkerConfigured) {
+    try {
+      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
+        body: value
+      });
+      return res.ok;
+    } catch (e) {
+      console.error(`[TeleStore] saveKVValue (Worker) error for ${key}:`, e);
+    }
+  }
+  if (isKVConfigured) {
+    try {
+      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' },
+        body: value
+      });
+      return res.ok;
+    } catch (e) {
+      console.error(`[TeleStore] saveKVValue (REST API) error for ${key}:`, e);
+    }
+  }
+  return false;
 }

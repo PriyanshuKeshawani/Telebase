@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyProjectApiKey, getDatabaseState, saveDatabaseState } from '@/lib/telegramDatabase';
 import { TelebaseQueryEngine, WALEntry } from '@/lib/telebaseQueryEngine';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Robust SQL syntax parsing parser
  */
@@ -48,7 +50,15 @@ function parseSQL(sql: string): {
   insertData?: any;
   updateSet?: any;
 } {
-  const cleanSql = sql.trim().replace(/\s+/g, ' ');
+  // Strip single-line comments (-- style)
+  let sqlWithoutComments = sql.replace(/--.*$/gm, '');
+  // Strip multi-line comments (/* style)
+  sqlWithoutComments = sqlWithoutComments.replace(/\/\*[\s\S]*?\*\//g, '');
+  
+  let cleanSql = sqlWithoutComments.trim();
+  // Strip trailing semicolons
+  cleanSql = cleanSql.replace(/;+$/, '').trim();
+  cleanSql = cleanSql.replace(/\s+/g, ' ');
   
   // Split by WHERE case-insensitively
   const whereMatch = cleanSql.match(/(.*?)\s+WHERE\s+(.+)/i);
@@ -265,6 +275,43 @@ export async function POST(req: NextRequest) {
       await saveDatabaseState(state);
 
       return NextResponse.json({ success: true, message: `Table "${tableName}" successfully created!` });
+    }
+
+    // D. DROP TABLE
+    if (action === 'DROP_TABLE') {
+      const state = await getDatabaseState(true);
+      const filename = `table_${project.id}_${tableName}.json`;
+      
+      const fileIndex = state.files.findIndex(f => f.project_id === project.id && f.filename === filename);
+      if (fileIndex === -1) {
+        return NextResponse.json({ success: false, error: `Table "${tableName}" does not exist.` }, { status: 404 });
+      }
+
+      // Remove from state files
+      state.files.splice(fileIndex, 1);
+
+      // Remove from schemas
+      if (state.schemas) {
+        const schemaKey = `${project.id}_${tableName}`;
+        delete state.schemas[schemaKey];
+      }
+
+      await saveDatabaseState(state);
+      return NextResponse.json({ success: true, message: `Table "${tableName}" successfully deleted!` });
+    }
+
+    // E. UPDATE TABLE SCHEMA (ADD/DELETE/RENAME COLUMNS)
+    if (action === 'UPDATE_SCHEMA') {
+      const state = await getDatabaseState(true);
+      const schemaKey = `${project.id}_${tableName}`;
+      
+      if (!state.schemas) {
+        state.schemas = {};
+      }
+
+      state.schemas[schemaKey] = schema;
+      await saveDatabaseState(state);
+      return NextResponse.json({ success: true, message: `Table "${tableName}" schema updated successfully!` });
     }
 
     // D. RUN DATABASE QUERIES (SQL or NoSQL)

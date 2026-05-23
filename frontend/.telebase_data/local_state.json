@@ -9,12 +9,374 @@
       "storage_type": "TELEGRAM",
       "bots": [
         "8638269397:AAFCqhpdIS7HYR3giGBd-6wzIgBTo88ykTw",
-        "8216712040:AAFwcz0_UGnO4YWJPBuUL7CVac8mpc8Nvu8"
+        "8216712040:AAFwcz0_UGnO4YWJPBuUL7CVac8mpc8Nvu8",
+        "8743065502:AAGDjQ2PMhxtvg0dlRQcAIXbC-ZOyNIKpzQ"
       ],
       "created_at": "2026-05-22T10:13:51.816Z"
     }
   ],
-  "files": [],
+  "files": [
+    {
+      "uuid": "92933204-0d06-4932-9b65-36d9d6442158",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "adahadr.jpeg",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "dc866affc06080668bcc7da45e3f38cb0121326f2c8356dae77e41b176b3f104",
+      "size": 47544,
+      "created_at": "2026-05-22T13:55:22.939Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBD2oQYFQ6p9K8LnmDLFI4kX1TJ1ndAAK7HgACCeOJVJaQjGNBTY3NOwQ",
+          "iv": "b0f9f527643217478ac66e29",
+          "auth_tag": "3e38f8ece65fc19fc9610850be7637b3"
+        }
+      ]
+    },
+    {
+      "uuid": "b529b4e1-9a3c-4e01-b57f-810ff27cd4c0",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "recovered_iso_test_b529.iso",
+      "version": 1,
+      "chunk_count": 25,
+      "file_hash": "979554a97bf34d940a71ac0b20c9cce45069b04517776788f3210cbe8f6d1ca2",
+      "size": 104970204,
+      "created_at": "2026-05-22T21:27:43.999Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "pending_telegram_backup",
+          "iv": "fa1283ba75cab91c608afbd6",
+          "auth_tag": "1fee76a97ae1f10a6e3f97c35d8eb792"
+        },
+        {
+          "chunk_index": 1,
+          "message_id": "pending_telegram_backup",
+          "iv": "b80a46f27cb3eb055e5a2d3f",
+          "auth_tag": "d936e646300d5b808473422eb56eb437"
+        },
+        {
+          "chunk_index": 2,
+          "message_id": "pending_telegram_backup",
+          "iv": "b1228887e25312f18b77e022",
+          "auth_tag": "cdcb9e7895aa74a8e286081a3b3cc402"
+        },
+        {
+          "chunk_index": 3,
+          "message_id": "pending_telegram_backup",
+          "iv": "f332af24d7a8c1649c6e05db",
+          "auth_tag": "dcc65f499779bd635738b39b9b4ba57e"
+        },
+        {
+          "chunk_index": 4,
+          "message_id": "pending_telegram_backup",
+          "iv": "1c76f8fd4940a7a818a2df9b",
+          "auth_tag": "2fd4e83fa7be74b1e4798673623c3f2d"
+        },
+        {
+          "chunk_index": 5,
+          "message_id": "pending_telegram_backup",
+          "iv": "02af8f66bb8d9c81e60d4290",
+          "auth_tag": "839572fbcb0666e646487b18adc8e93d"
+        },
+        {
+          "chunk_index": 6,
+          "message_id": "pending_telegram_backup",
+          "iv": "1227d9cd0821951745dc7481",
+          "auth_tag": "b39ee3d62daf789e425d936f7dd47a07"
+        },
+        {
+          "chunk_index": 7,
+          "message_id": "pending_telegram_backup",
+          "iv": "05cdde5cbda5ef6e0eed0503",
+          "auth_tag": "506c096663d39dca83cf41fcf1299350"
+        },
+        {
+          "chunk_index": 8,
+          "message_id": "pending_telegram_backup",
+          "iv": "3029ddaa8bdedb134cd1c02d",
+          "auth_tag": "364e61a6626c28d04519e1aaf30db50b"
+        },
+        {
+          "chunk_index": 9,
+          "message_id": "pending_telegram_backup",
+          "iv": "acd464655af6b9204d669d70",
+          "auth_tag": "a27b0a609e1e418ca4bfd5c16ec81ce2"
+        },
+        {
+          "chunk_index": 10,
+          "message_id": "pending_telegram_backup",
+          "iv": "29b7be0365cb870b049029d3",
+          "auth_tag": "2958382e8b655d7a45ff2b36e78448fc"
+        },
+        {
+          "chunk_index": 11,
+          "message_id": "pending_telegram_backup",
+          "iv": "a7ef202c5a4cf5a881cb7f6e",
+          "auth_tag": "9b80b3b73c6ad88d53a3a6d6538867b9"
+        },
+        {
+          "chunk_index": 12,
+          "message_id": "pending_telegram_backup",
+          "iv": "8ee809224267619294e5516b",
+          "auth_tag": "27a49ae2b72752db589f6b17f261277e"
+        },
+        {
+          "chunk_index": 13,
+          "message_id": "pending_telegram_backup",
+          "iv": "2a7fc53af41ba2baad3c2d2f",
+          "auth_tag": "da5a0ab6d0283ae30123aa9b512f2a97"
+        },
+        {
+          "chunk_index": 14,
+          "message_id": "pending_telegram_backup",
+          "iv": "9b941233b6da0b9e23167ded",
+          "auth_tag": "fb3c28fb2dfc732580a6292edba94d0c"
+        },
+        {
+          "chunk_index": 15,
+          "message_id": "pending_telegram_backup",
+          "iv": "9093d88165b70e1fa3357c5c",
+          "auth_tag": "b721bb9a2c2971e6a3b084a19f956060"
+        },
+        {
+          "chunk_index": 16,
+          "message_id": "pending_telegram_backup",
+          "iv": "f08841bb1d97e402b3968108",
+          "auth_tag": "829de07bf6eed402b1c3b2bf6c145ee1"
+        },
+        {
+          "chunk_index": 17,
+          "message_id": "pending_telegram_backup",
+          "iv": "7983aa0b9c8d81036014eb85",
+          "auth_tag": "75d2042fcdc32e0c7f3a2c2b0825966e"
+        },
+        {
+          "chunk_index": 18,
+          "message_id": "pending_telegram_backup",
+          "iv": "08e6c36201b67cfb99515145",
+          "auth_tag": "ab2f78bd5d7b6078728c92a23a0bb8ad"
+        },
+        {
+          "chunk_index": 19,
+          "message_id": "pending_telegram_backup",
+          "iv": "0c55a2d27f37831c6b0e78fe",
+          "auth_tag": "93c918a9ece1eb0f205b9b1f6f0cd638"
+        },
+        {
+          "chunk_index": 20,
+          "message_id": "pending_telegram_backup",
+          "iv": "8d4bcafb8904a200c1cfdb5a",
+          "auth_tag": "ee28dc114ada0ae152a7556a378f6d24"
+        },
+        {
+          "chunk_index": 21,
+          "message_id": "pending_telegram_backup",
+          "iv": "e44076a963de9ce913613b68",
+          "auth_tag": "5ed83dc006b8c5f539d751c7c647a43e"
+        },
+        {
+          "chunk_index": 22,
+          "message_id": "pending_telegram_backup",
+          "iv": "7094d59e26fd20de3e71c74e",
+          "auth_tag": "a91c276f26e55b014f109462f12163fc"
+        },
+        {
+          "chunk_index": 23,
+          "message_id": "pending_telegram_backup",
+          "iv": "c00cf70127a6d02a77d0f2d4",
+          "auth_tag": "b8d6bd4e067a99b60a842be2bec9d7a6"
+        },
+        {
+          "chunk_index": 24,
+          "message_id": "pending_telegram_backup",
+          "iv": "5e1cb41cf675cdff88b43545",
+          "auth_tag": "973542812bbb05736adf4728dfeae0cb"
+        }
+      ]
+    },
+    {
+      "uuid": "ca5d4eb1-5b97-438a-803d-b29a6aec6445",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "recovered_file_ca5d4eb1.bin",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "unknown",
+      "size": 4194304,
+      "created_at": "2026-05-22T21:27:44.549Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "pending_telegram_backup",
+          "iv": "25519c217f9d43261348e780",
+          "auth_tag": "7d6c4a014d7b216670f56d490521b648"
+        }
+      ]
+    },
+    {
+      "uuid": "ff61287b-58e3-42db-97bb-191a99db9242",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "recovered_file_ff61287b.bin",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "unknown",
+      "size": 4194304,
+      "created_at": "2026-05-22T21:27:45.156Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "pending_telegram_backup",
+          "iv": "5d9baeb0873ea95b863946ad",
+          "auth_tag": "795c456f0fb561298bea84540ff18a5f"
+        }
+      ]
+    },
+    {
+      "uuid": "7d567208-49d4-447d-98d9-5909f667b74d",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "table_e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_users.json",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "093d7db6cf49d1178cfaa97d39c6b88766b1783aed7b8ba34f3f6991b071d6fd",
+      "size": 691,
+      "created_at": "2026-05-23T09:50:00.178Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBYWoReFIG8KgCefG6pD5LCcCvdmaFAALxIQACCeORVEFbc7bWL127OwQ",
+          "iv": "7cac1898033c4c55e9978221",
+          "auth_tag": "7273244a84d2b71b13a0a59207aeaf4f"
+        }
+      ]
+    },
+    {
+      "uuid": "ad60625c-0703-458e-ba9a-cb5803b4feb9",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "adahadr.jpeg",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "dc866affc06080668bcc7da45e3f38cb0121326f2c8356dae77e41b176b3f104",
+      "size": 47544,
+      "created_at": "2026-05-23T10:05:49.072Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "pending_telegram_backup",
+          "iv": "906f0721d17a3c99a0875158",
+          "auth_tag": "b9975e9a4ae4afadbcd1a956ee9953a8"
+        }
+      ]
+    },
+    {
+      "uuid": "816f886d-b468-43ff-9b24-83f958c0dc01",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "table_e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_likes.json",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "29c284e319eb02d2d91b81ad76470646eb9cb0b9eb02bd0c2b34bf9ad71f808b",
+      "size": 183,
+      "created_at": "2026-05-23T10:09:02.100Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBZWoRfMrPuOqMi0OpvB3ZLaIvr2maAAIBIgACCeORVBWz-9P8SKIjOwQ",
+          "iv": "c3854e9ad4a6f38e125e0141",
+          "auth_tag": "9c11495e25ffbdff8c74c50405aeaf4d"
+        }
+      ]
+    },
+    {
+      "uuid": "b84ba27e-9e0e-46c4-866f-49cba0a68e70",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "table_e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_messages.json",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "3bfe08e422be216c45cef6d62e7acceee517485fb78a0744ed81848522a78249",
+      "size": 493,
+      "created_at": "2026-05-23T10:09:38.240Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBaWoRfO-Iie-AHyR2i44h8qCqvX9HAAIFIgACCeORVIJhHBCPvKGAOwQ",
+          "iv": "3d471b3860a0df69c7d4cf86",
+          "auth_tag": "ef9443b9e775263056649f88ccff6d51"
+        }
+      ]
+    },
+    {
+      "uuid": "dacb7522-c663-4b70-b26a-d437db71c0ad",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "table_e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_comments.json",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "d7d2805415a8420b7912ccf7e9aa3ba0f592e5de586e47a285800aea836e32d1",
+      "size": 477,
+      "created_at": "2026-05-23T10:10:28.533Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBamoRfSHaXTRcbvM32XZFBLUAAd87bAACBiIAAgnjkVTk_ICSSPhsKzsE",
+          "iv": "b442cee6c7671d2860798a51",
+          "auth_tag": "30cc76a2e8c62e6375c4ff2514cd43f3"
+        }
+      ]
+    },
+    {
+      "uuid": "20dfe02e-deef-405e-8cc0-aa49060b952e",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "Screenshot 2026-04-16 113333.png",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "ff0ccc37309047503a4a5a7f7314a32883196b63b5f94922205961d8f1fbd7a0",
+      "size": 35627,
+      "created_at": "2026-05-23T10:11:22.693Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBa2oRfVsIdTJLLrDglWT5cldrPatSAAIHIgACCeORVEZ9n8MxweYjOwQ",
+          "iv": "81e143069283b69038eb64ee",
+          "auth_tag": "1505ad74b77450fe90ba3cd56e0a3a4a"
+        }
+      ]
+    },
+    {
+      "uuid": "f1dbd183-fe5a-4eb9-b118-42b2714c4621",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "table_e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_posts.json",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "2090b72c3a1551473ee2031400c9ab244cfb25a051211681c553919666d8301b",
+      "size": 543,
+      "created_at": "2026-05-23T10:11:27.557Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBbGoRfVziq3Wch7UFH5rL2gP4ZC3ZAAIIIgACCeORVCYIbVsYmvnTOwQ",
+          "iv": "f66238fb5baf76e8989f2d39",
+          "auth_tag": "6c503f787994884d5344412abb0c224d"
+        }
+      ]
+    },
+    {
+      "uuid": "b4a4f6fe-ede1-45cf-bd82-22588384d2e9",
+      "project_id": "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b",
+      "filename": "table_e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_stories.json",
+      "version": 1,
+      "chunk_count": 1,
+      "file_hash": "e42f74aba7da124a8e11503dde88344fc5d8bf5a671d3cde3081a72ce543565a",
+      "size": 224,
+      "created_at": "2026-05-23T10:11:37.753Z",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "message_id": "BQACAgUAAyEGAATjkVp0AAIBbmoRfWV2PVT-Cxuv9NLmlFaeMWetAAIKIgACCeORVPlehGHGjPCSOwQ",
+          "iv": "634125e19b6f5def95d2bc40",
+          "auth_tag": "93f4a841369ac6d95ec38ca5dc6a53ce"
+        }
+      ]
+    }
+  ],
   "users": [
     {
       "id": "74757e80-426c-4424-a5f5-9966ba322b7b",
@@ -29,6 +391,19 @@
       "created_at": "2026-05-22T09:56:19.225Z"
     }
   ],
-  "last_pinned_message_id": 6,
-  "pendingUsers": []
+  "last_pinned_message_id": 60,
+  "pendingUsers": [],
+  "schemas": {
+    "e041ce2d-5107-41b5-bbfb-fdb50ca8a83b_users": {
+      "name": "users",
+      "fields": {
+        "id": "string",
+        "name": "string",
+        "age": "number"
+      },
+      "indexes": [
+        "id"
+      ]
+    }
+  }
 }

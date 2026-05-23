@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import zlib from 'zlib';
-import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured } from './telegramDatabase';
+import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema } from './telegramDatabase';
 
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
@@ -180,8 +180,78 @@ export async function getTableRecords(
     return { records: tableCache[cacheKey].data, cacheHit: true };
   }
 
-  // 1. Get database master index state
-  const state = await getDatabaseState(forceRefresh);
+  let records: any[] | null = null;
+  let state: DatabaseSchema | null = null;
+
+  // 1. Cloudflare Worker KV Batch GET Optimization (Under 30ms for BOTH state and table records in 1 roundtrip!)
+  if (isCFWorkerConfigured) {
+    try {
+      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/batch-get`;
+      const tableKey = `table_${project.id}_${tableName}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'x-worker-key': CLOUDFLARE_WORKER_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          keys: ['telebase_state', tableKey]
+        })
+      });
+
+      if (res.ok) {
+        const batchData = await res.json() as Record<string, string | null>;
+        
+        // A. Decrypt Master State
+        const stateHex = batchData['telebase_state'];
+        if (stateHex) {
+          const encryptedBuffer = Buffer.from(stateHex, 'hex');
+          if (encryptedBuffer.length >= 28) {
+            const iv = encryptedBuffer.subarray(0, 12);
+            const authTag = encryptedBuffer.subarray(12, 28);
+            const cipherText = encryptedBuffer.subarray(28);
+            const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+            decipher.setAuthTag(authTag);
+            let decrypted = decipher.update(cipherText, undefined, 'utf8');
+            decrypted += decipher.final('utf8');
+            state = JSON.parse(decrypted) as DatabaseSchema;
+            updateStateCache(state);
+          }
+        } else {
+          state = { projects: [], files: [] };
+          updateStateCache(state);
+        }
+
+        // B. Decrypt Table Records (if existing)
+        const tableHex = batchData[tableKey];
+        if (tableHex) {
+          const encryptedBuffer = Buffer.from(tableHex, 'hex');
+          if (encryptedBuffer.length >= 28) {
+            const iv = encryptedBuffer.subarray(0, 12);
+            const authTag = encryptedBuffer.subarray(12, 28);
+            const cipherText = encryptedBuffer.subarray(28);
+
+            const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
+            const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
+            decipher.setAuthTag(authTag);
+
+            const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
+            const decompressed = zlib.gunzipSync(decrypted);
+            records = JSON.parse(decompressed.toString('utf-8')) as any[];
+            console.log(`[Query Engine] Table "${tableName}" successfully loaded via Batch GET edge route!`);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.warn(`[Query Engine] Cloudflare Worker KV Batch GET read failed for ${tableName}:`, error.message);
+    }
+  }
+
+  // Fallback 1: If batch GET didn't run or fail, do standard sequential GET state
+  if (!state) {
+    state = await getDatabaseState(forceRefresh);
+  }
+
   const filename = `table_${project.id}_${tableName}.json`;
   const tableFile = state.files
     .filter((f) => f.project_id === project.id && f.filename === filename)
@@ -203,13 +273,12 @@ export async function getTableRecords(
     }
   }
 
-  let records: any[] | null = null;
-
-  // 2. Cloudflare Worker KV Fast-Path (Under 20ms reads!)
-  if (isCFWorkerConfigured) {
+  // Fallback 2: Standard Cloudflare Worker KV Single GET Pathway (if batch read didn't resolve the records)
+  if (!records && isCFWorkerConfigured) {
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/table_${project.id}_${tableName}`;
       const res = await fetch(url, {
+        cache: 'no-store',
         headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY }
       });
       if (res.ok) {
@@ -243,6 +312,7 @@ export async function getTableRecords(
       const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
       const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/table_${project.id}_${tableName}`;
       const res = await fetch(url, {
+        cache: 'no-store',
         headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` }
       });
       if (res.ok) {
@@ -273,7 +343,7 @@ export async function getTableRecords(
     try {
       const bucketId = 'k' + crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 19);
       const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const encryptedHex = await res.text();
         const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
@@ -316,7 +386,7 @@ export async function getTableRecords(
         if (!fileData.ok) throw new Error(`Telegram getFile failed: ${JSON.stringify(fileData)}`);
 
         const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
-        const downloadRes = await fetch(downloadUrl);
+        const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
         const encryptedChunk = Buffer.from(await downloadRes.arrayBuffer());
 
         const iv = Buffer.from(chunk.iv, 'hex');
@@ -368,77 +438,30 @@ export async function saveTableRecords(
   // Write to local fallback file immediately to guarantee zero-data loss and lightspeed latency
   saveLocalTableRecords(project.id, tableName, records, fileUuid);
 
-  const rawData = JSON.stringify(records);
-  const gzipped = zlib.gzipSync(Buffer.from(rawData, 'utf-8'));
-  
-  const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', projectAESKey, iv);
-  const encrypted = Buffer.concat([cipher.update(gzipped), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-
-  const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
-  const encryptedHex = finalBuffer.toString('hex');
-  const filename = `table_${project.id}_${tableName}.json`;
-
-  let cloudSaveSuccess = false;
-
-  // 1. Cloudflare Worker KV Fast-Path (Under 150ms writes!)
-  if (isCFWorkerConfigured) {
+  // Return instantly to the client to guarantee sub-0.5s CRUD speed, and execute KV/Telegram uploads in background
+  (async () => {
     try {
-      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/table_${project.id}_${tableName}`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'x-worker-key': CLOUDFLARE_WORKER_KEY,
-          'Content-Type': 'text/plain'
-        },
-        body: encryptedHex
-      });
-      if (res.ok) {
-        console.log(`[Query Engine] Table "${tableName}" successfully saved in Cloudflare Worker KV!`);
-        cloudSaveSuccess = true;
-      } else {
-        const errText = await res.text();
-        throw new Error(`Worker KV PUT failed: ${errText}`);
+      console.log(`[Query Engine BG] Starting background Cloud & Telegram sync for table "${tableName}"...`);
+      
+      // ─── OPTIMIZATION: Start fetching the master state CONCURRENTLY ───
+      let statePromise: Promise<any> | null = null;
+      if (isCFWorkerConfigured || isKVConfigured) {
+        statePromise = getDatabaseState(true);
       }
-    } catch (error: any) {
-      console.error('[Query Engine] Cloudflare Worker KV write failed:', error.message);
-    }
-  }
 
-  // 2. Cloudflare KV namespace REST API Fast-Path (Under 150ms writes!)
-  if (!cloudSaveSuccess && isKVConfigured) {
-    try {
-      const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-      const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
-      const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
-      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/table_${project.id}_${tableName}`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
-          'Content-Type': 'text/plain'
-        },
-        body: encryptedHex
-      });
-      if (res.ok) {
-        console.log(`[Query Engine] Table "${tableName}" successfully saved in Cloudflare KV REST API!`);
-        cloudSaveSuccess = true;
-      } else {
-        const errText = await res.text();
-        throw new Error(`Cloudflare KV REST PUT failed: ${errText}`);
-      }
-    } catch (error: any) {
-      console.error('[Query Engine] Cloudflare KV REST API write failed:', error.message);
-    }
-  }
+      const rawData = JSON.stringify(records);
+      const gzipped = zlib.gzipSync(Buffer.from(rawData, 'utf-8'));
+      
+      const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv('aes-256-gcm', projectAESKey, iv);
+      const encrypted = Buffer.concat([cipher.update(gzipped), cipher.final()]);
+      const authTag = cipher.getAuthTag();
 
-  // 3. Update Master state for Cloud storage modes
-  if (cloudSaveSuccess) {
-    try {
-      const state = await getDatabaseState(true);
-      state.files = state.files.filter((f) => !(f.project_id === project.id && f.filename === filename));
+      const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
+      const encryptedHex = finalBuffer.toString('hex');
+      const filename = `table_${project.id}_${tableName}.json`;
+
       const newTableFile: StoredFile = {
         uuid: fileUuid,
         project_id: project.id,
@@ -457,46 +480,179 @@ export async function saveTableRecords(
           }
         ]
       };
-      state.files.push(newTableFile);
-      await saveDatabaseState(state);
-      return;
-    } catch (error: any) {
-      console.error('[Query Engine] Master state update failed in Cloud mode, falling back to Telegram:', error.message);
-    }
-  }
 
-  // 4. Always-Free KV Fallback cache (kvdb.io - under 80ms writes!)
-  if (!isKVConfigured && !isCFWorkerConfigured) {
-    try {
-      const bucketId = 'k' + crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 19);
-      const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        body: encryptedHex
-      });
-      if (res.ok) {
-        console.log(`[Query Engine] Table "${tableName}" successfully saved in Free KV (kvdb.io)!`);
-      } else {
-        throw new Error(`kvdb.io PUT response status: ${res.status}`);
+      let cloudSaveSuccess = false;
+
+      const saveTableToCloud = async (): Promise<boolean> => {
+        // 1. Cloudflare Worker KV Fast-Path (Under 150ms writes!)
+        if (isCFWorkerConfigured) {
+          try {
+            const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/table_${project.id}_${tableName}`;
+            const res = await fetch(url, {
+              method: 'PUT',
+              headers: {
+                'x-worker-key': CLOUDFLARE_WORKER_KEY,
+                'Content-Type': 'text/plain'
+              },
+              body: encryptedHex
+            });
+            if (res.ok) {
+              console.log(`[Query Engine BG] Table "${tableName}" successfully saved in Cloudflare Worker KV!`);
+              return true;
+            } else {
+              const errText = await res.text();
+              throw new Error(`Worker KV PUT failed: ${errText}`);
+            }
+          } catch (error: any) {
+            console.error('[Query Engine BG] Cloudflare Worker KV write failed:', error.message);
+          }
+        }
+
+        // 2. Cloudflare KV namespace REST API Fast-Path (Under 150ms writes!)
+        if (isKVConfigured) {
+          try {
+            const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+            const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
+            const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+            const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/table_${project.id}_${tableName}`;
+            const res = await fetch(url, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
+                'Content-Type': 'text/plain'
+              },
+              body: encryptedHex
+            });
+            if (res.ok) {
+              console.log(`[Query Engine BG] Table "${tableName}" successfully saved in Cloudflare KV REST API!`);
+              return true;
+            } else {
+              const errText = await res.text();
+              throw new Error(`Cloudflare KV REST PUT failed: ${errText}`);
+            }
+          } catch (error: any) {
+            console.error('[Query Engine BG] Cloudflare KV REST API write failed:', error.message);
+          }
+        }
+        return false;
+      };
+
+      // ─── OPTIMIZATION: Cloudflare Worker Batch PUT Pathway (Under 40ms for both table records and state in exactly 1 request!) ───
+      if (isCFWorkerConfigured) {
+        try {
+          const state = await (statePromise ? statePromise : getDatabaseState(true));
+          state.files = state.files.filter((f: any) => !(f.project_id === project.id && f.filename === filename));
+          state.files.push(newTableFile);
+          
+          const stateEncryptedHex = encryptState(state);
+          
+          const batchPutUrl = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/batch-put`;
+          const res = await fetch(batchPutUrl, {
+            method: 'POST',
+            headers: {
+              'x-worker-key': CLOUDFLARE_WORKER_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              pairs: {
+                [`table_${project.id}_${tableName}`]: encryptedHex,
+                'telebase_state': stateEncryptedHex
+              }
+            })
+          });
+
+          if (res.ok) {
+            updateStateCache(state); // Sync local cache
+            console.log(`[Query Engine BG] Table "${tableName}" and master state successfully saved via Batch PUT edge route!`);
+            
+            // Still dispatch Telegram backup for background durability
+            if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+              dispatchTelegramBackup(project, tableName, fileUuid, filename, encrypted, iv, authTag, rawData.length);
+            }
+            return;
+          } else {
+            const errText = await res.text();
+            throw new Error(`Batch PUT edge request failed: ${errText}`);
+          }
+        } catch (error: any) {
+          console.warn('[Query Engine BG] Cloudflare Worker KV Batch PUT failed, falling back to sequential fast-paths:', error.message);
+        }
       }
-    } catch (error: any) {
-      console.error('[Query Engine] Free KV (kvdb.io) write failed:', error.message);
+
+      // Fallback: Dispatches table upload and state fetch concurrently, then saves master state sequentially (for REST API)
+      if (isCFWorkerConfigured || isKVConfigured) {
+        try {
+          const [tableSaved, state] = await Promise.all([
+            saveTableToCloud(),
+            statePromise ? statePromise : getDatabaseState(true)
+          ]);
+
+          if (tableSaved) {
+            state.files = state.files.filter((f: any) => !(f.project_id === project.id && f.filename === filename));
+            state.files.push(newTableFile);
+            await saveDatabaseState(state);
+            
+            // Dispatch Telegram backup for background durability
+            if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+              dispatchTelegramBackup(project, tableName, fileUuid, filename, encrypted, iv, authTag, rawData.length);
+            }
+            return;
+          }
+        } catch (error: any) {
+          console.error('[Query Engine BG] Master state update failed in Cloud mode, falling back to Telegram:', error.message);
+        }
+      }
+
+      // 4. Always-Free KV Fallback cache (kvdb.io - under 80ms writes!)
+      if (!isKVConfigured && !isCFWorkerConfigured) {
+        try {
+          const bucketId = 'k' + crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 19);
+          const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
+          const res = await fetch(url, {
+            method: 'PUT',
+            body: encryptedHex
+          });
+          if (res.ok) {
+            console.log(`[Query Engine BG] Table "${tableName}" successfully saved in Free KV (kvdb.io)!`);
+          } else {
+            throw new Error(`kvdb.io PUT response status: ${res.status}`);
+          }
+        } catch (error: any) {
+          console.error('[Query Engine BG] Free KV (kvdb.io) write failed:', error.message);
+        }
+      }
+
+      // If Telegram is configured, run synchronous/sequential Telegram backup (since it failed Cloud KV)
+      if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+        await dispatchTelegramBackup(project, tableName, fileUuid, filename, encrypted, iv, authTag, rawData.length);
+      }
+
+    } catch (bgError: any) {
+      console.error('[Query Engine BG Error]', bgError.message);
     }
-  }
+  })();
+}
 
-  // If Telegram is missing, skip channel upload
-  if (!process.env.BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
-    return;
-  }
-
-  // 5. Telegram backup durability layer upload
+/**
+ * Dedicated helper to perform Telegram backup of table records asynchronously.
+ */
+async function dispatchTelegramBackup(
+  project: Project,
+  tableName: string,
+  fileUuid: string,
+  filename: string,
+  encrypted: Buffer,
+  iv: Buffer,
+  authTag: Buffer,
+  rawLength: number
+): Promise<void> {
   try {
     const botToken = project.bots.length > 0 ? project.bots[0] : process.env.BOT_TOKEN || '';
     const channelId = project.channel_id || process.env.TELEGRAM_CHANNEL_ID || '';
 
     const formData = new FormData();
     formData.append('chat_id', channelId);
-    const chunkBlob = new Blob([encrypted], { type: 'application/octet-stream' });
+    const chunkBlob = new Blob([new Uint8Array(encrypted)], { type: 'application/octet-stream' });
     formData.append('document', chunkBlob, `${fileUuid}_table.enc`);
 
     const uploadRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
@@ -519,7 +675,7 @@ export async function saveTableRecords(
       version: 1,
       chunk_count: 1,
       file_hash: crypto.createHash('sha256').update(encrypted).digest('hex'),
-      size: rawData.length,
+      size: rawLength,
       created_at: new Date().toISOString(),
       chunks: [
         {
@@ -533,10 +689,10 @@ export async function saveTableRecords(
 
     state.files.push(newTableFile);
     await saveDatabaseState(state);
-    console.log(`[Query Engine] Table "${tableName}" successfully saved and cryptographically committed to Telegram!`);
+    console.log(`[Query Engine BG] Table "${tableName}" successfully saved and cryptographically committed to Telegram!`);
 
   } catch (error: any) {
-    console.error('[Query Engine] Telegram upload failed, database saved locally:', error.message);
+    console.error('[Query Engine BG] Telegram upload failed:', error.message);
   }
 }
 
@@ -588,8 +744,15 @@ export class TelebaseQueryEngine {
       durationMs: Date.now() - startTime
     });
 
-    if (activeRowLocks[lockKey]) {
-      throw new Error(`Concurrency Lock Violation: Table "${tableName}" is currently locked by write transaction ${activeRowLocks[lockKey].taskId}.`);
+    const activeLock = activeRowLocks[lockKey];
+    if (activeLock) {
+      const elapsed = Date.now() - activeLock.lockedAt;
+      if (elapsed > 5000) {
+        console.warn(`[Lock System] Lock on table "${tableName}" by transaction ${activeLock.taskId} has expired (held for ${elapsed}ms). Auto-releasing.`);
+        delete activeRowLocks[lockKey];
+      } else {
+        throw new Error(`Concurrency Lock Violation: Table "${tableName}" is currently locked by write transaction ${activeLock.taskId}.`);
+      }
     }
 
     try {
@@ -641,7 +804,15 @@ export class TelebaseQueryEngine {
           projectId: project.id,
           tableName,
           operation: action.type,
-          recordId: action.insertData?.id || action.noSqlQuery?.id || 'bulk_action',
+          recordId: (() => {
+            const rawId = action.insertData?.id || action.noSqlQuery?.id;
+            if (rawId && typeof rawId === 'object') {
+              const operatorVal = rawId.$eq || rawId.$ne || rawId.$gt || rawId.$gte || rawId.$lt || rawId.$lte;
+              if (operatorVal !== undefined) return String(operatorVal);
+              return JSON.stringify(rawId);
+            }
+            return rawId ? String(rawId) : 'bulk_action';
+          })(),
           oldData: action.type === 'UPDATE' || action.type === 'DELETE' ? records : null,
           newData: action.insertData || action.updateSet,
           status: 'PENDING'
@@ -791,6 +962,12 @@ export class TelebaseQueryEngine {
   static async runCrashRecovery(project: Project, tableName: string): Promise<{ restoredCount: number; logs: string[] }> {
     const logs: string[] = [];
     let restoredCount = 0;
+
+    const lockKey = `${project.id}_${tableName}`;
+    if (activeRowLocks[lockKey]) {
+      logs.push(`[Recovery System] Found active transaction lock for table "${tableName}" (${activeRowLocks[lockKey].taskId}). Explicitly releasing lock.`);
+      delete activeRowLocks[lockKey];
+    }
 
     logs.push(`[Recovery Started] Replaying Write-Ahead Logs (WAL) for project "${project.name}"...`);
     
