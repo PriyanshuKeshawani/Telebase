@@ -256,9 +256,84 @@ export async function POST() {
       }
     }
 
+    // 3.5. Process Pending Telegram Backups (Auto-Healing of suspended background serverless tasks)
+    let pendingBackupCount = 0;
+    let hasUpdates = false;
+
+    console.log('[Sync API] Scanning for any pending Telegram backups in database state...');
+    for (const file of state.files) {
+      const pendingChunks = file.chunks.filter(c => c.message_id === 'pending_telegram_backup');
+      if (pendingChunks.length > 0) {
+        console.log(`[Sync API] File "${file.filename}" (${file.uuid}) has ${pendingChunks.length} chunks pending Telegram backup.`);
+        
+        const project = state.projects.find(p => p.id === file.project_id);
+        if (!project) {
+          console.warn(`[Sync API] Owner project not found for file ${file.uuid}. Skipping backup.`);
+          continue;
+        }
+
+        for (const chunk of pendingChunks) {
+          try {
+            const kvKey = `chunk_${file.uuid}_${chunk.chunk_index}`;
+            let encryptedHex = '';
+
+            // Fetch from Cloudflare Worker
+            if (workerUrl && workerKey) {
+              const url = `${workerUrl.replace(/\/$/, '')}/${kvKey}`;
+              const res = await fetch(url, { headers: { 'x-worker-key': workerKey } });
+              if (res.ok) encryptedHex = await res.text();
+            }
+            
+            // Fallback: Fetch from Cloudflare KV REST API
+            if (!encryptedHex && accountId && namespaceId && apiToken) {
+              const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/values/${kvKey}`;
+              const res = await fetch(url, { headers: { 'Authorization': `Bearer ${apiToken}` } });
+              if (res.ok) encryptedHex = await res.text();
+            }
+
+            if (encryptedHex && encryptedHex !== "Not found") {
+              const fullBuffer = Buffer.from(encryptedHex, 'hex');
+              if (fullBuffer.length >= 28) {
+                const encryptedChunk = fullBuffer.subarray(28);
+
+                const botToken = project.bots.length > 0 ? project.bots[chunk.chunk_index % project.bots.length] : process.env.BOT_TOKEN || '';
+                const channelId = project.channel_id || process.env.TELEGRAM_CHANNEL_ID || '';
+
+                if (botToken && channelId) {
+                  console.log(`[Sync API] Uploading chunk ${chunk.chunk_index} of "${file.filename}" from KV to Telegram channel...`);
+                  const formData = new FormData();
+                  formData.append('chat_id', channelId);
+                  const chunkBlob = new Blob([new Uint8Array(encryptedChunk)], { type: 'application/octet-stream' });
+                  formData.append('document', chunkBlob, `${file.uuid}_chunk_${chunk.chunk_index}.enc`);
+
+                  const uploadRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+                    method: 'POST',
+                    body: formData
+                  });
+
+                  const uploadData = await uploadRes.json();
+                  if (uploadData.ok) {
+                    const telegramFileId = uploadData.result.document.file_id;
+                    chunk.message_id = telegramFileId;
+                    hasUpdates = true;
+                    pendingBackupCount++;
+                    console.log(`[Sync API] Chunk ${chunk.chunk_index} successfully backed up to Telegram. File ID: ${telegramFileId}`);
+                  } else {
+                    console.warn(`[Sync API] Telegram upload failed for chunk ${chunk.chunk_index}:`, JSON.stringify(uploadData));
+                  }
+                }
+              }
+            }
+          } catch (chunkErr: any) {
+            console.error(`[Sync API] Failed to backup chunk ${chunk.chunk_index} of ${file.uuid}:`, chunkErr.message);
+          }
+        }
+      }
+    }
+
     // 4. Save the repaired/healed state to all stores
-    if (recoveredFiles.length > 0) {
-      console.log(`[Sync API] Saving repaired database state with ${recoveredFiles.length} newly healed files...`);
+    if (recoveredFiles.length > 0 || hasUpdates) {
+      console.log(`[Sync API] Saving repaired database state...`);
       await saveDatabaseState(state);
       console.log('[Sync API] Repaired state saved successfully!');
     }
@@ -267,10 +342,13 @@ export async function POST() {
       success: true,
       message: recoveredFiles.length > 0 
         ? `Force Sync completed! Re-indexing scanner successfully healed and recovered ${recoveredFiles.length} missing files.`
-        : 'State rebuilt successfully! No missing files detected.',
+        : pendingBackupCount > 0
+          ? `Force Sync completed! Successfully backed up ${pendingBackupCount} pending chunks to Telegram.`
+          : 'State rebuilt successfully! No missing files or pending backups detected.',
       projectsCount: state.projects.length,
       filesCount: state.files.length,
-      recoveredFiles: recoveredFiles.map(f => ({ uuid: f.uuid, name: f.filename, size: f.size }))
+      recoveredFiles: recoveredFiles.map(f => ({ uuid: f.uuid, name: f.filename, size: f.size })),
+      pendingBackupsResolved: pendingBackupCount
     });
 
   } catch (error: any) {
