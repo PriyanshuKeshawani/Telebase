@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import zlib from 'zlib';
-import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema } from './telegramDatabase';
+import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
 
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
@@ -648,7 +648,7 @@ async function dispatchTelegramBackup(
 ): Promise<void> {
   try {
     const botToken = project.bots.length > 0 ? project.bots[0] : process.env.BOT_TOKEN || '';
-    const channelId = project.channel_id || process.env.TELEGRAM_CHANNEL_ID || '';
+    const channelId = formatTelegramChannelId(project.channel_id || process.env.TELEGRAM_CHANNEL_ID || '');
 
     const formData = new FormData();
     formData.append('chat_id', channelId);

@@ -2,8 +2,27 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
+export function formatTelegramChannelId(channelId: string): string {
+  if (!channelId) return '';
+  let cleaned = channelId.trim();
+  if (/^-?\d+$/.test(cleaned)) {
+    if (cleaned.startsWith('-')) {
+      if (!cleaned.startsWith('-100')) {
+        cleaned = '-100' + cleaned.substring(1);
+      }
+    } else {
+      if (cleaned.startsWith('100')) {
+        cleaned = '-' + cleaned;
+      } else {
+        cleaned = '-100' + cleaned;
+      }
+    }
+  }
+  return cleaned;
+}
+
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
+const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
 
 const LOCAL_STATE_DIR = path.join(process.cwd(), '.telebase_data');
 const LOCAL_STATE_FILE = path.join(LOCAL_STATE_DIR, 'local_state.json');

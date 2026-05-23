@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { getDatabaseState, saveDatabaseState, Project } from '@/lib/telegramDatabase';
+import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,21 +60,7 @@ export async function POST(req: NextRequest) {
 
     // Robust Auto-Formatting for Telegram Channel IDs (e.g. converting -3817953908 -> -1003817953908)
     if (channel_id) {
-      let cleaned = channel_id.trim();
-      if (/^-?\d+$/.test(cleaned)) {
-        if (cleaned.startsWith('-')) {
-          if (!cleaned.startsWith('-100')) {
-            cleaned = '-100' + cleaned.substring(1);
-          }
-        } else {
-          if (cleaned.startsWith('100')) {
-            cleaned = '-' + cleaned;
-          } else {
-            cleaned = '-100' + cleaned;
-          }
-        }
-      }
-      channel_id = cleaned;
+      channel_id = formatTelegramChannelId(channel_id);
     }
 
     const state = await getDatabaseState(true); // force refresh

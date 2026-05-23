@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isKVConfigured } from '@/lib/telegramDatabase';
+import { isKVConfigured, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
 export const dynamic = 'force-dynamic';
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
+const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';

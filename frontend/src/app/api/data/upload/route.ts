@@ -4,14 +4,14 @@ import zlib from 'zlib';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
-import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, FileChunk, isCFWorkerConfigured, isKVConfigured, updateStateCache, encryptPayload, saveKVValue } from '@/lib/telegramDatabase';
+import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, FileChunk, isCFWorkerConfigured, isKVConfigured, updateStateCache, encryptPayload, saveKVValue, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
 export const dynamic = 'force-dynamic';
 
 const gzipAsync = promisify(zlib.gzip);
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
+const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
 const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks to fit in Cloudflare KV limits, prevent timeouts, and enable fast parallel uploads
 
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
@@ -185,20 +185,7 @@ export async function POST(req: NextRequest) {
 
       // Auto-format channel ID on-the-fly
       if (channelId) {
-        channelId = channelId.trim();
-        if (/^-?\d+$/.test(channelId)) {
-          if (channelId.startsWith('-')) {
-            if (!channelId.startsWith('-100')) {
-              channelId = '-100' + channelId.substring(1);
-            }
-          } else {
-            if (channelId.startsWith('100')) {
-              channelId = '-' + channelId;
-            } else {
-              channelId = '-100' + channelId;
-            }
-          }
-        }
+        channelId = formatTelegramChannelId(channelId);
       }
 
       if (!botToken || !channelId) {
