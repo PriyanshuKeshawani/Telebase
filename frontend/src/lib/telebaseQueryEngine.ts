@@ -1,5 +1,17 @@
 import crypto from 'crypto';
-import zlib from 'zlib';
+async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Response(compressedBytes).body
+    ?.pipeThrough(new DecompressionStream('gzip'));
+  const decompressedBuffer = await new Response(stream).arrayBuffer();
+  return new Uint8Array(decompressedBuffer);
+}
+
+async function gzipCompress(rawBytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Response(rawBytes).body
+    ?.pipeThrough(new CompressionStream('gzip'));
+  const compressedBuffer = await new Response(stream).arrayBuffer();
+  return new Uint8Array(compressedBuffer);
+}
 import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
 
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
@@ -245,8 +257,8 @@ export async function getTableRecords(
             decipher.setAuthTag(authTag);
 
             const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-            const decompressed = zlib.gunzipSync(decrypted);
-            records = JSON.parse(decompressed.toString('utf-8')) as any[];
+            const decompressed = await gzipDecompress(decrypted);
+            records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
             console.log(`[Query Engine] Table "${tableName}" successfully loaded via Batch GET edge route!`);
           }
         }
@@ -303,8 +315,8 @@ export async function getTableRecords(
           decipher.setAuthTag(authTag);
 
           const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-          const decompressed = zlib.gunzipSync(decrypted);
-          records = JSON.parse(decompressed.toString('utf-8')) as any[];
+          const decompressed = await gzipDecompress(decrypted);
+          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Cloudflare Worker KV!`);
         }
       }
@@ -337,8 +349,8 @@ export async function getTableRecords(
           decipher.setAuthTag(authTag);
 
           const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-          const decompressed = zlib.gunzipSync(decrypted);
-          records = JSON.parse(decompressed.toString('utf-8')) as any[];
+          const decompressed = await gzipDecompress(decrypted);
+          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Cloudflare KV REST API!`);
         }
       }
@@ -366,8 +378,8 @@ export async function getTableRecords(
           decipher.setAuthTag(authTag);
 
           const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-          const decompressed = zlib.gunzipSync(decrypted);
-          records = JSON.parse(decompressed.toString('utf-8')) as any[];
+          const decompressed = await gzipDecompress(decrypted);
+          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Free KV (kvdb.io)!`);
         }
       }
@@ -409,8 +421,8 @@ export async function getTableRecords(
       }
 
       const gzippedBuffer = Buffer.concat(decryptedChunks);
-      const decompressed = zlib.gunzipSync(gzippedBuffer);
-      records = JSON.parse(decompressed.toString('utf-8')) as any[];
+      const decompressed = await gzipDecompress(gzippedBuffer);
+      records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
       console.log(`[Query Engine] Table "${tableName}" successfully loaded and decrypted from Telegram!`);
     } catch (error: any) {
       console.warn(`[Query Engine] Telegram read failed for ${tableName}:`, error.message);
@@ -459,7 +471,7 @@ export async function saveTableRecords(
       }
 
       const rawData = JSON.stringify(records);
-      const gzipped = zlib.gzipSync(Buffer.from(rawData, 'utf-8'));
+      const gzipped = await gzipCompress(Buffer.from(rawData, 'utf-8'));
       
       const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
       const iv = crypto.randomBytes(12);
