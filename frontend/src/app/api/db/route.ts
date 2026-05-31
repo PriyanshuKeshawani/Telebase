@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyProjectApiKey, getDatabaseState, saveDatabaseState } from '@/lib/telegramDatabase';
 import { TelebaseQueryEngine, WALEntry } from '@/lib/telebaseQueryEngine';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 /**

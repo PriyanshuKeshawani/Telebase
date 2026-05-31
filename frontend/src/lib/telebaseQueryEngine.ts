@@ -13,7 +13,7 @@ const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' 
 const LOCAL_STORE_DIR = (path && os)
   ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
     ? path.join(os.tmpdir(), '.telebase_data')
-    : path.join(process.cwd(), '.telebase_data'))
+    : path.join((typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : ''), '.telebase_data'))
   : '';
 const LOCAL_STORE_FILE = (path && LOCAL_STORE_DIR) ? path.join(LOCAL_STORE_DIR, 'local_db.json') : '';
 

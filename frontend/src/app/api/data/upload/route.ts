@@ -166,45 +166,19 @@ export async function POST(req: NextRequest) {
     // Background Telegram backup
     (async () => {
       try {
-        const uploadedIds = new Map<number, string>();
+        const uploadedMessageIds = new Map<number, string>();
         for (const pc of preparedChunks) {
           try {
-                throw new Error(`Chunk ${pc.chunkIndex} file not found in SSD cache.`);
-              }
-              encryptedChunk = fs.readFileSync(localChunkPath);
-            } else {
-              encryptedChunk = pc.chunkBuffer!;
-            }
-
             const fileId = await uploadTelegramWithRetry(
               pc.botToken,
               pc.channelId,
               fileUuid,
               pc.chunkIndex,
-              encryptedChunk
+              pc.chunkBytes
             );
 
             console.log(`[Upload BG] Chunk ${pc.chunkIndex} successfully backed up to Telegram. File ID: ${fileId}`);
             uploadedMessageIds.set(pc.chunkIndex, fileId);
-
-            // Progressive state update (instant local persistence, remote sync deferred to final step)
-            try {
-              if (fs.existsSync(LOCAL_STATE_FILE)) {
-                const localState = JSON.parse(fs.readFileSync(LOCAL_STATE_FILE, 'utf-8'));
-                const fileRec = localState.files.find((f: any) => f.uuid === fileUuid);
-                if (fileRec) {
-                  const chunkRec = fileRec.chunks.find((c: any) => c.chunk_index === pc.chunkIndex);
-                  if (chunkRec) {
-                    chunkRec.message_id = fileId;
-                    fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(localState, null, 2), 'utf-8');
-                    updateStateCache(localState);
-                    console.log(`[Upload BG] Progressive local save for chunk ${pc.chunkIndex} complete.`);
-                  }
-                }
-              }
-            } catch (localErr: any) {
-              console.error(`[Upload BG] Progressive local save failed for chunk ${pc.chunkIndex}:`, localErr.message);
-            }
           } catch (bgErr: any) {
             console.error(`[Upload BG] Telegram backup failed for chunk ${pc.chunkIndex} after all retries:`, bgErr.message);
           }
@@ -244,7 +218,7 @@ export async function POST(req: NextRequest) {
         filename,
         hash: fileHash,
         chunks: chunks.length,
-        size: fileBuffer.length
+        size: fileBytes.length
       }
     });
 

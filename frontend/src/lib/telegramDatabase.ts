@@ -63,7 +63,7 @@ const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL
 const LOCAL_STATE_DIR = (path && os)
   ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
     ? path.join(os.tmpdir(), '.telebase_data')
-    : path.join(process.cwd(), '.telebase_data'))
+    : path.join((typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : ''), '.telebase_data'))
   : '';
 const LOCAL_STATE_FILE = (path && LOCAL_STATE_DIR) ? path.join(LOCAL_STATE_DIR, 'local_state.json') : '';
 
