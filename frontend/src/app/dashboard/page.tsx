@@ -8,7 +8,7 @@ import {
   FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X, 
   HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
   ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder,
-  Search, History, BookOpen, ChevronLeft, Menu
+  Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code
 } from "lucide-react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
@@ -107,6 +107,79 @@ export default function Dashboard() {
   const [newColType, setNewColType] = useState<'string' | 'number' | 'boolean'>('string');
 
   // Supabase SQL Editor and Filtering states
+  interface SQLQuery {
+    id: string;
+    name: string;
+    query: string;
+    category: 'templates' | 'quickstarts' | 'shared' | 'favorites' | 'private';
+    isFavorite?: boolean;
+  }
+
+  const [sqlQueries, setSqlQueries] = useState<SQLQuery[]>([
+    {
+      id: 'template-profiles',
+      name: 'Create Profiles Table',
+      query: `-- Create a table for public profiles\nCREATE TABLE profiles (\n  id uuid references auth.users on delete cascade not null primary key,\n  updated_at timestamp with time zone,\n  username text unique,\n  full_name text,\n  avatar_url text,\n  website text,\n\n  constraint username_length check (char_length(username) >= 3)\n);\n\n-- Set up Row Level Security (RLS)\nalter table profiles enable row level security;\n\ncreate policy "Public profiles are viewable by everyone." on profiles\n  for select using (true);`,
+      category: 'templates',
+      isFavorite: false
+    },
+    {
+      id: 'quickstart-user-management',
+      name: 'User Management Starter',
+      query: `-- Create a table for public profiles\ncreate table profiles (\n  id uuid references auth.users on delete cascade not null primary key,\n  updated_at timestamp with time zone,\n  username text unique,\n  full_name text,\n  avatar_url text,\n  website text\n);`,
+      category: 'quickstarts',
+      isFavorite: true
+    },
+    {
+      id: 'template-insert',
+      name: 'Insert Sample Profile',
+      query: `-- Insert a mock administrator profile row into the database\nINSERT INTO profiles (id, name, avatar_url, is_admin)\nVALUES ('prof_1', 'Priyanshu Keshawani', 'https://avatar.vercel.sh/priyanshu', true)`,
+      category: 'templates'
+    },
+    {
+      id: 'template-query-admin',
+      name: 'Query Admin Profiles',
+      query: `-- Select all profiles that have administrator status enabled\nSELECT * FROM profiles WHERE is_admin = true`,
+      category: 'templates'
+    },
+    {
+      id: 'template-delete',
+      name: 'Delete Sample Data',
+      query: `-- Cleanly remove the test administrator profile record by ID\nDELETE FROM profiles WHERE id = 'prof_1'`,
+      category: 'templates'
+    },
+    {
+      id: 'user-query-1',
+      name: 'Get All Users',
+      query: 'SELECT * FROM users',
+      category: 'private'
+    }
+  ]);
+  const [activeQueryId, setActiveQueryId] = useState<string>('quickstart-user-management');
+  const [searchQueryText, setSearchQueryText] = useState<string>('');
+
+  const sqlTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const sqlGutterRef = useRef<HTMLDivElement>(null);
+
+  const handleSqlEditorScroll = () => {
+    if (sqlTextareaRef.current && sqlGutterRef.current) {
+      sqlGutterRef.current.scrollTop = sqlTextareaRef.current.scrollTop;
+    }
+  };
+
+  const handleQueryChange = (val: string) => {
+    setSqlQueryInput(val);
+    setSqlQueries(prev => prev.map(q => q.id === activeQueryId ? { ...q, query: val } : q));
+  };
+
+  // Sync active query content with textarea
+  useEffect(() => {
+    const q = sqlQueries.find(item => item.id === activeQueryId);
+    if (q) {
+      setSqlQueryInput(q.query);
+    }
+  }, [activeQueryId]);
+
   const [searchTableQuery, setSearchTableQuery] = useState('');
   const [sqlQueryHistory, setSqlQueryHistory] = useState<string[]>([
     "SELECT * FROM users",
@@ -1508,97 +1581,299 @@ When writing code for the developer:
               {activeTab === "db" && (
                 <div className="grid grid-cols-12 gap-6">
                   
-                  {/* Left: Tables List */}
+                  {/* Left: Tables List or SQL Editor Queries List */}
                   <div className="col-span-12 lg:col-span-3 space-y-4">
-                    <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Tables</h3>
-                        <button
-                          onClick={() => setIsNewTableModalOpen(true)}
-                          className="w-6 h-6 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-400 transition-all"
-                        >
-                          <Plus size={11} />
-                        </button>
-                      </div>
+                    {dbSubTab === 'explorer' ? (
+                      <>
+                        <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Tables</h3>
+                            <button
+                              onClick={() => setIsNewTableModalOpen(true)}
+                              className="w-6 h-6 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-400 transition-all"
+                            >
+                              <Plus size={11} />
+                            </button>
+                          </div>
 
-                      {dbTables.length > 0 && (
-                        <div className="relative mb-3">
+                          {dbTables.length > 0 && (
+                            <div className="relative mb-3">
+                              <input
+                                type="text"
+                                placeholder="Search tables..."
+                                value={searchTableQuery}
+                                onChange={(e) => setSearchTableQuery(e.target.value)}
+                                className="w-full bg-[#08080a] border border-zinc-800/50 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-blue-500/50 outline-none placeholder:text-zinc-600 font-mono"
+                              />
+                              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                              {searchTableQuery && (
+                                <button
+                                  onClick={() => setSearchTableQuery('')}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                >
+                                  <X size={10} />
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {(() => {
+                            const filteredTables = dbTables.filter(t => t.name.toLowerCase().includes(searchTableQuery.toLowerCase()));
+                            
+                            if (filteredTables.length === 0) {
+                              return (
+                                <div className="text-center py-8">
+                                  <Table2 className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
+                                  <p className="text-[11px] text-zinc-600">No tables found</p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+                                {filteredTables.map(t => (
+                                  <button
+                                    key={t.uuid}
+                                    onClick={() => {
+                                      setSelectedTableName(t.name);
+                                      if (currentProject) fetchTableRecords(t.name, currentProject.api_key);
+                                    }}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between group ${
+                                      selectedTableName === t.name 
+                                        ? "bg-blue-500/10 text-blue-300 border border-blue-500/20" 
+                                        : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200 border border-transparent"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <Table2 size={13} className={selectedTableName === t.name ? "text-blue-400" : "text-zinc-600"} />
+                                      <span className="font-mono font-medium truncate max-w-[100px]">{t.name}</span>
+                                    </div>
+                                    <span className="text-[9px] text-zinc-600 font-sans">{formatBytes(t.sizeBytes)}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* ACID Status */}
+                        <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Shield size={13} className="text-emerald-400" />
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Engine Status</span>
+                          </div>
+                          <div className="space-y-2">
+                            {["Atomicity", "Consistency", "Isolation", "Durability"].map((prop, i) => (
+                              <div key={i} className="flex items-center justify-between">
+                                <span className="text-[11px] text-zinc-500">{prop}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  <span className="text-[9px] font-bold text-emerald-400">ACTIVE</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-4 rounded-xl border border-zinc-850 bg-[#0a0a0d]/80 backdrop-blur-md flex flex-col h-full space-y-4">
+                        <div className="flex items-center justify-between pb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6.5 h-6.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                              <Code size={13} className="text-emerald-400" />
+                            </div>
+                            <div>
+                              <h3 className="text-xs font-bold text-zinc-200 tracking-tight">SQL Queries</h3>
+                              <p className="text-[9px] text-zinc-500 font-medium">Explore & manage scripts</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const name = prompt("Enter query name:");
+                              if (name && name.trim()) {
+                                const newId = `query-${Date.now()}`;
+                                setSqlQueries(prev => [
+                                  ...prev,
+                                  {
+                                    id: newId,
+                                    name: name.trim(),
+                                    query: `-- ${name.trim()}\nSELECT * FROM ${selectedTableName || 'users'} LIMIT 10;`,
+                                    category: 'private'
+                                  }
+                                ]);
+                                setActiveQueryId(newId);
+                              }
+                            }}
+                            className="w-6.5 h-6.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center text-emerald-400 transition-all hover:scale-105 active:scale-95"
+                            title="New Query"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
+
+                        {/* Search queries input */}
+                        <div className="relative">
                           <input
                             type="text"
-                            placeholder="Search tables..."
-                            value={searchTableQuery}
-                            onChange={(e) => setSearchTableQuery(e.target.value)}
-                            className="w-full bg-[#08080a] border border-zinc-800/50 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-blue-500/50 outline-none placeholder:text-zinc-600 font-mono"
+                            placeholder="Filter queries..."
+                            value={searchQueryText}
+                            onChange={(e) => setSearchQueryText(e.target.value)}
+                            className="w-full bg-[#08080a] border border-zinc-800/70 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 outline-none placeholder:text-zinc-600 transition-all font-mono"
                           />
                           <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-                          {searchTableQuery && (
+                          {searchQueryText && (
                             <button
-                              onClick={() => setSearchTableQuery('')}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                              onClick={() => setSearchQueryText('')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-350"
                             >
                               <X size={10} />
                             </button>
                           )}
                         </div>
-                      )}
 
-                      {(() => {
-                        const filteredTables = dbTables.filter(t => t.name.toLowerCase().includes(searchTableQuery.toLowerCase()));
-                        
-                        if (filteredTables.length === 0) {
-                          return (
-                            <div className="text-center py-8">
-                              <Table2 className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
-                              <p className="text-[11px] text-zinc-600">No tables found</p>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
-                            {filteredTables.map(t => (
-                              <button
-                                key={t.uuid}
-                                onClick={() => {
-                                  setSelectedTableName(t.name);
-                                  if (currentProject) fetchTableRecords(t.name, currentProject.api_key);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between group ${
-                                  selectedTableName === t.name 
-                                    ? "bg-blue-500/10 text-blue-300 border border-blue-500/20" 
-                                    : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200 border border-transparent"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <Table2 size={13} className={selectedTableName === t.name ? "text-blue-400" : "text-zinc-600"} />
-                                  <span className="font-mono font-medium truncate max-w-[100px]">{t.name}</span>
+                        {/* Folders and lists of queries */}
+                        <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1 scrollbar-none">
+                          {/* Folder: Templates */}
+                          {(() => {
+                            const templates = sqlQueries.filter(q => q.category === 'templates' && q.name.toLowerCase().includes(searchQueryText.toLowerCase()));
+                            if (templates.length > 0) {
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <BookOpen size={10} className="text-zinc-500" />
+                                    <span>Templates</span>
+                                    <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{templates.length}</span>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {templates.map(q => (
+                                      <button
+                                        key={q.id}
+                                        onClick={() => setActiveQueryId(q.id)}
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
+                                          activeQueryId === q.id 
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                            : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
+                                        }`}
+                                      >
+                                        <span className="truncate">{q.name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
-                                <span className="text-[9px] text-zinc-600 font-sans">{formatBytes(t.sizeBytes)}</span>
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
+                              );
+                            }
+                            return null;
+                          })()}
 
-                    {/* ACID Status */}
-                    <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Shield size={13} className="text-emerald-400" />
-                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Engine Status</span>
+                          {/* Folder: Quickstarts */}
+                          {(() => {
+                            const quickstarts = sqlQueries.filter(q => q.category === 'quickstarts' && q.name.toLowerCase().includes(searchQueryText.toLowerCase()));
+                            if (quickstarts.length > 0) {
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <Compass size={10} className="text-zinc-500" />
+                                    <span>Quickstarts</span>
+                                    <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{quickstarts.length}</span>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {quickstarts.map(q => (
+                                      <button
+                                        key={q.id}
+                                        onClick={() => setActiveQueryId(q.id)}
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
+                                          activeQueryId === q.id 
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                            : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
+                                        }`}
+                                      >
+                                        <span className="truncate">{q.name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
+                          {/* Folder: Favorites */}
+                          {(() => {
+                            const favorites = sqlQueries.filter(q => q.isFavorite && q.name.toLowerCase().includes(searchQueryText.toLowerCase()));
+                            if (favorites.length > 0) {
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <Heart size={10} className="text-rose-500" />
+                                    <span>Favorites</span>
+                                    <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{favorites.length}</span>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {favorites.map(q => (
+                                      <button
+                                        key={q.id}
+                                        onClick={() => setActiveQueryId(q.id)}
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
+                                          activeQueryId === q.id 
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                            : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
+                                        }`}
+                                      >
+                                        <span className="truncate">{q.name}</span>
+                                        <Heart size={9} className="fill-rose-500 text-rose-500" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
+                          {/* Folder: Private */}
+                          {(() => {
+                            const privates = sqlQueries.filter(q => q.category === 'private' && q.name.toLowerCase().includes(searchQueryText.toLowerCase()));
+                            if (privates.length > 0) {
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <Lock size={10} className="text-zinc-500" />
+                                    <span>Private</span>
+                                    <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{privates.length}</span>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {privates.map(q => (
+                                      <button
+                                        key={q.id}
+                                        onClick={() => setActiveQueryId(q.id)}
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
+                                          activeQueryId === q.id 
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                            : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
+                                        }`}
+                                      >
+                                        <span className="truncate">{q.name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+
+                        {/* Bottom action: View running queries */}
+                        <div className="pt-2 border-t border-zinc-850">
+                          <button
+                            onClick={() => alert("Showing running queries on Telebase: No active blocking transactions detected.")}
+                            className="w-full text-center py-2 bg-zinc-900/60 hover:bg-zinc-850/60 border border-zinc-800/80 rounded-lg text-[10px] font-bold text-zinc-400 hover:text-zinc-200 transition-all uppercase tracking-wider hover:scale-[1.01]"
+                          >
+                            View running queries
+                          </button>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        {["Atomicity", "Consistency", "Isolation", "Durability"].map((prop, i) => (
-                          <div key={i} className="flex items-center justify-between">
-                            <span className="text-[11px] text-zinc-500">{prop}</span>
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                              <span className="text-[9px] font-bold text-emerald-400">ACTIVE</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Right: Dual Sub-Tabs (Interactive Explorer / Advanced Console) */}
@@ -1956,122 +2231,185 @@ When writing code for the developer:
                       <div className="space-y-6">
                         {/* SQL Console */}
                         <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
-                          {/* Console Header */}
-                          <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/40 bg-zinc-900/20">
-                            <div className="flex items-center gap-3">
-                              <div className="flex gap-1.5">
-                                <span className="w-3 h-3 rounded-full bg-rose-500/70" />
-                                <span className="w-3 h-3 rounded-full bg-amber-500/70" />
-                                <span className="w-3 h-3 rounded-full bg-emerald-500/70" />
-                              </div>
-                              <span className="text-xs font-semibold text-zinc-400 ml-1">SQL Query Console</span>
+                          {/* Breadcrumbs Header */}
+                          <div className="flex items-center justify-between px-5 py-3 bg-[#0a0a0d]/40 border-b border-zinc-850">
+                            <div className="flex items-center gap-2 text-[11px] font-semibold text-zinc-500">
+                              <span className="text-zinc-400 hover:text-zinc-200 cursor-pointer transition-colors">Telebase Dev</span>
+                              <span className="text-zinc-650 text-[10px]">/</span>
+                              <span className="bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm shadow-indigo-500/5 select-none uppercase tracking-wide">Pro</span>
+                              <span className="text-zinc-650 text-[10px]">/</span>
+                              <span className="text-zinc-350 hover:text-zinc-200 cursor-pointer transition-colors">{currentProject?.name || "Telebase Project"}</span>
+                              <span className="text-zinc-650 text-[10px]">/</span>
+                              <span className="text-emerald-400 font-bold font-mono text-[11.5px] tracking-tight bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 flex items-center gap-1.5 shadow-sm shadow-emerald-500/5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                {sqlQueries.find(q => q.id === activeQueryId)?.name || "New Script"}
+                              </span>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <label className="flex items-center gap-1.5 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={forceLockCrash}
-                                  onChange={(e) => setForceLockCrash(e.target.checked)}
-                                  className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-900 text-rose-500 focus:ring-0 focus:ring-offset-0"
-                                />
-                                <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">
-                                  <AlertTriangle size={10} /> Simulate Crash
-                                </span>
-                              </label>
+                            <div className="flex items-center gap-4">
+                              <button 
+                                onClick={() => alert("Thank you for your feedback! The Telebase console continues to run cleanly.")} 
+                                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-wider bg-zinc-900/60 hover:bg-zinc-850 px-2.5 py-1 rounded-md border border-zinc-800"
+                              >
+                                Feedback
+                              </button>
+                              <button 
+                                onClick={() => alert("Telebase Advanced Console Redesign: This SQL editor is built to replicate the premium look and feel of modern developer suites.")}
+                                className="p-1 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                              >
+                                <HelpCircle size={14} />
+                              </button>
                             </div>
                           </div>
                           
-                          {/* Code Input */}
-                          <div className="relative">
+                          {/* Code Editor block with line numbers */}
+                          <div className="relative flex border-b border-zinc-850 bg-[#07070a] min-h-[220px] transition-all focus-within:border-zinc-800">
+                            {/* Line Numbers Gutter */}
+                            <div
+                              ref={sqlGutterRef}
+                              className="w-11 py-4 pr-3 text-right bg-[#050506]/90 border-r border-zinc-900/60 select-none overflow-hidden font-mono text-[12px] leading-relaxed text-zinc-600 flex flex-col gap-0"
+                              style={{ maxHeight: '300px' }}
+                            >
+                              {Array.from({ length: Math.max(sqlQueryInput.split('\n').length, 12) }, (_, i) => (
+                                <span key={i} className="h-[20px] block leading-relaxed">{i + 1}</span>
+                              ))}
+                            </div>
+
+                            {/* Main Textarea */}
                             <textarea
-                              rows={4}
+                              ref={sqlTextareaRef}
+                              rows={10}
                               value={sqlQueryInput}
-                              onChange={(e) => setSqlQueryInput(e.target.value)}
+                              onChange={(e) => handleQueryChange(e.target.value)}
+                              onScroll={handleSqlEditorScroll}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                                   e.preventDefault();
                                   handleExecuteQuery();
                                 }
                               }}
-                              placeholder="SELECT * FROM table"
-                              className="w-full bg-[#0c0c10] p-5 outline-none border-none text-zinc-200 resize-none code-editor text-[13px] leading-relaxed focus:ring-0 placeholder:text-zinc-700 font-mono"
+                              placeholder="-- Write your SQL query here (e.g. SELECT * FROM users;)"
+                              className="flex-1 bg-transparent px-5 py-4 outline-none border-none text-zinc-100 font-mono text-[13px] leading-relaxed focus:ring-0 placeholder:text-zinc-700 min-h-[200px]"
+                              style={{ maxHeight: '300px' }}
                               spellCheck={false}
                             />
-                          </div>
 
-                          {/* Status Bar */}
-                          <div className="flex items-center justify-between px-5 py-2 bg-[#0c0c10] border-t border-zinc-900/60 text-[10px] text-zinc-500 font-mono">
-                            <div className="flex items-center gap-3">
-                              <span className="flex items-center gap-1.5 text-emerald-400">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                🟢 edge-cache online
-                              </span>
-                              <span className="text-zinc-700">|</span>
-                              <span>🔒 ACID transaction safe</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span>💡 Protip: Press <kbd className="bg-zinc-850 px-1.5 py-0.5 rounded text-zinc-400 border border-zinc-800">Ctrl + Enter</kbd> to run</span>
+                            {/* Floating Schema Connected HUD in top-right */}
+                            <div className="absolute top-4 right-4 flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 select-none cursor-default shadow-sm shadow-emerald-500/5 transition-all hover:bg-emerald-500/10">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span className="text-[9px] font-bold font-mono tracking-wider uppercase">master schema</span>
+                              <Compass size={11} className="text-emerald-400/80 animate-spin-slow" style={{ animation: 'spin 15s linear infinite' }} />
                             </div>
                           </div>
 
-                          {/* Quick Presets */}
-                          <div className="flex items-center gap-2 px-5 py-2.5 border-t border-zinc-800/30 bg-zinc-900/10">
-                            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider mr-2">Quick:</span>
-                            {[
-                              { label: "SELECT ALL", query: `SELECT * FROM ${selectedTableName || 'users'}` },
-                              { label: "INSERT", query: `INSERT INTO ${selectedTableName || 'users'} (name, age) VALUES ('Emma', 28)` },
-                              { label: "UPDATE", query: `UPDATE ${selectedTableName || 'users'} SET age = 29 WHERE name = 'Emma'` },
-                              { label: "DELETE", query: `DELETE FROM ${selectedTableName || 'users'} WHERE name = 'Emma'` },
-                            ].map((preset, i) => (
+                          {/* Status and Action Bar (divider split) */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-3 border-t border-zinc-850 bg-[#08080a]/50">
+                            {/* Left side: Results & Chart tab buttons */}
+                            <div className="flex items-center gap-1.5">
                               <button
-                                key={i}
-                                onClick={() => setSqlQueryInput(preset.query)}
-                                className="px-2.5 py-1 rounded-md bg-zinc-800/40 hover:bg-zinc-700/40 border border-zinc-800/50 text-[10px] font-semibold text-zinc-500 hover:text-zinc-300 transition-all"
+                                onClick={() => setSqlTerminalTab('results')}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                                  sqlTerminalTab === 'results' 
+                                    ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50" 
+                                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                                }`}
                               >
-                                {preset.label}
+                                Results
                               </button>
-                            ))}
-                            <div className="flex-1" />
-                            <button
-                              onClick={() => handleExecuteQuery()}
-                              disabled={isQueryRunning || !selectedTableName}
-                              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-500/10"
-                            >
-                              {isQueryRunning ? (
-                                <>
-                                  <RefreshCw size={12} className="animate-spin" />
-                                  <span>Executing...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play size={12} fill="white" />
-                                  <span>Run Query</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
+                              <button
+                                onClick={() => {
+                                  if (!queryResult) {
+                                    alert("Run a query first to visualize a Chart!");
+                                    return;
+                                  }
+                                  setSqlTerminalTab('templates'); // Reuse 'templates' tab state for custom chart!
+                                }}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                                  sqlTerminalTab === 'templates' 
+                                    ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50" 
+                                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                                }`}
+                              >
+                                Chart
+                              </button>
+                            </div>
 
-                        {/* Supabase Sub-Tabs Bar */}
-                        <div className="flex border-b border-zinc-800/50 bg-[#0a0a0d] p-1 rounded-xl gap-1">
-                          {[
-                            { id: 'results' as const, label: '📊 Results & Logs', icon: Table2 },
-                            { id: 'templates' as const, label: '📚 Query Templates', icon: BookOpen },
-                            { id: 'history' as const, label: '📜 Query History', icon: History }
-                          ].map(t => (
-                            <button
-                              key={t.id}
-                              onClick={() => setSqlTerminalTab(t.id)}
-                              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
-                                sqlTerminalTab === t.id
-                                  ? "bg-zinc-850 text-blue-400 border border-zinc-750/50 shadow-sm"
-                                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30"
-                              }`}
-                            >
-                              <t.icon size={13} />
-                              <span>{t.label}</span>
-                            </button>
-                          ))}
+                            {/* Right side: Accents, source/role selectors, and Run button */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              {/* Keyboard Shortcut Icon */}
+                              <button
+                                onClick={() => alert("Query console shortcuts:\n• Ctrl + Enter: Run Active Query\n• Meta/Cmd + Enter: Run Active Query\n• Heart Icon: Toggle Favorite")}
+                                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors shadow-sm"
+                                title="Keyboard Shortcuts"
+                              >
+                                <Keyboard size={13} />
+                              </button>
+
+                              {/* Favorite Toggle button */}
+                              <button
+                                onClick={() => {
+                                  const active = sqlQueries.find(q => q.id === activeQueryId);
+                                  if (active) {
+                                    setSqlQueries(prev => prev.map(q => q.id === activeQueryId ? { ...q, isFavorite: !q.isFavorite } : q));
+                                    alert(active.isFavorite ? "Removed from Favorites" : "Added to Favorites!");
+                                  }
+                                }}
+                                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-rose-400 transition-colors shadow-sm"
+                                title="Toggle Favorite"
+                              >
+                                <Heart size={13} className={sqlQueries.find(q => q.id === activeQueryId)?.isFavorite ? "fill-rose-500 text-rose-500" : ""} />
+                              </button>
+
+                              {/* History panel toggle */}
+                              <button
+                                onClick={() => {
+                                  setSqlTerminalTab(sqlTerminalTab === 'history' ? 'results' : 'history');
+                                }}
+                                className={`p-2 rounded-lg border transition-all shadow-sm ${
+                                  sqlTerminalTab === 'history' 
+                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 font-bold" 
+                                    : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                                }`}
+                                title="Execution History"
+                              >
+                                <History size={13} />
+                              </button>
+
+                              <div className="h-4 w-px bg-zinc-800/80 mx-0.5" />
+
+                              {/* Database Selection Dropdown */}
+                              <div className="relative text-[10px] text-zinc-400 bg-zinc-900/60 border border-zinc-800/80 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 select-none font-mono cursor-default shadow-sm hover:border-zinc-700 transition-colors">
+                                <span className="text-zinc-650">source</span>
+                                <span className="text-zinc-350 font-semibold">Primary DB</span>
+                              </div>
+
+                              {/* Role Selection Dropdown */}
+                              <div className="relative text-[10px] text-zinc-400 bg-zinc-900/60 border border-zinc-800/80 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 select-none font-mono cursor-default shadow-sm hover:border-zinc-700 transition-colors">
+                                <span className="text-zinc-650">role</span>
+                                <span className="text-zinc-300 font-semibold font-mono">postgres</span>
+                              </div>
+
+                              {/* Green Run Button */}
+                              <button
+                                onClick={() => handleExecuteQuery()}
+                                disabled={isQueryRunning}
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:hover:bg-emerald-500 text-black font-extrabold text-xs transition-all shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-98"
+                              >
+                                {isQueryRunning ? (
+                                  <>
+                                    <RefreshCw size={12} className="animate-spin text-black" />
+                                    <span>Running</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play size={10} className="fill-black text-black" />
+                                    <span className="flex items-center gap-1">
+                                      Run <span className="text-[9px] text-black/60 font-semibold bg-black/10 px-1 rounded-sm">Ctrl+Enter</span>
+                                    </span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Dynamic Sub-Tab Workspaces */}
@@ -2111,7 +2449,7 @@ When writing code for the developer:
                                   </div>
 
                                   {queryResult.success ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-4">
                                       {/* Optimization Stats */}
                                       {queryResult.optimization && (
                                         <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800/30 text-[10px]">
@@ -2127,16 +2465,54 @@ When writing code for the developer:
                                         </div>
                                       )}
                                       
-                                      {/* Execution Plan */}
-                                      {queryResult.plan && (
-                                        <div className="space-y-1">
-                                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider">Execution Plan</span>
-                                          {queryResult.plan.map((step: any, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 text-[10px] font-mono">
-                                              <span className="text-zinc-400">{step.operation}</span>
-                                              <span className="text-zinc-600 truncate max-w-[60%] text-right">{step.details}</span>
-                                            </div>
-                                          ))}
+                                      {/* Grid output */}
+                                      {queryResult.records && queryResult.records.length > 0 ? (
+                                        <div className="border border-zinc-800/40 rounded-xl bg-[#0a0a0d] overflow-hidden">
+                                          <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
+                                            <table className="w-full text-left">
+                                              <thead>
+                                                <tr className="border-b border-zinc-850 bg-zinc-900/30">
+                                                  {Object.keys(queryResult.records[0]).map((col) => (
+                                                    <th key={col} className="py-2.5 px-4 text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+                                                      {col}
+                                                    </th>
+                                                  ))}
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {queryResult.records.map((row: any, rIdx: number) => (
+                                                  <tr key={rIdx} className="border-b border-zinc-900 hover:bg-zinc-900/20 transition-colors">
+                                                    {Object.keys(queryResult.records[0]).map((col, cIdx) => {
+                                                      const val = row[col];
+                                                      return (
+                                                        <td key={cIdx} className="py-2 px-4 text-[11px] text-zinc-300 font-mono">
+                                                          {val === null || val === undefined ? (
+                                                            <span className="text-zinc-700 italic">null</span>
+                                                          ) : typeof val === 'object' ? (
+                                                            JSON.stringify(val)
+                                                          ) : typeof val === 'boolean' ? (
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-sans uppercase ${val ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+                                                              {String(val)}
+                                                            </span>
+                                                          ) : (
+                                                            String(val)
+                                                          )}
+                                                        </td>
+                                                      );
+                                                    })}
+                                                  </tr>
+                                                ))}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                          <div className="p-3 bg-zinc-900/20 border-t border-zinc-850 flex items-center justify-between text-[10px] text-zinc-500">
+                                            <span>Returned {queryResult.records.length} row{queryResult.records.length > 1 ? 's' : ''}</span>
+                                            <span>Execution time: {queryResult.latencyMs || 12}ms</span>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 text-xs font-mono rounded-lg">
+                                          Query executed successfully. Affected rows: {queryResult.affectedRows ?? 0}
                                         </div>
                                       )}
                                     </div>
@@ -2147,7 +2523,7 @@ When writing code for the developer:
                                   )}
                                 </motion.div>
                               ) : (
-                                <div className="p-10 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] text-center">
+                                <div className="py-14 text-center border border-zinc-800/40 rounded-xl bg-zinc-900/10">
                                   <Terminal className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                                   <h4 className="text-xs font-bold text-zinc-400 mb-1">No execution results</h4>
                                   <p className="text-[11px] text-zinc-650 max-w-sm mx-auto leading-relaxed">
@@ -2222,58 +2598,65 @@ When writing code for the developer:
                           </div>
                         )}
 
+                        {/* Templates tab slot repurposed as interactive Chart view */}
                         {sqlTerminalTab === 'templates' && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {[
-                              {
-                                title: "Create Profiles Table",
-                                desc: "Initialize a new table schema for user profiles with standard fields.",
-                                icon: Table2,
-                                query: `CREATE TABLE profiles (
-  id string,
-  name string,
-  avatar_url string,
-  is_admin boolean
-)`
-                              },
-                              {
-                                title: "Insert Sample Profile",
-                                desc: "Insert a mock administrator profile row into the database.",
-                                icon: PlusCircle,
-                                query: `INSERT INTO profiles (id, name, avatar_url, is_admin)
-VALUES ('prof_1', 'Priyanshu Keshawani', 'https://avatar.vercel.sh/priyanshu', true)`
-                              },
-                              {
-                                title: "Query Admin Profiles",
-                                desc: "Select all profiles that have administrator status enabled.",
-                                icon: Search,
-                                query: `SELECT * FROM profiles WHERE is_admin = true`
-                              },
-                              {
-                                title: "Delete Sample Data",
-                                desc: "Cleanly remove the test administrator profile record by ID.",
-                                icon: Trash2,
-                                query: `DELETE FROM profiles WHERE id = 'prof_1'`
+                          <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                            {(() => {
+                              if (!queryResult || !queryResult.records || queryResult.records.length === 0) {
+                                return (
+                                  <div className="py-14 text-center text-zinc-500 text-xs">
+                                    No records available to plot a chart. Execute a query that returns rows first.
+                                  </div>
+                                );
                               }
-                            ].map((tmpl, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() => {
-                                  setSqlQueryInput(tmpl.query);
-                                  setSqlTerminalTab('results');
-                                }}
-                                className="text-left p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] hover:border-blue-500/20 hover:bg-blue-500/5 transition-all group"
-                              >
-                                <div className="flex items-center gap-2 mb-2">
-                                  <tmpl.icon size={14} className="text-blue-400 group-hover:text-blue-300" />
-                                  <h4 className="text-xs font-bold text-zinc-200 group-hover:text-white transition-colors">{tmpl.title}</h4>
+                              const firstRecord = queryResult.records[0];
+                              const numericCol = Object.keys(firstRecord).find(k => k !== 'id' && typeof firstRecord[k] === 'number');
+                              const labelCol = Object.keys(firstRecord).find(k => k === 'name' || k === 'title' || k === 'username' || k === 'filename') || Object.keys(firstRecord)[0];
+
+                              if (!numericCol) {
+                                return (
+                                  <div className="py-12 text-center text-zinc-500 text-xs border border-zinc-800/30 rounded-xl bg-zinc-900/10">
+                                    <AlertCircle size={20} className="mx-auto mb-2 text-zinc-650" />
+                                    No numeric columns found in the result set to render a chart visualization.
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                                      Visualizing: <strong className="text-emerald-450 font-mono">{numericCol}</strong> by <strong className="text-zinc-400 font-mono">{labelCol}</strong>
+                                    </h4>
+                                    <span className="text-[10px] text-zinc-500 font-mono bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">Chart View</span>
+                                  </div>
+                                  
+                                  <div className="space-y-3.5 pt-2">
+                                    {queryResult.records.map((row: any, idx: number) => {
+                                      const labelVal = row[labelCol] || `Row #${idx + 1}`;
+                                      const numVal = Number(row[numericCol]) || 0;
+                                      const maxVal = Math.max(...queryResult.records.map((r: any) => Number(r[numericCol]) || 1), 1);
+                                      const percent = Math.min(100, Math.max(5, (numVal / maxVal) * 100));
+                                      
+                                      return (
+                                        <div key={idx} className="space-y-1">
+                                          <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
+                                            <span>{String(labelVal)}</span>
+                                            <span className="text-emerald-400 font-bold">{numVal}</span>
+                                          </div>
+                                          <div className="w-full bg-zinc-900/60 rounded-full h-2 overflow-hidden border border-zinc-850">
+                                            <div
+                                              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                                              style={{ width: `${percent}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                                <p className="text-[11px] text-zinc-555 leading-relaxed mb-3">{tmpl.desc}</p>
-                                <div className="bg-[#050507] border border-zinc-900 rounded-lg p-2 font-mono text-[9px] text-zinc-400 truncate">
-                                  {tmpl.query}
-                                </div>
-                              </button>
-                            ))}
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -2290,7 +2673,7 @@ VALUES ('prof_1', 'Priyanshu Keshawani', 'https://avatar.vercel.sh/priyanshu', t
                                   "-- Insert a mock user\nINSERT INTO users (id, name, age) VALUES ('user_99', 'Supabase Agent', 30)",
                                   "SELECT * FROM users WHERE age > 20"
                                 ])}
-                                className="text-[9px] font-bold text-zinc-600 hover:text-zinc-400 transition-colors uppercase tracking-wider"
+                                className="text-[9px] font-bold text-zinc-650 hover:text-zinc-400 transition-colors uppercase tracking-wider"
                               >
                                 Reset Logs
                               </button>
@@ -2319,7 +2702,7 @@ VALUES ('prof_1', 'Priyanshu Keshawani', 'https://avatar.vercel.sh/priyanshu', t
                                           setSqlQueryInput(query);
                                           setSqlTerminalTab('results');
                                         }}
-                                        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-all"
+                                        className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-black rounded text-[10px] font-bold transition-all"
                                       >
                                         Load
                                       </button>
@@ -2328,7 +2711,7 @@ VALUES ('prof_1', 'Priyanshu Keshawani', 'https://avatar.vercel.sh/priyanshu', t
                                           navigator.clipboard.writeText(query);
                                           alert("Query copied!");
                                         }}
-                                        className="p-1 bg-zinc-800 hover:bg-zinc-750 text-zinc-400 hover:text-zinc-200 rounded border border-zinc-700/40 transition-all"
+                                        className="p-1 bg-zinc-800 hover:bg-zinc-750 text-zinc-450 hover:text-zinc-200 rounded border border-zinc-700/40 transition-all"
                                         title="Copy query"
                                       >
                                         <Copy size={11} />
