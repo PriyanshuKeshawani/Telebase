@@ -1,78 +1,95 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
-const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
-const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
 import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, isCFWorkerConfigured, isKVConfigured } from '@/lib/telegramDatabase';
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || '';
-
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 
+// --- Edge-compatible helpers ---
+function hexToBytes(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  return arr;
+}
+
+async function aesGcmDecryptChunk(keyBytes: Uint8Array, iv: Uint8Array, cipherText: Uint8Array, authTag: Uint8Array): Promise<Uint8Array> {
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const combined = new Uint8Array(cipherText.length + authTag.length);
+  combined.set(cipherText);
+  combined.set(authTag, cipherText.length);
+  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, combined));
+}
+
 async function fetchTelegramWithRetry(url: string, options?: RequestInit, retries = 5, delayMs = 1500): Promise<any> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, { cache: 'no-store', ...options });
       if (res.status === 429) {
-        const retryAfter = res.headers.get('Retry-After');
-        const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : delayMs * Math.pow(2, attempt);
-        console.warn(`[Download Stream] Telegram 429 rate limit. Retrying after ${wait}ms... (Attempt ${attempt}/${retries})`);
-        await new Promise((resolve) => setTimeout(resolve, wait));
+        const wait = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delayMs * Math.pow(2, attempt);
+        await new Promise(r => setTimeout(r, wait));
         continue;
       }
-      if (!res.ok) {
-        throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
-      }
+      if (!res.ok) throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
       const data = await res.json();
-      if (!data.ok) {
-        throw new Error(data.description || 'Telegram API returned ok=false');
-      }
+      if (!data.ok) throw new Error(data.description || 'Telegram API returned ok=false');
       return data;
     } catch (err: any) {
-      if (attempt === retries) {
-        throw err;
-      }
-      const wait = delayMs * Math.pow(2, attempt);
-      console.warn(`[Download Stream] Telegram request failed: ${err.message}. Retrying in ${wait}ms... (Attempt ${attempt}/${retries})`);
-      await new Promise((resolve) => setTimeout(resolve, wait));
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, delayMs * Math.pow(2, attempt)));
     }
   }
   throw new Error('Telegram request failed after maximum retries');
 }
 
-async function fetchBinaryChunkWithRetry(url: string, options?: RequestInit, retries = 5, delayMs = 1500): Promise<Buffer> {
+async function fetchBinaryWithRetry(url: string, options?: RequestInit, retries = 5, delayMs = 1500): Promise<Uint8Array> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, { cache: 'no-store', ...options });
       if (res.status === 429) {
-        const retryAfter = res.headers.get('Retry-After');
-        const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : delayMs * Math.pow(2, attempt);
-        console.warn(`[Download Stream] Binary fetch 429 rate limit. Retrying after ${wait}ms... (Attempt ${attempt}/${retries})`);
-        await new Promise((resolve) => setTimeout(resolve, wait));
+        const wait = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delayMs * Math.pow(2, attempt);
+        await new Promise(r => setTimeout(r, wait));
         continue;
       }
-      if (!res.ok) {
-        throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
-      }
-      const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      if (!res.ok) throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+      return new Uint8Array(await res.arrayBuffer());
     } catch (err: any) {
-      if (attempt === retries) {
-        throw err;
-      }
-      const wait = delayMs * Math.pow(2, attempt);
-      console.warn(`[Download Stream] Binary fetch failed: ${err.message}. Retrying in ${wait}ms... (Attempt ${attempt}/${retries})`);
-      await new Promise((resolve) => setTimeout(resolve, wait));
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, delayMs * Math.pow(2, attempt)));
     }
   }
-  throw new Error('Binary chunk fetch failed after maximum retries');
+  throw new Error('Binary fetch failed after maximum retries');
+}
+
+async function fetchChunkFromKV(kvKey: string): Promise<Uint8Array | null> {
+  if (isCFWorkerConfigured) {
+    try {
+      const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+      if (res.ok) {
+        const hex = await res.text();
+        if (hex && hex !== 'Not found') {
+          const buf = hexToBytes(hex);
+          if (buf.length >= 28) return buf.slice(28); // strip IV+authTag header, return ciphertext
+        }
+      }
+    } catch (e) {}
+  }
+  if (isKVConfigured) {
+    try {
+      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
+      if (res.ok) {
+        const hex = await res.text();
+        const buf = hexToBytes(hex);
+        if (buf.length >= 28) return buf.slice(28);
+      }
+    } catch (e) {}
+  }
+  return null;
 }
 
 export async function GET(
@@ -82,201 +99,74 @@ export async function GET(
   try {
     const { uuid } = await params;
     const apiKey = req.headers.get('x-api-key') || req.nextUrl.searchParams.get('apiKey');
-    
-    if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'API key is required in headers or query' }, { status: 401 });
-    }
+    if (!apiKey) return NextResponse.json({ success: false, error: 'API key is required' }, { status: 401 });
 
-    // Verify API Key
     const project = await verifyProjectApiKey(apiKey);
-    if (!project) {
-      return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
-    }
+    if (!project) return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
 
     const state = await getDatabaseState();
-    const fileRecord = state.files.find((f) => f.uuid === uuid);
-
+    const fileRecord = state.files.find(f => f.uuid === uuid);
     if (!fileRecord || fileRecord.project_id !== project.id) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 });
     }
 
-    console.log(`[Download Stream] Initiating streaming decryption for "${fileRecord.filename}" (${fileRecord.chunk_count} chunks)...`);
+    console.log(`[Download] Streaming "${fileRecord.filename}" (${fileRecord.chunk_count} chunks)...`);
 
-    const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
+    // Derive project AES key using Web Crypto
+    const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key)));
 
-    // Create a ReadableStream that fetches, decrypts and streams each chunk sequentially
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for (let i = 0; i < fileRecord.chunks.length; i++) {
             const chunk = fileRecord.chunks[i];
             const botToken = project.bots.length > 0 ? project.bots[i % project.bots.length] : BOT_TOKEN;
-
-            console.log(`[Download Stream] Streaming chunk ${i}/${fileRecord.chunk_count}...`);
-
-            let encryptedChunk: Buffer | null = null;
             const kvKey = `chunk_${fileRecord.uuid}_${chunk.chunk_index}`;
 
-            // 0. Try to read from L1 Local Disk SSD Cache (Lightspeed <1ms read)
-            const LOCAL_STORE_DIR = (path && os)
-              ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
-                ? path.join(os.tmpdir(), '.telebase_data')
-                : path.join(process.cwd(), '.telebase_data'))
-              : '';
-            const localChunkPath = (path && LOCAL_STORE_DIR) ? path.join(LOCAL_STORE_DIR, 'chunks', `chunk_${fileRecord.uuid}_${chunk.chunk_index}`) : '';
-            if (fs && localChunkPath && fs.existsSync(localChunkPath)) {
-              try {
-                encryptedChunk = fs.readFileSync(localChunkPath);
-                console.log(`[Download Stream] Chunk ${chunk.chunk_index} loaded directly from L1 Local SSD Cache.`);
-              } catch (fsErr: any) {
-                console.warn(`[Download Stream] L1 Cache read failed for chunk ${chunk.chunk_index}:`, fsErr.message);
+            console.log(`[Download] Fetching chunk ${i + 1}/${fileRecord.chunk_count}...`);
+
+            let cipherText: Uint8Array | null = null;
+
+            // 1. Try Cloudflare KV (fast path)
+            cipherText = await fetchChunkFromKV(kvKey);
+
+            // 2. Fallback: pending backup - retry KV
+            if (!cipherText && chunk.message_id === 'pending_telegram_backup') {
+              console.log(`[Download] Chunk ${chunk.chunk_index} pending. Retrying KV...`);
+              for (let attempt = 0; attempt < 10 && !cipherText; attempt++) {
+                await new Promise(r => setTimeout(r, 1000));
+                cipherText = await fetchChunkFromKV(kvKey);
               }
+              if (!cipherText) throw new Error(`Chunk ${chunk.chunk_index} pending backup and not available in KV.`);
             }
 
-            // 1. Try to read directly from Cloudflare Worker KV
-            if (isCFWorkerConfigured) {
-              try {
-                const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`;
-                const res = await fetch(url, {
-                  cache: 'no-store',
-                  headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY }
-                });
-                if (res.ok) {
-                  const encryptedHex = await res.text();
-                  if (encryptedHex !== "Not found") {
-                    const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-                    if (encryptedBuffer.length >= 28) {
-                      encryptedChunk = encryptedBuffer.subarray(28);
-                      console.log(`[Download Stream] Chunk ${chunk.chunk_index} loaded directly from Cloudflare Worker KV.`);
-                    }
-                  }
-                }
-              } catch (kvErr: any) {
-                console.warn(`[Download Stream] Cloudflare Worker KV read failed for chunk ${chunk.chunk_index}:`, kvErr.message);
-              }
+            // 3. Fallback: Download from Telegram
+            if (!cipherText) {
+              console.log(`[Download] Chunk ${chunk.chunk_index} KV miss. Fetching from Telegram...`);
+              const fileData = await fetchTelegramWithRetry(`https://api.telegram.org/bot${botToken}/getFile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_id: chunk.message_id })
+              });
+              const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+              cipherText = await fetchBinaryWithRetry(downloadUrl);
             }
 
-            // 2. Try to read directly from Cloudflare KV REST API
-            if (!encryptedChunk && isKVConfigured) {
-              try {
-                const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`;
-                const res = await fetch(url, {
-                  cache: 'no-store',
-                  headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` }
-                });
-                if (res.ok) {
-                  const encryptedHex = await res.text();
-                  const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-                  if (encryptedBuffer.length >= 28) {
-                    encryptedChunk = encryptedBuffer.subarray(28);
-                    console.log(`[Download Stream] Chunk ${chunk.chunk_index} loaded directly from Cloudflare KV REST API.`);
-                  }
-                }
-              } catch (kvErr: any) {
-                console.warn(`[Download Stream] Cloudflare KV REST read failed for chunk ${chunk.chunk_index}:`, kvErr.message);
-              }
-            }
-
-            // 3. Fallback: Telegram Download / Pending Retry logic
-            if (!encryptedChunk) {
-              if (chunk.message_id === 'pending_telegram_backup') {
-                console.log(`[Download Stream] Chunk ${chunk.chunk_index} Telegram backup is pending. Retrying Cloudflare KV read...`);
-                let attempts = 0;
-                while (attempts < 10 && !encryptedChunk) {
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  
-                  // Retry Worker KV
-                  if (isCFWorkerConfigured) {
-                    try {
-                      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`;
-                      const res = await fetch(url, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
-                      if (res.ok) {
-                        const encryptedHex = await res.text();
-                        if (encryptedHex !== "Not found") {
-                          const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-                          if (encryptedBuffer.length >= 28) {
-                            encryptedChunk = encryptedBuffer.subarray(28);
-                            break;
-                          }
-                        }
-                      }
-                    } catch (e) {}
-                  }
-
-                  // Retry KV REST
-                  if (isKVConfigured) {
-                    try {
-                      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`;
-                      const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
-                      if (res.ok) {
-                        const encryptedHex = await res.text();
-                        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-                        if (encryptedBuffer.length >= 28) {
-                          encryptedChunk = encryptedBuffer.subarray(28);
-                          break;
-                        }
-                      }
-                    } catch (e) {}
-                  }
-                  attempts++;
-                }
-
-                if (!encryptedChunk) {
-                  throw new Error(`Chunk ${chunk.chunk_index} is pending Telegram backup and could not be retrieved from Cloudflare KV.`);
-                }
-              } else {
-                console.log(`[Download Stream] Chunk ${chunk.chunk_index} KV cache miss. Falling back to Telegram retrieval.`);
-                // 1. Get chunk file path from Telegram with Retry
-                const fileData = await fetchTelegramWithRetry(`https://api.telegram.org/bot${botToken}/getFile`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ file_id: chunk.message_id })
-                });
-
-                const filePath = fileData.result.file_path;
-                const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
-
-                // 2. Download encrypted chunk binary with Retry
-                encryptedChunk = await fetchBinaryChunkWithRetry(downloadUrl);
-              }
-            }
-
-            // Save chunk back to L1 Local SSD Cache if fetched from network for future lightspeed access
-            if (fs && path && LOCAL_STORE_DIR && localChunkPath && encryptedChunk && !fs.existsSync(localChunkPath)) {
-              try {
-                const chunksDir = path.join(LOCAL_STORE_DIR, 'chunks');
-                if (!fs.existsSync(chunksDir)) {
-                  fs.mkdirSync(chunksDir, { recursive: true });
-                }
-                fs.writeFileSync(localChunkPath, encryptedChunk);
-                console.log(`[Download Stream] Chunk ${chunk.chunk_index} successfully cached to L1 Local SSD Cache.`);
-              } catch (fsErr: any) {
-                console.warn(`[Download Stream] Failed to cache chunk to L1 local disk:`, fsErr.message);
-              }
-            }
-
-            // 4. Decrypt the chunk using AES-256-GCM
-            const iv = Buffer.from(chunk.iv, 'hex');
-            const authTag = Buffer.from(chunk.auth_tag, 'hex');
-            
-            const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-            decipher.setAuthTag(authTag);
-
-            // Decrypt and emit
-            const decryptedChunk = Buffer.concat([decipher.update(encryptedChunk), decipher.final()]);
-            
-            controller.enqueue(new Uint8Array(decryptedChunk));
+            // 4. Decrypt using AES-256-GCM
+            const iv = hexToBytes(chunk.iv);
+            const authTag = hexToBytes(chunk.auth_tag);
+            const decryptedChunk = await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
+            controller.enqueue(decryptedChunk);
           }
-          console.log(`[Download Stream] Successfully completed streaming decryption for "${fileRecord.filename}"`);
+          console.log(`[Download] Streaming complete for "${fileRecord.filename}"`);
           controller.close();
         } catch (err: any) {
-          console.error(`[Download Stream Error] Failed at chunk decryption: ${err.message}`);
+          console.error(`[Download Error]`, err.message);
           controller.error(err);
         }
       }
     });
 
-    // Return the response stream with gzip content-encoding so the browser decompress natively!
     return new NextResponse(stream, {
       headers: {
         'Content-Type': 'application/octet-stream',
@@ -299,24 +189,18 @@ export async function DELETE(
   try {
     const { uuid } = await params;
     const apiKey = req.headers.get('x-api-key');
-
-    if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'API key is required' }, { status: 401 });
-    }
+    if (!apiKey) return NextResponse.json({ success: false, error: 'API key is required' }, { status: 401 });
 
     const project = await verifyProjectApiKey(apiKey);
-    if (!project) {
-      return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
-    }
+    if (!project) return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
 
-    const state = await getDatabaseState(true); // force refresh
-    const fileIndex = state.files.findIndex((f) => f.uuid === uuid);
+    const state = await getDatabaseState(true);
+    const fileIndex = state.files.findIndex(f => f.uuid === uuid);
 
     if (fileIndex === -1 || state.files[fileIndex].project_id !== project.id) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 });
     }
 
-    // Delete file from index
     state.files.splice(fileIndex, 1);
     await saveDatabaseState(state);
 

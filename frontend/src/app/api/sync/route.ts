@@ -103,7 +103,7 @@ export async function POST() {
 
             if (encryptedHex) {
               try {
-                const decrypted = decryptPayload(encryptedHex);
+                const decrypted = await decryptPayload(encryptedHex);
                 const recoveredFile = JSON.parse(decrypted) as StoredFile;
                 
                 // Merge back

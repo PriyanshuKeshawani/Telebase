@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Edge-compatible random hex string (replaces crypto.randomBytes)
