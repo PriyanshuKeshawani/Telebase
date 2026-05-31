@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getToken } from 'next-auth/jwt';
 import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Edge-compatible random hex string (replaces crypto.randomBytes)
@@ -12,15 +12,15 @@ function randomHex(bytes: number): string {
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key" });
+    if (!token) {
       return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
 
     const state = await getDatabaseState();
-    const userId = (session.user as any).id;
+    const userId = token.id as string;
 
     // Filter projects:
     // If admin (userId === "1"), return all projects.
@@ -42,12 +42,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key" });
+    if (!token) {
       return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
+    const userId = token.id as string;
     const body = await req.json();
     let { name, channel_id, storage_type, bots } = body;
 

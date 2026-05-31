@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getToken } from "next-auth/jwt";
 import { getDatabaseState, saveDatabaseState } from "@/lib/telegramDatabase";
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(
@@ -10,8 +10,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key" });
+    if (!token) {
       return NextResponse.json(
         { success: false, error: "Unauthorized. Please sign in." },
         { status: 401 }
@@ -19,7 +19,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const userId = (session.user as any).id;
+    const userId = token.id as string;
 
     const state = await getDatabaseState(true); // force refresh
 
