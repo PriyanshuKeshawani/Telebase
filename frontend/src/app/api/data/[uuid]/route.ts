@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
+const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
+const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
 import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, isCFWorkerConfigured, isKVConfigured } from '@/lib/telegramDatabase';
 
 export const dynamic = 'force-dynamic';
@@ -118,11 +118,13 @@ export async function GET(
             const kvKey = `chunk_${fileRecord.uuid}_${chunk.chunk_index}`;
 
             // 0. Try to read from L1 Local Disk SSD Cache (Lightspeed <1ms read)
-            const LOCAL_STORE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
-              ? path.join(os.tmpdir(), '.telebase_data')
-              : path.join(process.cwd(), '.telebase_data');
-            const localChunkPath = path.join(LOCAL_STORE_DIR, 'chunks', `chunk_${fileRecord.uuid}_${chunk.chunk_index}`);
-            if (fs.existsSync(localChunkPath)) {
+            const LOCAL_STORE_DIR = (path && os)
+              ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
+                ? path.join(os.tmpdir(), '.telebase_data')
+                : path.join(process.cwd(), '.telebase_data'))
+              : '';
+            const localChunkPath = (path && LOCAL_STORE_DIR) ? path.join(LOCAL_STORE_DIR, 'chunks', `chunk_${fileRecord.uuid}_${chunk.chunk_index}`) : '';
+            if (fs && localChunkPath && fs.existsSync(localChunkPath)) {
               try {
                 encryptedChunk = fs.readFileSync(localChunkPath);
                 console.log(`[Download Stream] Chunk ${chunk.chunk_index} loaded directly from L1 Local SSD Cache.`);
@@ -240,7 +242,7 @@ export async function GET(
             }
 
             // Save chunk back to L1 Local SSD Cache if fetched from network for future lightspeed access
-            if (encryptedChunk && !fs.existsSync(localChunkPath)) {
+            if (fs && path && LOCAL_STORE_DIR && localChunkPath && encryptedChunk && !fs.existsSync(localChunkPath)) {
               try {
                 const chunksDir = path.join(LOCAL_STORE_DIR, 'chunks');
                 if (!fs.existsSync(chunksDir)) {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import zlib from 'zlib';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
+const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
+const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
 import { promisify } from 'util';
 import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, FileChunk, isCFWorkerConfigured, isKVConfigured, updateStateCache, encryptPayload, saveKVValue, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
@@ -155,14 +155,17 @@ export async function POST(req: NextRequest) {
       botToken: string;
       channelId: string;
       kvKey: string;
+      chunkBuffer?: Buffer;
     }> = [];
 
-    const LOCAL_STORE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
-      ? path.join(os.tmpdir(), '.telebase_data')
-      : path.join(process.cwd(), '.telebase_data');
-    const LOCAL_STATE_FILE = path.join(LOCAL_STORE_DIR, 'local_state.json');
-    const CHUNKS_DIR = path.join(LOCAL_STORE_DIR, 'chunks');
-    if (!fs.existsSync(CHUNKS_DIR)) {
+    const LOCAL_STORE_DIR = (path && os)
+      ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
+        ? path.join(os.tmpdir(), '.telebase_data')
+        : path.join(process.cwd(), '.telebase_data'))
+      : '';
+    const LOCAL_STATE_FILE = (path && LOCAL_STORE_DIR) ? path.join(LOCAL_STORE_DIR, 'local_state.json') : '';
+    const CHUNKS_DIR = (path && LOCAL_STORE_DIR) ? path.join(LOCAL_STORE_DIR, 'chunks') : '';
+    if (fs && CHUNKS_DIR && !fs.existsSync(CHUNKS_DIR)) {
       fs.mkdirSync(CHUNKS_DIR, { recursive: true });
     }
 
@@ -198,8 +201,10 @@ export async function POST(req: NextRequest) {
       const kvKey = `chunk_${fileUuid}_${chunkIndex}`;
 
       // Save encrypted chunk instantly to L1 SSD local disk cache synchronously to save RAM memory footprint
-      const localChunkPath = path.join(CHUNKS_DIR, `chunk_${fileUuid}_${chunkIndex}`);
-      fs.writeFileSync(localChunkPath, encryptedChunk);
+      if (fs && CHUNKS_DIR) {
+        const localChunkPath = path.join(CHUNKS_DIR, `chunk_${fileUuid}_${chunkIndex}`);
+        fs.writeFileSync(localChunkPath, encryptedChunk);
+      }
 
       preparedChunks.push({
         chunkIndex,
@@ -207,7 +212,8 @@ export async function POST(req: NextRequest) {
         authTag,
         botToken,
         channelId,
-        kvKey
+        kvKey,
+        chunkBuffer: !fs ? encryptedChunk : undefined
       });
 
       chunkIndex++;
@@ -221,11 +227,16 @@ export async function POST(req: NextRequest) {
       let savedToKV = false;
 
       // Read chunk from L1 cache and build parameters dynamically (RAM is immediately garbage collected on function scope exit)
-      const localChunkPath = path.join(CHUNKS_DIR, `chunk_${fileUuid}_${pc.chunkIndex}`);
-      if (!fs.existsSync(localChunkPath)) {
-        throw new Error(`Chunk ${pc.chunkIndex} file not found in SSD cache.`);
+      let encryptedChunk: Buffer;
+      if (fs && CHUNKS_DIR) {
+        const localChunkPath = path.join(CHUNKS_DIR, `chunk_${fileUuid}_${pc.chunkIndex}`);
+        if (!fs.existsSync(localChunkPath)) {
+          throw new Error(`Chunk ${pc.chunkIndex} file not found in SSD cache.`);
+        }
+        encryptedChunk = fs.readFileSync(localChunkPath);
+      } else {
+        encryptedChunk = pc.chunkBuffer!;
       }
-      const encryptedChunk = fs.readFileSync(localChunkPath);
       const finalBuffer = Buffer.concat([pc.iv, pc.authTag, encryptedChunk]);
       const encryptedHex = finalBuffer.toString('hex');
 
@@ -330,11 +341,16 @@ export async function POST(req: NextRequest) {
             console.log(`[Upload BG] Backing up chunk ${pc.chunkIndex + 1}/${preparedChunks.length} to Telegram channel...`);
             
             // Read chunk from L1 SSD disk cache to save RAM memory footprint
-            const localChunkPath = path.join(CHUNKS_DIR, `chunk_${fileUuid}_${pc.chunkIndex}`);
-            if (!fs.existsSync(localChunkPath)) {
-              throw new Error(`Chunk ${pc.chunkIndex} file not found in SSD cache.`);
+            let encryptedChunk: Buffer;
+            if (fs && CHUNKS_DIR) {
+              const localChunkPath = path.join(CHUNKS_DIR, `chunk_${fileUuid}_${pc.chunkIndex}`);
+              if (!fs.existsSync(localChunkPath)) {
+                throw new Error(`Chunk ${pc.chunkIndex} file not found in SSD cache.`);
+              }
+              encryptedChunk = fs.readFileSync(localChunkPath);
+            } else {
+              encryptedChunk = pc.chunkBuffer!;
             }
-            const encryptedChunk = fs.readFileSync(localChunkPath);
 
             const fileId = await uploadTelegramWithRetry(
               pc.botToken,

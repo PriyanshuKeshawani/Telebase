@@ -6,14 +6,16 @@ const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
 
 // Local storage fallback path when Telegram credentials are not present
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
+const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
+const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
 
-const LOCAL_STORE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
-  ? path.join(os.tmpdir(), '.telebase_data')
-  : path.join(process.cwd(), '.telebase_data');
-const LOCAL_STORE_FILE = path.join(LOCAL_STORE_DIR, 'local_db.json');
+const LOCAL_STORE_DIR = (path && os)
+  ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
+    ? path.join(os.tmpdir(), '.telebase_data')
+    : path.join(process.cwd(), '.telebase_data'))
+  : '';
+const LOCAL_STORE_FILE = (path && LOCAL_STORE_DIR) ? path.join(LOCAL_STORE_DIR, 'local_db.json') : '';
 
 // Memory Cache for Database Tables
 const tableCache: Record<string, { data: any[]; timestamp: number }> = {};
@@ -108,6 +110,7 @@ export function matchRow(row: any, filter: any): boolean {
  * Ensures the local database fallback directory exists.
  */
 function ensureLocalStore() {
+  if (!fs || !LOCAL_STORE_DIR || !LOCAL_STORE_FILE) return;
   if (!fs.existsSync(LOCAL_STORE_DIR)) {
     fs.mkdirSync(LOCAL_STORE_DIR, { recursive: true });
   }
@@ -120,6 +123,7 @@ function ensureLocalStore() {
  * Gets local database metadata (like UUID) for monotonic validation.
  */
 function getLocalTableMetadata(projectId: string, tableName: string): { uuid?: string } {
+  if (!fs || !LOCAL_STORE_FILE) return {};
   ensureLocalStore();
   try {
     const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');
@@ -136,6 +140,7 @@ function getLocalTableMetadata(projectId: string, tableName: string): { uuid?: s
  * Gets local database state for the fallback channel.
  */
 function getLocalTableRecords(projectId: string, tableName: string): any[] {
+  if (!fs || !LOCAL_STORE_FILE) return [];
   ensureLocalStore();
   try {
     const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');
@@ -152,6 +157,7 @@ function getLocalTableRecords(projectId: string, tableName: string): any[] {
  * Saves local database state for the fallback channel.
  */
 function saveLocalTableRecords(projectId: string, tableName: string, records: any[], uuid?: string) {
+  if (!fs || !LOCAL_STORE_FILE) return;
   ensureLocalStore();
   try {
     const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');

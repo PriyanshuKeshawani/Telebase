@@ -904,6 +904,17 @@ export default function Dashboard() {
         body: formData
       });
 
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error("File is too large for your hosting provider or proxy (e.g., Vercel limits uploads to 4.5MB, Nginx limits to 1MB). Please upload a smaller file or increase your server's upload limit.");
+        }
+        let errText = "";
+        try {
+          errText = await res.text();
+        } catch (_) {}
+        throw new Error(errText || `Upload failed with status ${res.status}`);
+      }
+
       const data = await res.json();
       if (data.success) {
         setUploadStatus("success");

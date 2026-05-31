@@ -1,7 +1,8 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+
+const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
+const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
+const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
 
 export function formatTelegramChannelId(channelId: string): string {
   if (!channelId) return '';
@@ -25,18 +26,22 @@ export function formatTelegramChannelId(channelId: string): string {
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
 
-const LOCAL_STATE_DIR = process.env.VERCEL || process.env.NODE_ENV === 'production'
-  ? path.join(os.tmpdir(), '.telebase_data')
-  : path.join(process.cwd(), '.telebase_data');
-const LOCAL_STATE_FILE = path.join(LOCAL_STATE_DIR, 'local_state.json');
+const LOCAL_STATE_DIR = (path && os)
+  ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
+    ? path.join(os.tmpdir(), '.telebase_data')
+    : path.join(process.cwd(), '.telebase_data'))
+  : '';
+const LOCAL_STATE_FILE = (path && LOCAL_STATE_DIR) ? path.join(LOCAL_STATE_DIR, 'local_state.json') : '';
 
 function ensureLocalStateDir() {
+  if (!fs || !LOCAL_STATE_DIR) return;
   if (!fs.existsSync(LOCAL_STATE_DIR)) {
     fs.mkdirSync(LOCAL_STATE_DIR, { recursive: true });
   }
 }
 
 export function loadLocalState(): DatabaseSchema {
+  if (!fs || !LOCAL_STATE_FILE) return { projects: [], files: [] };
   ensureLocalStateDir();
   if (fs.existsSync(LOCAL_STATE_FILE)) {
     try {
@@ -424,12 +429,14 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
   lastCacheFetchTime = Date.now();
 
   // Always write to local backup file first to guarantee durability & prevent data loss!
-  try {
-    ensureLocalStateDir();
-    fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
-    console.log('[TeleStore] State successfully synced to local file state!');
-  } catch (e: any) {
-    console.error('[TeleStore] Local file state sync failed:', e.message);
+  if (fs && LOCAL_STATE_FILE) {
+    try {
+      ensureLocalStateDir();
+      fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+      console.log('[TeleStore] State successfully synced to local file state!');
+    } catch (e: any) {
+      console.error('[TeleStore] Local file state sync failed:', e.message);
+    }
   }
 
   try {
