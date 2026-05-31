@@ -19,7 +19,7 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 async function aesGcmDecryptChunk(keyBytes: Uint8Array, iv: Uint8Array, cipherText: Uint8Array, authTag: Uint8Array): Promise<Uint8Array> {
-  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes as any, { name: 'AES-GCM' }, false, ['decrypt']);
   const combined = new Uint8Array(cipherText.length + authTag.length);
   combined.set(cipherText);
   combined.set(authTag, cipherText.length);
