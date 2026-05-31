@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { getDatabaseState, saveDatabaseState, UserRecord } from "@/lib/telegramDatabase";
+
+export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     // OTP correct — move from pending to verified users
     const newUser: UserRecord = {
-      id: crypto.randomUUID(),
+      id: globalThis.crypto.randomUUID(),
       email: pending.email,
       passwordHash: pending.passwordHash,
       created_at: new Date().toISOString(),

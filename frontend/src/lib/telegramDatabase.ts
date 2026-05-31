@@ -1,8 +1,42 @@
-import crypto from 'crypto';
+// Edge Runtime compatible - no Node.js crypto or Buffer imports
 
 const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
 const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
 const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
+
+// --- Edge-compatible hex/bytes utilities ---
+function hexToBytes(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  return arr;
+}
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function randomBytes(n: number): Uint8Array {
+  const arr = new Uint8Array(n);
+  globalThis.crypto.getRandomValues(arr);
+  return arr;
+}
+async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', data));
+}
+async function aesGcmEncrypt(keyBytes: Uint8Array, iv: Uint8Array, plaintext: Uint8Array): Promise<{ cipherText: Uint8Array; authTag: Uint8Array }> {
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  // Web Crypto AES-GCM appends 16-byte auth tag at the end of ciphertext
+  const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plaintext));
+  const cipherText = encrypted.slice(0, encrypted.length - 16);
+  const authTag = encrypted.slice(encrypted.length - 16);
+  return { cipherText, authTag };
+}
+async function aesGcmDecrypt(keyBytes: Uint8Array, iv: Uint8Array, cipherText: Uint8Array, authTag: Uint8Array): Promise<Uint8Array> {
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  // Web Crypto expects ciphertext+authTag concatenated
+  const combined = new Uint8Array(cipherText.length + authTag.length);
+  combined.set(cipherText);
+  combined.set(authTag, cipherText.length);
+  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, combined));
+}
 
 export function formatTelegramChannelId(channelId: string): string {
   if (!channelId) return '';
@@ -66,14 +100,23 @@ const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
 export const isCFWorkerConfigured = !!(CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_KEY);
 
 // Derive a secure, stable 32-byte key from BOT_TOKEN to ensure zero-config absolute safety
-export const ENCRYPTION_KEY = (() => {
-  const envKey = process.env.ENCRYPTION_KEY || '';
-  if (envKey.length === 64) {
-    return Buffer.from(envKey, 'hex');
-  }
-  // Fallback: derive deterministically from BOT_TOKEN
-  return crypto.createHash('sha256').update(BOT_TOKEN).digest();
-})();
+export let ENCRYPTION_KEY: Uint8Array = new Uint8Array(32);
+
+// Initialize ENCRYPTION_KEY (async, resolved before first use via getEncryptionKey())
+let _encKeyPromise: Promise<Uint8Array> | null = null;
+async function getEncryptionKey(): Promise<Uint8Array> {
+  if (_encKeyPromise) return _encKeyPromise;
+  _encKeyPromise = (async () => {
+    const envKey = process.env.ENCRYPTION_KEY || '';
+    if (envKey.length === 64) {
+      return hexToBytes(envKey);
+    }
+    // Fallback: derive deterministically from BOT_TOKEN
+    const encoder = new TextEncoder();
+    return sha256Bytes(encoder.encode(BOT_TOKEN));
+  })();
+  return _encKeyPromise;
+}
 
 export interface Project {
   id: string;
@@ -140,13 +183,20 @@ export function updateStateCache(state: DatabaseSchema) {
 }
 
 export function encryptState(state: DatabaseSchema): string {
-  const payload = JSON.stringify(state);
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-  const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-  const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
-  return finalBuffer.toString('hex');
+  // This is kept for compatibility but should be replaced with async version
+  throw new Error('Use encryptStateAsync instead');
+}
+
+export async function encryptStateAsync(state: DatabaseSchema): Promise<string> {
+  const payload = new TextEncoder().encode(JSON.stringify(state));
+  const key = await getEncryptionKey();
+  const iv = randomBytes(12);
+  const { cipherText, authTag } = await aesGcmEncrypt(key, iv, payload);
+  const finalBuffer = new Uint8Array(iv.length + authTag.length + cipherText.length);
+  finalBuffer.set(iv, 0);
+  finalBuffer.set(authTag, iv.length);
+  finalBuffer.set(cipherText, iv.length + authTag.length);
+  return bytesToHex(finalBuffer);
 }
 
 /**
@@ -179,22 +229,20 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         }
         
         const encryptedHex = await res.text();
-        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+        const encryptedBuffer = hexToBytes(encryptedHex);
 
         if (encryptedBuffer.length < 28) {
           throw new Error('Cloudflare Worker KV state document is too small or corrupted.');
         }
 
         // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-        const iv = encryptedBuffer.subarray(0, 12);
-        const authTag = encryptedBuffer.subarray(12, 28);
-        const cipherText = encryptedBuffer.subarray(28);
+        const iv = encryptedBuffer.slice(0, 12);
+        const authTag = encryptedBuffer.slice(12, 28);
+        const cipherText = encryptedBuffer.slice(28);
 
-        const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-        decipher.setAuthTag(authTag);
-        
-        let decrypted = decipher.update(cipherText, undefined, 'utf8');
-        decrypted += decipher.final('utf8');
+        const key = await getEncryptionKey();
+        const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
+        const decrypted = new TextDecoder().decode(decryptedBytes);
 
         const state = JSON.parse(decrypted) as DatabaseSchema;
         
@@ -230,22 +278,20 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         }
         
         const encryptedHex = await res.text();
-        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+        const encryptedBuffer = hexToBytes(encryptedHex);
 
         if (encryptedBuffer.length < 28) {
           throw new Error('Cloudflare KV state document is too small or corrupted.');
         }
 
         // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-        const iv = encryptedBuffer.subarray(0, 12);
-        const authTag = encryptedBuffer.subarray(12, 28);
-        const cipherText = encryptedBuffer.subarray(28);
+        const iv = encryptedBuffer.slice(0, 12);
+        const authTag = encryptedBuffer.slice(12, 28);
+        const cipherText = encryptedBuffer.slice(28);
 
-        const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-        decipher.setAuthTag(authTag);
-        
-        let decrypted = decipher.update(cipherText, undefined, 'utf8');
-        decrypted += decipher.final('utf8');
+        const key = await getEncryptionKey();
+        const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
+        const decrypted = new TextDecoder().decode(decryptedBytes);
 
         const state = JSON.parse(decrypted) as DatabaseSchema;
         
@@ -263,7 +309,8 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
     // ALWAYS-FREE CLOUD KV FALLBACK (KVDB.IO - UNDER 40MS READS!)
     // -------------------------------------------------------------
     try {
-      const bucketId = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
+      const key = await getEncryptionKey();
+      const bucketId = bytesToHex(await sha256Bytes(key)).substring(0, 16);
       const url = `https://kvdb.io/${bucketId}/telebase_state`;
       console.log(`[TeleStore] Free KV Fallback (kvdb.io): Synchronizing from bucket ${bucketId}...`);
       const res = await fetch(url, { cache: 'no-store' });
@@ -274,19 +321,15 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         throw new Error(`Free KV GET failed: ${res.statusText}`);
       } else {
         const encryptedHex = await res.text();
-        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+        const encryptedBuffer = hexToBytes(encryptedHex);
 
         if (encryptedBuffer.length >= 28) {
-          // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-          const iv = encryptedBuffer.subarray(0, 12);
-          const authTag = encryptedBuffer.subarray(12, 28);
-          const cipherText = encryptedBuffer.subarray(28);
+          const iv = encryptedBuffer.slice(0, 12);
+          const authTag = encryptedBuffer.slice(12, 28);
+          const cipherText = encryptedBuffer.slice(28);
 
-          const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-          decipher.setAuthTag(authTag);
-          
-          let decrypted = decipher.update(cipherText, undefined, 'utf8');
-          decrypted += decipher.final('utf8');
+          const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
+          const decrypted = new TextDecoder().decode(decryptedBytes);
 
           const state = JSON.parse(decrypted) as DatabaseSchema;
           stateCache = state;
@@ -360,22 +403,20 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
     // 3. Download encrypted binary
     const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
     const encryptedArrayBuffer = await downloadRes.arrayBuffer();
-    const encryptedBuffer = Buffer.from(encryptedArrayBuffer);
+    const encryptedBuffer = new Uint8Array(encryptedArrayBuffer);
 
     if (encryptedBuffer.length < 28) {
       throw new Error('Downloaded database file is too small or corrupted.');
     }
 
     // 4. Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-    const iv = encryptedBuffer.subarray(0, 12);
-    const authTag = encryptedBuffer.subarray(12, 28);
-    const cipherText = encryptedBuffer.subarray(28);
+    const iv = encryptedBuffer.slice(0, 12);
+    const authTag = encryptedBuffer.slice(12, 28);
+    const cipherText = encryptedBuffer.slice(28);
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(cipherText, undefined, 'utf8');
-    decrypted += decipher.final('utf8');
+    const key = await getEncryptionKey();
+    const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
+    const decrypted = new TextDecoder().decode(decryptedBytes);
 
     const state = JSON.parse(decrypted) as DatabaseSchema;
     state.last_pinned_message_id = pinnedMessage.message_id;
@@ -387,7 +428,7 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
 
     // Auto-sync back to Cloudflare KV / Cloudflare Worker immediately so they stay in perfect sync!
     try {
-      const encryptedHex = encryptedBuffer.toString('hex');
+      const encryptedHex = bytesToHex(encryptedBuffer);
       if (isCFWorkerConfigured) {
         const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
         await fetch(url, {
@@ -440,15 +481,16 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
   }
 
   try {
-    const payload = JSON.stringify(state);
+    const payload = new TextEncoder().encode(JSON.stringify(state));
 
     // 1. Encrypt state payload (AES-256-GCM)
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-    const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-
-    const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
+    const key = await getEncryptionKey();
+    const iv = randomBytes(12);
+    const { cipherText, authTag } = await aesGcmEncrypt(key, iv, payload);
+    const finalBuffer = new Uint8Array(iv.length + authTag.length + cipherText.length);
+    finalBuffer.set(iv, 0);
+    finalBuffer.set(authTag, iv.length);
+    finalBuffer.set(cipherText, iv.length + authTag.length);
 
     // -------------------------------------------------------------
     // CLOUDFLARE WORKER + KV FAST-PATH (UNDER 150MS WRITES!)
@@ -537,7 +579,7 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
     if (isCFWorkerConfigured) {
       try {
         const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
-        const encryptedHex = finalBuffer.toString('hex');
+        const encryptedHex = bytesToHex(finalBuffer);
         
         const res = await fetch(url, {
           method: 'PUT',
@@ -567,7 +609,7 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
     if (isKVConfigured) {
       try {
         const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state`;
-        const encryptedHex = finalBuffer.toString('hex');
+        const encryptedHex = bytesToHex(finalBuffer);
         
         const res = await fetch(url, {
           method: 'PUT',
@@ -594,9 +636,9 @@ export async function saveDatabaseState(state: DatabaseSchema): Promise<void> {
       // ALWAYS-FREE CLOUD KV FALLBACK (KVDB.IO - UNDER 80MS WRITES!)
       // -------------------------------------------------------------
       try {
-        const bucketId = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
+        const bucketId = bytesToHex(await sha256Bytes(await getEncryptionKey())).substring(0, 16);
         const url = `https://kvdb.io/${bucketId}/telebase_state`;
-        const encryptedHex = finalBuffer.toString('hex');
+        const encryptedHex = bytesToHex(finalBuffer);
         
         const res = await fetch(url, {
           method: 'PUT',
@@ -691,32 +733,33 @@ export async function verifyProjectApiKey(apiKey: string): Promise<Project | nul
 /**
  * Encrypts arbitrary string payload using the database master key.
  */
-export function encryptPayload(payload: string): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-  const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-  const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
-  return finalBuffer.toString('hex');
+export async function encryptPayload(payload: string): Promise<string> {
+  const key = await getEncryptionKey();
+  const iv = randomBytes(12);
+  const plaintext = new TextEncoder().encode(payload);
+  const { cipherText, authTag } = await aesGcmEncrypt(key, iv, plaintext);
+  const finalBuffer = new Uint8Array(iv.length + authTag.length + cipherText.length);
+  finalBuffer.set(iv, 0);
+  finalBuffer.set(authTag, iv.length);
+  finalBuffer.set(cipherText, iv.length + authTag.length);
+  return bytesToHex(finalBuffer);
 }
 
 /**
  * Decrypts arbitrary string payload using the database master key.
  */
-export function decryptPayload(encryptedHex: string): string {
-  const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+export async function decryptPayload(encryptedHex: string): Promise<string> {
+  const encryptedBuffer = hexToBytes(encryptedHex);
   if (encryptedBuffer.length < 28) {
     throw new Error('Payload is too small or corrupted.');
   }
-  const iv = encryptedBuffer.subarray(0, 12);
-  const authTag = encryptedBuffer.subarray(12, 28);
-  const cipherText = encryptedBuffer.subarray(28);
+  const iv = encryptedBuffer.slice(0, 12);
+  const authTag = encryptedBuffer.slice(12, 28);
+  const cipherText = encryptedBuffer.slice(28);
 
-  const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-  decipher.setAuthTag(authTag);
-  let decrypted = decipher.update(cipherText, undefined, 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+  const key = await getEncryptionKey();
+  const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
+  return new TextDecoder().decode(decryptedBytes);
 }
 
 /**

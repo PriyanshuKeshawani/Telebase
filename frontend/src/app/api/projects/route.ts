@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
+
+// Edge-compatible random hex string (replaces crypto.randomBytes)
+function randomHex(bytes: number): string {
+  const arr = new Uint8Array(bytes);
+  globalThis.crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export async function GET() {
   try {
@@ -65,9 +72,9 @@ export async function POST(req: NextRequest) {
 
     const state = await getDatabaseState(true); // force refresh
 
-    const apiKey = `sk_proj_${crypto.randomBytes(16).toString('hex')}`;
+    const apiKey = `sk_proj_${randomHex(16)}`;
     const newProject: Project = {
-      id: crypto.randomUUID(),
+      id: globalThis.crypto.randomUUID(),
       userId: userId, // Assign owner to isolate this workspace
       name,
       api_key: apiKey,

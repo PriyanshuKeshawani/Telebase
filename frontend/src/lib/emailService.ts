@@ -1,116 +1,65 @@
-import nodemailer from 'nodemailer';
-
 /**
- * TeleBase Email Service
- * Uses Google SMTP (Gmail) via nodemailer, with Resend API fallback, and Dev Console fallback.
- * 
+ * TeleBase Email Service - Edge Runtime Compatible
+ * Uses Resend API (fetch-based) with Dev Console fallback.
+ * nodemailer is NOT supported in Edge Runtime (Cloudflare Pages).
+ *
  * Setup:
- * 1. Google SMTP:
- *    Add SMTP_USER and SMTP_PASS (Google App Password) to .env.local
- * 2. Resend API:
- *    Add RESEND_API_KEY to .env.local
+ * 1. Add RESEND_API_KEY to environment variables for email support
+ * 2. Or set SMTP_USER + SMTP_PASS — OTP will be logged to console as fallback on Edge
  */
 
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const SMTP_SECURE = process.env.SMTP_SECURE === 'true' || SMTP_PORT === 465;
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'TeleBase <onboarding@resend.dev>';
+const SMTP_USER = process.env.SMTP_USER || '';
+const FROM_EMAIL = SMTP_USER ? `TeleBase <${SMTP_USER}>` : 'TeleBase <onboarding@resend.dev>';
 
 export function isEmailConfigured(): boolean {
-  return (!!SMTP_USER && !!SMTP_PASS) || !!RESEND_API_KEY;
+  return !!RESEND_API_KEY || !!SMTP_USER;
 }
 
 /**
- * Sends OTP verification email
+ * Sends OTP verification email via Resend API (Edge-compatible fetch)
  */
 export async function sendOTPEmail(toEmail: string, otp: string): Promise<{ success: boolean; error?: string }> {
-  const isSMTP = !!SMTP_USER && !!SMTP_PASS;
-
-  // 1. Fallback: Dev Mode (If no email provider is configured)
-  if (!isSMTP && !RESEND_API_KEY) {
-    console.warn('[TeleBase Email] Neither Google SMTP nor Resend API is configured. OTP logged to console.');
-    console.log(`\n=== DEV MODE OTP ===`);
-    console.log(`Email: ${toEmail}`);
-    console.log(`OTP Code: ${otp}`);
-    console.log(`===================\n`);
-    return { success: true };
-  }
-
-  // 2. Google SMTP (Preferred)
-  if (isSMTP) {
+  // 1. Resend API (Edge-compatible)
+  if (RESEND_API_KEY) {
     try {
-      console.log(`[TeleBase Email] Dispatching OTP via Gmail SMTP to ${toEmail}...`);
-      
-      const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_SECURE,
-        auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS,
+      console.log(`[TeleBase Email] Dispatching OTP via Resend API to ${toEmail}...`);
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          from: FROM_EMAIL,
+          to: [toEmail],
+          subject: `🔐 TeleBase — Your verification code is ${otp}`,
+          html: generateOTPEmailHTML(otp, toEmail),
+        }),
       });
 
-      // Construct a valid from-header using the SMTP user
-      const fromHeader = FROM_EMAIL.includes('<') && FROM_EMAIL.toLowerCase().includes('onboarding@resend.dev')
-        ? `TeleBase <${SMTP_USER}>`
-        : FROM_EMAIL;
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error('[TeleBase Email] Resend API error:', res.status, errBody);
+        return { success: false, error: `Resend API failed (${res.status})` };
+      }
 
-      await transporter.sendMail({
-        from: fromHeader,
-        to: toEmail,
-        subject: `🔐 TeleBase — Your verification code is ${otp}`,
-        html: generateOTPEmailHTML(otp, toEmail),
-      });
-
-      console.log('[TeleBase Email] OTP sent successfully via Gmail SMTP.');
+      const data = await res.json();
+      console.log('[TeleBase Email] OTP sent via Resend. ID:', data.id);
       return { success: true };
     } catch (err: any) {
-      console.error('[TeleBase Email] Google SMTP failed:', err.message || err);
-      
-      // Fallback to Resend if SMTP fails and Resend is available
-      if (RESEND_API_KEY) {
-        console.warn('[TeleBase Email] SMTP failed. Falling back to Resend API...');
-      } else {
-        return { success: false, error: `SMTP Error: ${err.message}` };
-      }
+      console.error('[TeleBase Email] Resend API error:', err.message);
+      return { success: false, error: err.message };
     }
   }
 
-  // 3. Resend API (Fallback)
-  try {
-    console.log(`[TeleBase Email] Dispatching OTP via Resend API to ${toEmail}...`);
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [toEmail],
-        subject: `🔐 TeleBase — Your verification code is ${otp}`,
-        html: generateOTPEmailHTML(otp, toEmail),
-      }),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      console.error('[TeleBase Email] Resend API error:', res.status, errBody);
-      return { success: false, error: `Resend API failed (${res.status})` };
-    }
-
-    const data = await res.json();
-    console.log('[TeleBase Email] OTP sent successfully via Resend API. ID:', data.id);
-    return { success: true };
-  } catch (err: any) {
-    console.error('[TeleBase Email] Resend API network error:', err.message);
-    return { success: false, error: err.message };
-  }
+  // 2. Dev/Console Fallback — OTP logged (no email sent)
+  console.warn('[TeleBase Email] No RESEND_API_KEY set. OTP logged to console (dev mode).');
+  console.log(`\n=== DEV MODE OTP ===`);
+  console.log(`Email: ${toEmail}`);
+  console.log(`OTP Code: ${otp}`);
+  console.log(`===================\n`);
+  return { success: true };
 }
 
 /**

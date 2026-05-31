@@ -1,7 +1,15 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import crypto from "crypto";
 import { getDatabaseState } from "@/lib/telegramDatabase";
+
+export const runtime = 'edge';
+
+async function sha256Hex(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 // ─── Smart URL Detection ───────────────────────────────────────────────────────
 // Vercel automatically sets VERCEL_URL on every deployment (no manual setup needed).
@@ -43,7 +51,7 @@ export const authOptions: NextAuthOptions = {
 
         const dbUser = users.find(u => u.email.toLowerCase() === email);
         if (dbUser) {
-          const hash = crypto.createHash("sha256").update(password).digest("hex");
+          const hash = await sha256Hex(password);
           if (dbUser.passwordHash === hash) {
             return { id: dbUser.id, email: dbUser.email, name: dbUser.email.split("@")[0] };
           }

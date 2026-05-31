@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { getDatabaseState, saveDatabaseState, decryptPayload, StoredFile, FileChunk } from '@/lib/telegramDatabase';
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
+
+// Edge-compatible hex-to-Uint8Array
+function hexToBytes(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  return arr;
+}
+// Edge-compatible bytes-to-hex
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export async function POST() {
   try {
@@ -124,20 +135,23 @@ export async function POST() {
             }
 
             if (chunk0Hex) {
-              const chunk0Buffer = Buffer.from(chunk0Hex, 'hex');
-              if (chunk0Buffer.length >= 28) {
-                const iv = chunk0Buffer.subarray(0, 12);
-                const authTag = chunk0Buffer.subarray(12, 28);
-                const encryptedChunk = chunk0Buffer.subarray(28);
+              const chunk0Bytes = hexToBytes(chunk0Hex);
+              if (chunk0Bytes.length >= 28) {
+                const iv = chunk0Bytes.slice(0, 12);
+                const authTag = chunk0Bytes.slice(12, 28);
+                const encryptedChunk = chunk0Bytes.slice(28);
 
                 let matchedProject: any = null;
                 for (const project of state.projects) {
                   try {
-                    const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-                    const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-                    decipher.setAuthTag(authTag);
-                    const decryptedChunk = Buffer.concat([decipher.update(encryptedChunk), decipher.final()]);
-                    
+                    const keyData = new TextEncoder().encode(project.api_key);
+                    const hashBuf = await globalThis.crypto.subtle.digest('SHA-256', keyData);
+                    const projectAESKey = new Uint8Array(hashBuf);
+                    const cryptoKey = await globalThis.crypto.subtle.importKey('raw', projectAESKey, { name: 'AES-GCM' }, false, ['decrypt']);
+                    const combined = new Uint8Array(authTag.length + encryptedChunk.length);
+                    combined.set(authTag);
+                    combined.set(encryptedChunk, authTag.length);
+                    const decryptedChunk = new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, combined));
                     if (decryptedChunk[0] === 0x1f && decryptedChunk[1] === 0x8b) {
                       matchedProject = project;
                       break;
@@ -172,12 +186,12 @@ export async function POST() {
                       }
 
                       if (chunkHex) {
-                        const chunkBuffer = Buffer.from(chunkHex, 'hex');
+                        const chunkBytes = hexToBytes(chunkHex);
                         chunks.push({
                           chunk_index: cIdx,
                           message_id: 'pending_telegram_backup',
-                          iv: chunkBuffer.subarray(0, 12).toString('hex'),
-                          auth_tag: chunkBuffer.subarray(12, 28).toString('hex')
+                          iv: bytesToHex(chunkBytes.slice(0, 12)),
+                          auth_tag: bytesToHex(chunkBytes.slice(12, 28))
                         });
                       }
                     }
@@ -218,12 +232,12 @@ export async function POST() {
                       }
 
                       if (chunkHex) {
-                        const chunkBuffer = Buffer.from(chunkHex, 'hex');
+                        const chunkBytes = hexToBytes(chunkHex);
                         chunks.push({
                           chunk_index: cIdx,
                           message_id: 'pending_telegram_backup',
-                          iv: chunkBuffer.subarray(0, 12).toString('hex'),
-                          auth_tag: chunkBuffer.subarray(12, 28).toString('hex')
+                          iv: bytesToHex(chunkBytes.slice(0, 12)),
+                          auth_tag: bytesToHex(chunkBytes.slice(12, 28))
                         });
                       }
                     }
@@ -292,9 +306,9 @@ export async function POST() {
             }
 
             if (encryptedHex && encryptedHex !== "Not found") {
-              const fullBuffer = Buffer.from(encryptedHex, 'hex');
-              if (fullBuffer.length >= 28) {
-                const encryptedChunk = fullBuffer.subarray(28);
+              const fullBytes = hexToBytes(encryptedHex);
+              if (fullBytes.length >= 28) {
+                const encryptedChunk = fullBytes.slice(28);
 
                 const botToken = project.bots.length > 0 ? project.bots[chunk.chunk_index % project.bots.length] : process.env.BOT_TOKEN || '';
                 const channelId = project.channel_id || process.env.TELEGRAM_CHANNEL_ID || '';

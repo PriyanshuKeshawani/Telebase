@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isKVConfigured, formatTelegramChannelId } from '@/lib/telegramDatabase';
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { getDatabaseState, saveDatabaseState, UserRecord, PendingUser } from "@/lib/telegramDatabase";
 import { sendOTPEmail, generateOTP } from "@/lib/emailService";
+
+export const runtime = 'edge';
+
+async function sha256Hex(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -50,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     // Generate OTP
     const otp = generateOTP();
-    const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+    const passwordHash = await sha256Hex(password);
 
     // Remove any existing pending entry for this email (allow re-register)
     state.pendingUsers = state.pendingUsers.filter(
