@@ -1,6 +1,50 @@
-import crypto from 'crypto';
-import zlib from 'zlib';
 import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
+
+async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Response(compressedBytes).body
+    ?.pipeThrough(new globalThis.DecompressionStream('gzip'));
+  const decompressedBuffer = await new Response(stream).arrayBuffer();
+  return new Uint8Array(decompressedBuffer);
+}
+
+async function gzipCompress(rawBytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Response(rawBytes).body
+    ?.pipeThrough(new globalThis.CompressionStream('gzip'));
+  const compressedBuffer = await new Response(stream).arrayBuffer();
+  return new Uint8Array(compressedBuffer);
+}
+
+// --- Edge-compatible hex/bytes utilities ---
+function hexToBytes(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  return arr;
+}
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function randomBytes(n: number): Uint8Array {
+  const arr = new Uint8Array(n);
+  globalThis.crypto.getRandomValues(arr);
+  return arr;
+}
+async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', data));
+}
+async function aesGcmEncrypt(keyBytes: Uint8Array, iv: Uint8Array, plaintext: Uint8Array): Promise<{ cipherText: Uint8Array; authTag: Uint8Array }> {
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plaintext as any));
+  const cipherText = encrypted.slice(0, encrypted.length - 16);
+  const authTag = encrypted.slice(encrypted.length - 16);
+  return { cipherText, authTag };
+}
+async function aesGcmDecrypt(keyBytes: Uint8Array, iv: Uint8Array, cipherText: Uint8Array, authTag: Uint8Array): Promise<Uint8Array> {
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const combined = new Uint8Array(cipherText.length + authTag.length);
+  combined.set(cipherText);
+  combined.set(authTag, cipherText.length);
+  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, combined as any));
+}
 
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
@@ -214,16 +258,15 @@ export async function getTableRecords(
         // A. Decrypt Master State
         const stateHex = batchData['telebase_state'];
         if (stateHex) {
-          const encryptedBuffer = Buffer.from(stateHex, 'hex');
+          const encryptedBuffer = hexToBytes(stateHex);
           if (encryptedBuffer.length >= 28) {
-            const iv = encryptedBuffer.subarray(0, 12);
-            const authTag = encryptedBuffer.subarray(12, 28);
-            const cipherText = encryptedBuffer.subarray(28);
-            const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-            decipher.setAuthTag(authTag);
-            let decrypted = decipher.update(cipherText, undefined, 'utf8');
-            decrypted += decipher.final('utf8');
-            state = JSON.parse(decrypted) as DatabaseSchema;
+            const iv = encryptedBuffer.slice(0, 12);
+            const authTag = encryptedBuffer.slice(12, 28);
+            const cipherText = encryptedBuffer.slice(28);
+            const masterKeyBytes = hexToBytes(ENCRYPTION_KEY);
+            const decryptedBytes = await aesGcmDecrypt(masterKeyBytes, iv, cipherText, authTag);
+            const decryptedText = new TextDecoder().decode(decryptedBytes);
+            state = JSON.parse(decryptedText) as DatabaseSchema;
             updateStateCache(state);
           }
         } else {
@@ -234,19 +277,16 @@ export async function getTableRecords(
         // B. Decrypt Table Records (if existing)
         const tableHex = batchData[tableKey];
         if (tableHex) {
-          const encryptedBuffer = Buffer.from(tableHex, 'hex');
+          const encryptedBuffer = hexToBytes(tableHex);
           if (encryptedBuffer.length >= 28) {
-            const iv = encryptedBuffer.subarray(0, 12);
-            const authTag = encryptedBuffer.subarray(12, 28);
-            const cipherText = encryptedBuffer.subarray(28);
+            const iv = encryptedBuffer.slice(0, 12);
+            const authTag = encryptedBuffer.slice(12, 28);
+            const cipherText = encryptedBuffer.slice(28);
 
-            const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-            const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-            decipher.setAuthTag(authTag);
-
-            const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-            const decompressed = zlib.gunzipSync(decrypted);
-            records = JSON.parse(decompressed.toString('utf-8')) as any[];
+            const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+            const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
+            const decompressed = await gzipDecompress(decrypted);
+            records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
             console.log(`[Query Engine] Table "${tableName}" successfully loaded via Batch GET edge route!`);
           }
         }
@@ -292,19 +332,16 @@ export async function getTableRecords(
       });
       if (res.ok) {
         const encryptedHex = await res.text();
-        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+        const encryptedBuffer = hexToBytes(encryptedHex);
         if (encryptedBuffer.length >= 28) {
-          const iv = encryptedBuffer.subarray(0, 12);
-          const authTag = encryptedBuffer.subarray(12, 28);
-          const cipherText = encryptedBuffer.subarray(28);
+          const iv = encryptedBuffer.slice(0, 12);
+          const authTag = encryptedBuffer.slice(12, 28);
+          const cipherText = encryptedBuffer.slice(28);
 
-          const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-          const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-          decipher.setAuthTag(authTag);
-
-          const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-          const decompressed = zlib.gunzipSync(decrypted);
-          records = JSON.parse(decompressed.toString('utf-8')) as any[];
+          const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+          const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
+          const decompressed = await gzipDecompress(decrypted);
+          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Cloudflare Worker KV!`);
         }
       }
@@ -326,19 +363,16 @@ export async function getTableRecords(
       });
       if (res.ok) {
         const encryptedHex = await res.text();
-        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+        const encryptedBuffer = hexToBytes(encryptedHex);
         if (encryptedBuffer.length >= 28) {
-          const iv = encryptedBuffer.subarray(0, 12);
-          const authTag = encryptedBuffer.subarray(12, 28);
-          const cipherText = encryptedBuffer.subarray(28);
+          const iv = encryptedBuffer.slice(0, 12);
+          const authTag = encryptedBuffer.slice(12, 28);
+          const cipherText = encryptedBuffer.slice(28);
 
-          const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-          const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-          decipher.setAuthTag(authTag);
-
-          const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-          const decompressed = zlib.gunzipSync(decrypted);
-          records = JSON.parse(decompressed.toString('utf-8')) as any[];
+          const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+          const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
+          const decompressed = await gzipDecompress(decrypted);
+          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Cloudflare KV REST API!`);
         }
       }
@@ -350,24 +384,22 @@ export async function getTableRecords(
   // 4. Always-Free KV Fallback (kvdb.io - under 40ms reads!)
   if (!records && !isKVConfigured && !isCFWorkerConfigured) {
     try {
-      const bucketId = 'k' + crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 19);
+      const bucketHash = await sha256Bytes(hexToBytes(ENCRYPTION_KEY));
+      const bucketId = 'k' + bytesToHex(bucketHash).substring(0, 19);
       const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
       const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const encryptedHex = await res.text();
-        const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+        const encryptedBuffer = hexToBytes(encryptedHex);
         if (encryptedBuffer.length >= 28) {
-          const iv = encryptedBuffer.subarray(0, 12);
-          const authTag = encryptedBuffer.subarray(12, 28);
-          const cipherText = encryptedBuffer.subarray(28);
+          const iv = encryptedBuffer.slice(0, 12);
+          const authTag = encryptedBuffer.slice(12, 28);
+          const cipherText = encryptedBuffer.slice(28);
 
-          const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-          const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-          decipher.setAuthTag(authTag);
-
-          const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
-          const decompressed = zlib.gunzipSync(decrypted);
-          records = JSON.parse(decompressed.toString('utf-8')) as any[];
+          const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+          const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
+          const decompressed = await gzipDecompress(decrypted);
+          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Free KV (kvdb.io)!`);
         }
       }
@@ -379,8 +411,8 @@ export async function getTableRecords(
   // 5. Telegram Chunks Fallback (Under 1.5s reads)
   if (!records && process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
     try {
-      const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-      const decryptedChunks: Buffer[] = [];
+      const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+      const decryptedChunks: Uint8Array[] = [];
 
       for (let i = 0; i < tableFile.chunks.length; i++) {
         const chunk = tableFile.chunks[i];
@@ -396,21 +428,25 @@ export async function getTableRecords(
 
         const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
         const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
-        const encryptedChunk = Buffer.from(await downloadRes.arrayBuffer());
+        const encryptedChunk = new Uint8Array(await downloadRes.arrayBuffer());
 
-        const iv = Buffer.from(chunk.iv, 'hex');
-        const authTag = Buffer.from(chunk.auth_tag, 'hex');
+        const iv = hexToBytes(chunk.iv);
+        const authTag = hexToBytes(chunk.auth_tag);
 
-        const decipher = crypto.createDecipheriv('aes-256-gcm', projectAESKey, iv);
-        decipher.setAuthTag(authTag);
-
-        const decrypted = Buffer.concat([decipher.update(encryptedChunk), decipher.final()]);
+        const decrypted = await aesGcmDecrypt(projectAESKey, iv, encryptedChunk, authTag);
         decryptedChunks.push(decrypted);
       }
 
-      const gzippedBuffer = Buffer.concat(decryptedChunks);
-      const decompressed = zlib.gunzipSync(gzippedBuffer);
-      records = JSON.parse(decompressed.toString('utf-8')) as any[];
+      let totalLength = 0;
+      for (const c of decryptedChunks) totalLength += c.length;
+      const gzippedBuffer = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const c of decryptedChunks) {
+        gzippedBuffer.set(c, offset);
+        offset += c.length;
+      }
+      const decompressed = await gzipDecompress(gzippedBuffer);
+      records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
       console.log(`[Query Engine] Table "${tableName}" successfully loaded and decrypted from Telegram!`);
     } catch (error: any) {
       console.warn(`[Query Engine] Telegram read failed for ${tableName}:`, error.message);
@@ -442,7 +478,7 @@ export async function saveTableRecords(
   const now = Date.now();
   tableCache[cacheKey] = { data: records, timestamp: now };
 
-  const fileUuid = crypto.randomUUID();
+  const fileUuid = globalThis.crypto.randomUUID();
   
   // Write to local fallback file immediately to guarantee zero-data loss and lightspeed latency
   saveLocalTableRecords(project.id, tableName, records, fileUuid);
@@ -459,17 +495,23 @@ export async function saveTableRecords(
       }
 
       const rawData = JSON.stringify(records);
-      const gzipped = zlib.gzipSync(Buffer.from(rawData, 'utf-8'));
+      const gzipped = await gzipCompress(new TextEncoder().encode(rawData));
       
-      const projectAESKey = crypto.createHash('sha256').update(project.api_key).digest();
-      const iv = crypto.randomBytes(12);
-      const cipher = crypto.createCipheriv('aes-256-gcm', projectAESKey, iv);
-      const encrypted = Buffer.concat([cipher.update(gzipped), cipher.final()]);
-      const authTag = cipher.getAuthTag();
+      const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+      const iv = randomBytes(12);
+      const { cipherText: encrypted, authTag } = await aesGcmEncrypt(projectAESKey, iv, gzipped);
 
-      const finalBuffer = Buffer.concat([iv, authTag, encrypted]);
-      const encryptedHex = finalBuffer.toString('hex');
+      // Concatenate finalBuffer = iv + authTag + encrypted
+      const finalBuffer = new Uint8Array(iv.length + authTag.length + encrypted.length);
+      finalBuffer.set(iv, 0);
+      finalBuffer.set(authTag, iv.length);
+      finalBuffer.set(encrypted, iv.length + authTag.length);
+      
+      const encryptedHex = bytesToHex(finalBuffer);
       const filename = `table_${project.id}_${tableName}.json`;
+
+      const encryptedHashBytes = await sha256Bytes(encrypted);
+      const fileHashHex = bytesToHex(encryptedHashBytes);
 
       const newTableFile: StoredFile = {
         uuid: fileUuid,
@@ -477,15 +519,15 @@ export async function saveTableRecords(
         filename,
         version: 1,
         chunk_count: 1,
-        file_hash: crypto.createHash('sha256').update(encrypted).digest('hex'),
+        file_hash: fileHashHex,
         size: rawData.length,
         created_at: new Date().toISOString(),
         chunks: [
           {
             chunk_index: 0,
             message_id: '', // Cloud KV stored, no message ID needed
-            iv: iv.toString('hex'),
-            auth_tag: authTag.toString('hex')
+            iv: bytesToHex(iv),
+            auth_tag: bytesToHex(authTag)
           }
         ]
       };
@@ -615,7 +657,8 @@ export async function saveTableRecords(
       // 4. Always-Free KV Fallback cache (kvdb.io - under 80ms writes!)
       if (!isKVConfigured && !isCFWorkerConfigured) {
         try {
-          const bucketId = 'k' + crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 19);
+          const bucketHash = await sha256Bytes(hexToBytes(ENCRYPTION_KEY));
+          const bucketId = 'k' + bytesToHex(bucketHash).substring(0, 19);
           const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
           const res = await fetch(url, {
             method: 'PUT',
@@ -650,9 +693,9 @@ async function dispatchTelegramBackup(
   tableName: string,
   fileUuid: string,
   filename: string,
-  encrypted: Buffer,
-  iv: Buffer,
-  authTag: Buffer,
+  encrypted: Uint8Array,
+  iv: Uint8Array,
+  authTag: Uint8Array,
   rawLength: number
 ): Promise<void> {
   try {
@@ -661,7 +704,7 @@ async function dispatchTelegramBackup(
 
     const formData = new FormData();
     formData.append('chat_id', channelId);
-    const chunkBlob = new Blob([new Uint8Array(encrypted)], { type: 'application/octet-stream' });
+    const chunkBlob = new Blob([encrypted], { type: 'application/octet-stream' });
     formData.append('document', chunkBlob, `${fileUuid}_table.enc`);
 
     const uploadRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
@@ -677,21 +720,24 @@ async function dispatchTelegramBackup(
     const state = await getDatabaseState(true);
     state.files = state.files.filter((f) => !(f.project_id === project.id && f.filename === filename));
 
+    const encryptedHashBytes = await sha256Bytes(encrypted);
+    const fileHashHex = bytesToHex(encryptedHashBytes);
+
     const newTableFile: StoredFile = {
       uuid: fileUuid,
       project_id: project.id,
       filename,
       version: 1,
       chunk_count: 1,
-      file_hash: crypto.createHash('sha256').update(encrypted).digest('hex'),
+      file_hash: fileHashHex,
       size: rawLength,
       created_at: new Date().toISOString(),
       chunks: [
         {
           chunk_index: 0,
           message_id: fileId,
-          iv: iv.toString('hex'),
-          auth_tag: authTag.toString('hex')
+          iv: bytesToHex(iv),
+          auth_tag: bytesToHex(authTag)
         }
       ]
     };
@@ -804,11 +850,11 @@ export class TelebaseQueryEngine {
 
       if (action.type !== 'SELECT') {
         // Lock row/table
-        activeRowLocks[lockKey] = { lockedAt: Date.now(), taskId: crypto.randomUUID() };
+        activeRowLocks[lockKey] = { lockedAt: Date.now(), taskId: globalThis.crypto.randomUUID() };
         
         // Log to Write-Ahead Log
         walEntry = {
-          id: `wal_${crypto.randomBytes(8).toString('hex')}`,
+          id: `wal_${bytesToHex(randomBytes(8))}`,
           timestamp: new Date().toISOString(),
           projectId: project.id,
           tableName,
@@ -858,7 +904,7 @@ export class TelebaseQueryEngine {
       
       else if (action.type === 'INSERT') {
         const newRecord = { 
-          id: crypto.randomUUID(), 
+          id: globalThis.crypto.randomUUID(), 
           created_at: new Date().toISOString(),
           ...action.insertData 
         };
@@ -999,7 +1045,7 @@ export class TelebaseQueryEngine {
 
       if (entry.operation === 'INSERT' && entry.newData) {
         const recordToRestore = {
-          id: entry.newData.id || crypto.randomUUID(),
+          id: entry.newData.id || globalThis.crypto.randomUUID(),
           created_at: entry.newData.created_at || new Date().toISOString(),
           ...entry.newData
         };

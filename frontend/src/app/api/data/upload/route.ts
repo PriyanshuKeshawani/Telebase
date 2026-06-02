@@ -20,7 +20,7 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
-  const cs = new CompressionStream('gzip');
+  const cs = new globalThis.CompressionStream('gzip');
   const writer = cs.writable.getWriter();
   writer.write(data);
   writer.close();
@@ -42,7 +42,7 @@ async function aesGcmEncryptChunk(keyBytes: Uint8Array, plaintext: Uint8Array): 
   const iv = new Uint8Array(12);
   globalThis.crypto.getRandomValues(iv);
   const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
-  const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plaintext));
+  const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plaintext as any));
   return { iv, cipherText: encrypted.slice(0, encrypted.length - 16), authTag: encrypted.slice(encrypted.length - 16) };
 }
 
