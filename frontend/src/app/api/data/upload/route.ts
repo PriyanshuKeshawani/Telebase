@@ -22,7 +22,7 @@ function bytesToHex(bytes: Uint8Array): string {
 async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
   const cs = new globalThis.CompressionStream('gzip');
   const writer = cs.writable.getWriter();
-  writer.write(data);
+  writer.write(data as any);
   writer.close();
   const chunks: Uint8Array[] = [];
   const reader = cs.readable.getReader();
