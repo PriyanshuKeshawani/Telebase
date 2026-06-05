@@ -214,7 +214,7 @@ export async function encryptStateAsync(state: DatabaseSchema): Promise<string> 
   return bytesToHex(finalBuffer);
 }
 
-/async function readRawKV(key: string): Promise<string | null> {
+async function readRawKV(key: string): Promise<string | null> {
   if (isCFWorkerConfigured) {
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
