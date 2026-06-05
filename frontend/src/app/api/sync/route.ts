@@ -145,7 +145,7 @@ export async function POST() {
                 for (const project of state.projects) {
                   try {
                     const keyData = new TextEncoder().encode(project.api_key);
-                    const hashBuf = await globalThis.crypto.subtle.digest('SHA-256', keyData);
+                    const hashBuf = await globalThis.crypto.subtle.digest('SHA-256', keyData as any);
                     const projectAESKey = new Uint8Array(hashBuf);
                     const cryptoKey = await globalThis.crypto.subtle.importKey('raw', projectAESKey as any, { name: 'AES-GCM' }, false, ['decrypt']);
                     const combined = new Uint8Array(authTag.length + encryptedChunk.length);

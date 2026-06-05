@@ -113,7 +113,7 @@ export async function GET(
     console.log(`[Download] Streaming "${fileRecord.filename}" (${fileRecord.chunk_count} chunks)...`);
 
     // Derive project AES key using Web Crypto
-    const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key)));
+    const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
 
     const stream = new ReadableStream({
       async start(controller) {

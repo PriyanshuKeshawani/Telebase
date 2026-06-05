@@ -19,7 +19,7 @@ function randomBytes(n: number): Uint8Array {
   return arr;
 }
 async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', data));
+  return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', data as any));
 }
 async function aesGcmEncrypt(keyBytes: Uint8Array, iv: Uint8Array, plaintext: Uint8Array): Promise<{ cipherText: Uint8Array; authTag: Uint8Array }> {
   const key = await globalThis.crypto.subtle.importKey('raw', keyBytes as any, { name: 'AES-GCM' }, false, ['encrypt']);

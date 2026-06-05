@@ -110,9 +110,9 @@ export async function POST(req: NextRequest) {
     console.log(`[Upload] Processing "${filename}" (${(fileBytes.length / 1024).toFixed(2)} KB)...`);
 
     const compressedBytes = await gzipCompress(fileBytes);
-    const fileHash = bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', fileBytes)));
+    const fileHash = bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', fileBytes as any)));
     const fileUuid = globalThis.crypto.randomUUID();
-    const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key)));
+    const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
 
     type PreparedChunk = { chunkIndex: number; iv: Uint8Array; authTag: Uint8Array; botToken: string; channelId: string; kvKey: string; chunkBytes: Uint8Array; };
     const preparedChunks: PreparedChunk[] = [];

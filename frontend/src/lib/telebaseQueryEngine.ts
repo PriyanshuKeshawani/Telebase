@@ -1,16 +1,16 @@
 import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
 
 async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
-  const stream = new Response(compressedBytes).body
-    ?.pipeThrough(new globalThis.DecompressionStream('gzip'));
-  const decompressedBuffer = await new Response(stream).arrayBuffer();
+  const stream = new Response(compressedBytes as any).body
+    ?.pipeThrough(new globalThis.DecompressionStream('gzip') as any);
+  const decompressedBuffer = await new Response(stream as any).arrayBuffer();
   return new Uint8Array(decompressedBuffer);
 }
 
 async function gzipCompress(rawBytes: Uint8Array): Promise<Uint8Array> {
-  const stream = new Response(rawBytes).body
-    ?.pipeThrough(new globalThis.CompressionStream('gzip'));
-  const compressedBuffer = await new Response(stream).arrayBuffer();
+  const stream = new Response(rawBytes as any).body
+    ?.pipeThrough(new globalThis.CompressionStream('gzip') as any);
+  const compressedBuffer = await new Response(stream as any).arrayBuffer();
   return new Uint8Array(compressedBuffer);
 }
 
@@ -29,7 +29,7 @@ function randomBytes(n: number): Uint8Array {
   return arr;
 }
 async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', data));
+  return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', data as any));
 }
 async function aesGcmEncrypt(keyBytes: Uint8Array, iv: Uint8Array, plaintext: Uint8Array): Promise<{ cipherText: Uint8Array; authTag: Uint8Array }> {
   const key = await globalThis.crypto.subtle.importKey('raw', keyBytes as any, { name: 'AES-GCM' }, false, ['encrypt']);
