@@ -24,7 +24,7 @@ async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
 async function aesGcmEncrypt(keyBytes: Uint8Array, iv: Uint8Array, plaintext: Uint8Array): Promise<{ cipherText: Uint8Array; authTag: Uint8Array }> {
   const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
   // Web Crypto AES-GCM appends 16-byte auth tag at the end of ciphertext
-  const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plaintext as any));
+  const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv as any, tagLength: 128 }, key, plaintext as any));
   const cipherText = encrypted.slice(0, encrypted.length - 16);
   const authTag = encrypted.slice(encrypted.length - 16);
   return { cipherText, authTag };
@@ -35,7 +35,7 @@ async function aesGcmDecrypt(keyBytes: Uint8Array, iv: Uint8Array, cipherText: U
   const combined = new Uint8Array(cipherText.length + authTag.length);
   combined.set(cipherText);
   combined.set(authTag, cipherText.length);
-  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, combined as any));
+  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any, tagLength: 128 }, key, combined as any));
 }
 
 export function formatTelegramChannelId(channelId: string): string {

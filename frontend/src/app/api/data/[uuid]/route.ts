@@ -23,7 +23,7 @@ async function aesGcmDecryptChunk(keyBytes: Uint8Array, iv: Uint8Array, cipherTe
   const combined = new Uint8Array(cipherText.length + authTag.length);
   combined.set(cipherText);
   combined.set(authTag, cipherText.length);
-  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, combined as any));
+  return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any, tagLength: 128 }, key, combined as any));
 }
 
 async function fetchTelegramWithRetry(url: string, options?: RequestInit, retries = 5, delayMs = 1500): Promise<any> {

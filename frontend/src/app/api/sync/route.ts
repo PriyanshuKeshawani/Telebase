@@ -151,7 +151,7 @@ export async function POST() {
                     const combined = new Uint8Array(authTag.length + encryptedChunk.length);
                     combined.set(authTag);
                     combined.set(encryptedChunk, authTag.length);
-                    const decryptedChunk = new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, combined as any));
+                    const decryptedChunk = new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any }, cryptoKey, combined as any));
                     if (decryptedChunk[0] === 0x1f && decryptedChunk[1] === 0x8b) {
                       matchedProject = project;
                       break;
