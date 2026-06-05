@@ -41,7 +41,7 @@ async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
 async function aesGcmEncryptChunk(keyBytes: Uint8Array, plaintext: Uint8Array): Promise<{ iv: Uint8Array; authTag: Uint8Array; cipherText: Uint8Array }> {
   const iv = new Uint8Array(12);
   globalThis.crypto.getRandomValues(iv);
-  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const key = await globalThis.crypto.subtle.importKey('raw', keyBytes as any, { name: 'AES-GCM' }, false, ['encrypt']);
   const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv as any, tagLength: 128 }, key, plaintext as any));
   return { iv, cipherText: encrypted.slice(0, encrypted.length - 16), authTag: encrypted.slice(encrypted.length - 16) };
 }
