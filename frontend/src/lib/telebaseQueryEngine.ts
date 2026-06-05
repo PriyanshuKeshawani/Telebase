@@ -637,11 +637,10 @@ export async function saveTableRecords(
             saveTableToCloud(),
             statePromise ? statePromise : getDatabaseState(true)
           ]);
-
           if (tableSaved) {
             state.files = state.files.filter((f: any) => !(f.project_id === project.id && f.filename === filename));
             state.files.push(newTableFile);
-            await saveDatabaseState(state);
+            await saveDatabaseState(state, { allowShrink: true });
             
             // Dispatch Telegram backup for background durability
             if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {

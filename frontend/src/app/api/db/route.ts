@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
         delete state.schemas[schemaKey];
       }
 
-      await saveDatabaseState(state);
+      await saveDatabaseState(state, { allowShrink: true });
       return NextResponse.json({ success: true, message: `Table "${tableName}" successfully deleted!` });
     }
 
@@ -311,7 +311,7 @@ export async function POST(req: NextRequest) {
       }
 
       state.schemas[schemaKey] = schema;
-      await saveDatabaseState(state);
+      await saveDatabaseState(state, { allowShrink: true });
       return NextResponse.json({ success: true, message: `Table "${tableName}" schema updated successfully!` });
     }
 

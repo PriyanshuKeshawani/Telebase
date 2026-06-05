@@ -26,7 +26,7 @@ export async function POST(
 
     const project = state.projects[projectIndex];
     project.bots = project.bots.filter((t) => t !== bot_token);
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
 
     return NextResponse.json({ success: true, project });
   } catch (error: any) {

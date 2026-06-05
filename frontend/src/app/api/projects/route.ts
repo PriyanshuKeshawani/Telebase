@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId } from '@/lib/telegramDatabase';
+import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId, TelebaseStateError } from '@/lib/telegramDatabase';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
 
-    const state = await getDatabaseState();
+    let state;
+    try {
+      state = await getDatabaseState();
+    } catch (error: any) {
+      if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
+        state = { projects: [], files: [], users: [] };
+      } else {
+        throw error;
+      }
+    }
     const userId = token.id as string;
 
     // Filter projects:
@@ -69,7 +78,23 @@ export async function POST(req: NextRequest) {
       channel_id = formatTelegramChannelId(channel_id);
     }
 
-    const state = await getDatabaseState(true); // force refresh
+    let state;
+    try {
+      state = await getDatabaseState(true); // force refresh
+    } catch (error: any) {
+      if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
+        state = {
+          projects: [],
+          files: [],
+          users: [],
+          pendingUsers: [],
+          version: 1,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        throw error;
+      }
+    }
 
     const apiKey = `sk_proj_${randomHex(16)}`;
     const newProject: Project = {

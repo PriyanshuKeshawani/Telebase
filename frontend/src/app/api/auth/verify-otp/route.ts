@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (Date.now() > pending.expiresAt) {
       // Remove expired entry
       state.pendingUsers.splice(pendingIndex, 1);
-      await saveDatabaseState(state);
+      await saveDatabaseState(state, { allowShrink: true });
 
       return NextResponse.json(
         { success: false, error: "OTP expired. Please register again to receive a new code." },
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       (p) => p.expiresAt > Date.now()
     );
 
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
 
     return NextResponse.json({
       success: true,

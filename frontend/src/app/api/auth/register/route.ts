@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabaseState, saveDatabaseState, UserRecord, PendingUser } from "@/lib/telegramDatabase";
+import { getDatabaseState, saveDatabaseState, UserRecord, PendingUser, TelebaseStateError } from "@/lib/telegramDatabase";
 import { sendOTPEmail, generateOTP } from "@/lib/emailService";
 
 export const runtime = 'edge';
@@ -41,7 +41,23 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch current state
-    const state = await getDatabaseState(true);
+    let state;
+    try {
+      state = await getDatabaseState(true);
+    } catch (error: any) {
+      if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
+        state = {
+          projects: [],
+          files: [],
+          users: [],
+          pendingUsers: [],
+          version: 1,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        throw error;
+      }
+    }
     if (!state.users) state.users = [];
     if (!state.pendingUsers) state.pendingUsers = [];
 

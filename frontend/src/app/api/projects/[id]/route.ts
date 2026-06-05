@@ -48,7 +48,7 @@ export async function DELETE(
     state.files = state.files.filter((f) => f.project_id !== id);
 
     // Save updated index to Telegram & KV
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
 
     return NextResponse.json({
       success: true,

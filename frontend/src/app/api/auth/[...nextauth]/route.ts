@@ -1,6 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getDatabaseState } from "@/lib/telegramDatabase";
+import { getDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
 
 export const runtime = 'edge';
 
@@ -17,6 +17,7 @@ async function sha256Hex(text: string): Promise<string> {
 // Priority: NEXTAUTH_URL (explicit) > VERCEL_URL (auto) > localhost fallback
 const resolveNextAuthUrl = (): string => {
   if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (process.env.CF_PAGES_URL) return process.env.CF_PAGES_URL;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
 };
@@ -46,7 +47,16 @@ export const authOptions: NextAuthOptions = {
         const password = credentials.password;
 
         // Fetch current database state to verify user
-        const state = await getDatabaseState(true);
+        let state;
+        try {
+          state = await getDatabaseState(true);
+        } catch (error: any) {
+          if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
+            state = { projects: [], files: [], users: [] };
+          } else {
+            throw error;
+          }
+        }
         const users = state.users || [];
 
         const dbUser = users.find(u => u.email.toLowerCase() === email);

@@ -202,7 +202,7 @@ export async function DELETE(
     }
 
     state.files.splice(fileIndex, 1);
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
 
     return NextResponse.json({ success: true, message: 'File deleted successfully from index' });
   } catch (error: any) {
