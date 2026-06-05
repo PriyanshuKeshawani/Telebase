@@ -263,7 +263,7 @@ export async function getTableRecords(
             const iv = encryptedBuffer.slice(0, 12);
             const authTag = encryptedBuffer.slice(12, 28);
             const cipherText = encryptedBuffer.slice(28);
-            const masterKeyBytes = hexToBytes(ENCRYPTION_KEY);
+            const masterKeyBytes = ENCRYPTION_KEY;
             const decryptedBytes = await aesGcmDecrypt(masterKeyBytes, iv, cipherText, authTag);
             const decryptedText = new TextDecoder().decode(decryptedBytes);
             state = JSON.parse(decryptedText) as DatabaseSchema;
@@ -384,7 +384,7 @@ export async function getTableRecords(
   // 4. Always-Free KV Fallback (kvdb.io - under 40ms reads!)
   if (!records && !isKVConfigured && !isCFWorkerConfigured) {
     try {
-      const bucketHash = await sha256Bytes(hexToBytes(ENCRYPTION_KEY));
+      const bucketHash = await sha256Bytes(ENCRYPTION_KEY);
       const bucketId = 'k' + bytesToHex(bucketHash).substring(0, 19);
       const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
       const res = await fetch(url, { cache: 'no-store' });
@@ -656,7 +656,7 @@ export async function saveTableRecords(
       // 4. Always-Free KV Fallback cache (kvdb.io - under 80ms writes!)
       if (!isKVConfigured && !isCFWorkerConfigured) {
         try {
-          const bucketHash = await sha256Bytes(hexToBytes(ENCRYPTION_KEY));
+          const bucketHash = await sha256Bytes(ENCRYPTION_KEY);
           const bucketId = 'k' + bytesToHex(bucketHash).substring(0, 19);
           const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
           const res = await fetch(url, {

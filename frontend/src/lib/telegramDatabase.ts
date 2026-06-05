@@ -108,12 +108,16 @@ async function getEncryptionKey(): Promise<Uint8Array> {
   if (_encKeyPromise) return _encKeyPromise;
   _encKeyPromise = (async () => {
     const envKey = process.env.ENCRYPTION_KEY || '';
+    let derived: Uint8Array;
     if (envKey.length === 64) {
-      return hexToBytes(envKey);
+      derived = hexToBytes(envKey);
+    } else {
+      // Fallback: derive deterministically from BOT_TOKEN
+      const encoder = new TextEncoder();
+      derived = await sha256Bytes(encoder.encode(BOT_TOKEN));
     }
-    // Fallback: derive deterministically from BOT_TOKEN
-    const encoder = new TextEncoder();
-    return sha256Bytes(encoder.encode(BOT_TOKEN));
+    ENCRYPTION_KEY = derived;
+    return derived;
   })();
   return _encKeyPromise;
 }
