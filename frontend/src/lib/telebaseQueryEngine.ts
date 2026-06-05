@@ -703,7 +703,7 @@ async function dispatchTelegramBackup(
 
     const formData = new FormData();
     formData.append('chat_id', channelId);
-    const chunkBlob = new Blob([encrypted], { type: 'application/octet-stream' });
+    const chunkBlob = new Blob([encrypted as any], { type: 'application/octet-stream' });
     formData.append('document', chunkBlob, `${fileUuid}_table.enc`);
 
     const uploadRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {

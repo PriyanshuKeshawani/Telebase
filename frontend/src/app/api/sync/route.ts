@@ -317,7 +317,7 @@ export async function POST() {
                   console.log(`[Sync API] Uploading chunk ${chunk.chunk_index} of "${file.filename}" from KV to Telegram channel...`);
                   const formData = new FormData();
                   formData.append('chat_id', channelId);
-                  const chunkBlob = new Blob([new Uint8Array(encryptedChunk)], { type: 'application/octet-stream' });
+                  const chunkBlob = new Blob([new Uint8Array(encryptedChunk) as any], { type: 'application/octet-stream' });
                   formData.append('document', chunkBlob, `${file.uuid}_chunk_${chunk.chunk_index}.enc`);
 
                   const uploadRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {

@@ -265,7 +265,7 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
   const formData = new FormData();
   formData.append('chat_id', TELEGRAM_CHANNEL_ID);
   
-  const fileBlob = new Blob([finalBuffer], { type: 'application/octet-stream' });
+  const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
   formData.append('document', fileBlob, 'telebase_db.enc');
 
   const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
@@ -879,7 +879,7 @@ export async function restoreState(backupIndex: 1 | 2 | 3): Promise<DatabaseSche
   if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
     const formData = new FormData();
     formData.append('chat_id', TELEGRAM_CHANNEL_ID);
-    const fileBlob = new Blob([finalBuffer], { type: 'application/octet-stream' });
+    const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
     formData.append('document', fileBlob, 'telebase_db.enc');
 
     const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {

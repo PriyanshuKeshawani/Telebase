@@ -51,7 +51,7 @@ async function uploadTelegramWithRetry(botToken: string, channelId: string, file
     try {
       const formData = new FormData();
       formData.append('chat_id', channelId);
-      formData.append('document', new Blob([chunkBytes], { type: 'application/octet-stream' }), `${fileUuid}_chunk_${chunkIndex}.enc`);
+      formData.append('document', new Blob([chunkBytes as any], { type: 'application/octet-stream' }), `${fileUuid}_chunk_${chunkIndex}.enc`);
       const res = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.ok) return data.result.document.file_id;
