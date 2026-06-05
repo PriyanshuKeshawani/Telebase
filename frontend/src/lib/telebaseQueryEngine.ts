@@ -756,8 +756,8 @@ async function dispatchTelegramBackup(
 export class TelebaseQueryEngine {
   
   /**
-   * Helper to retrieve currently stored WAL Logs.
-   */
+     * Helper to retrieve currently stored WAL Logs.
+     */
   static getWALLogs(projectId: string): WALEntry[] {
     return writeAheadLogs.filter(log => log.projectId === projectId);
   }
