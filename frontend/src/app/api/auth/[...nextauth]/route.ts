@@ -1,4 +1,18 @@
+// Polyfill util.inspect.custom for openid-client compatibility on Edge runtime
+try {
+  const util = require('util');
+  if (util) {
+    if (!util.inspect) {
+      util.inspect = function(val: any) { return String(val); };
+    }
+    if (util.inspect && !util.inspect.custom) {
+      util.inspect.custom = Symbol.for('nodejs.util.inspect.custom');
+    }
+  }
+} catch (e) {}
+
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -13,21 +27,7 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ─── Smart URL Detection ───────────────────────────────────────────────────────
-// Vercel automatically sets VERCEL_URL on every deployment (no manual setup needed).
-// .env.local NEXTAUTH_URL is used for local development.
-// Priority: NEXTAUTH_URL (explicit) > VERCEL_URL (auto) > localhost fallback
-const resolveNextAuthUrl = (): string => {
-  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
-  if (process.env.CF_PAGES_URL) return process.env.CF_PAGES_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-};
 
-// Inject resolved URL into process.env so NextAuth internals pick it up
-if (!process.env.NEXTAUTH_URL) {
-  process.env.NEXTAUTH_URL = resolveNextAuthUrl();
-}
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "telebase2026";
@@ -105,8 +105,6 @@ export const authOptions: NextAuthOptions = {
     }
   },
   secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key",
-  // Use resolved URL for proper redirect handling on all environments
-  ...(process.env.NEXTAUTH_URL ? { url: process.env.NEXTAUTH_URL } : {})
 };
 
 const handler = NextAuth(authOptions);
