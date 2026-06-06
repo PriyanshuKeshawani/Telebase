@@ -2,51 +2,14 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-const Database = (props: any) => null;
-const Zap = (props: any) => null;
-const Lock = (props: any) => null;
-const HardDrive = (props: any) => null;
-const Cpu = (props: any) => null;
-const Radio = (props: any) => null;
-const Plus = (props: any) => null;
-const Trash2 = (props: any) => null;
-const Download = (props: any) => null;
-const RefreshCw = (props: any) => null;
-const Key = (props: any) => null;
-const Shield = (props: any) => null;
-const AlertCircle = (props: any) => null;
-const CheckCircle2 = (props: any) => null;
-const FileText = (props: any) => null;
-const PlusCircle = (props: any) => null;
-const ArrowLeft = (props: any) => null;
-const Bot = (props: any) => null;
-const Server = (props: any) => null;
-const UploadCloud = (props: any) => null;
-const X = (props: any) => null;
-const HelpCircle = (props: any) => null;
-const Terminal = (props: any) => null;
-const Play = (props: any) => null;
-const RotateCcw = (props: any) => null;
-const AlertTriangle = (props: any) => null;
-const LogOut = (props: any) => null;
-const Check = (props: any) => null;
-const ChevronRight = (props: any) => null;
-const Copy = (props: any) => null;
-const Layers = (props: any) => null;
-const Activity = (props: any) => null;
-const Settings = (props: any) => null;
-const Hash = (props: any) => null;
-const Table2 = (props: any) => null;
-const Folder = (props: any) => null;
-const Search = (props: any) => null;
-const History = (props: any) => null;
-const BookOpen = (props: any) => null;
-const ChevronLeft = (props: any) => null;
-const Menu = (props: any) => null;
-const Heart = (props: any) => null;
-const Keyboard = (props: any) => null;
-const Compass = (props: any) => null;
-const Code = (props: any) => null;
+import { 
+  Database, Zap, Lock, HardDrive, Cpu, Radio, Plus, Trash2, 
+  Download, RefreshCw, Key, Shield, AlertCircle, CheckCircle2,
+  FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X, 
+  HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
+  ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder,
+  Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code
+} from "lucide-react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";

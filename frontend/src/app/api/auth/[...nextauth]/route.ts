@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
