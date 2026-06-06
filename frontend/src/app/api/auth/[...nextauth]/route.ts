@@ -105,9 +105,10 @@ export const authOptions: NextAuthOptions = {
     }
   },
   secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key",
+  // Use resolved URL for proper redirect handling on all environments
+  ...((process.env.NEXTAUTH_URL || resolveNextAuthUrl()) ? { url: process.env.NEXTAUTH_URL || resolveNextAuthUrl() } : {})
 };
 
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
-
