@@ -14,11 +14,7 @@ try {
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-import NextAuth, { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
 import { getDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
-
-
 
 async function sha256Hex(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -27,86 +23,103 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-
-
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "telebase2026";
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: "Telebase Console Auth",
-      credentials: {
-        email: { label: "Email", type: "text", placeholder: "user@example.com" },
-        password: { label: "Password", type: "password" }
+let handler: any = null;
+
+async function getHandler() {
+  if (!handler) {
+    const [NextAuth, CredentialsProvider] = await Promise.all([
+      import("next-auth").then(m => m.default),
+      import("next-auth/providers/credentials").then(m => m.default)
+    ]);
+
+    const authOptions: any = {
+      providers: [
+        CredentialsProvider({
+          name: "Telebase Console Auth",
+          credentials: {
+            email: { label: "Email", type: "text", placeholder: "user@example.com" },
+            password: { label: "Password", type: "password" }
+          },
+          async authorize(credentials) {
+            if (!credentials?.email || !credentials?.password) {
+              return null;
+            }
+
+            const email = credentials.email.toLowerCase().trim();
+            const password = credentials.password;
+
+            // Fetch current database state to verify user
+            let state;
+            try {
+              state = await getDatabaseState(true);
+            } catch (error: any) {
+              if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
+                state = { projects: [], files: [], users: [] };
+              } else {
+                throw error;
+              }
+            }
+            const users = state.users || [];
+
+            const dbUser = users.find(u => u.email.toLowerCase() === email);
+            if (dbUser) {
+              const hash = await sha256Hex(password);
+              if (dbUser.passwordHash === hash) {
+                return { id: dbUser.id, email: dbUser.email, name: dbUser.email.split("@")[0] };
+              }
+            }
+
+            // Admin fallback
+            if (
+              (email === ADMIN_USERNAME.toLowerCase() || email === "admin@telebase.io") &&
+              password === ADMIN_PASSWORD
+            ) {
+              return { id: "1", name: "Administrator", email: "admin@telebase.io" };
+            }
+
+            return null;
+          }
+        })
+      ],
+      pages: {
+        signIn: "/login",
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        const email = credentials.email.toLowerCase().trim();
-        const password = credentials.password;
-
-        // Fetch current database state to verify user
-        let state;
-        try {
-          state = await getDatabaseState(true);
-        } catch (error: any) {
-          if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
-            state = { projects: [], files: [], users: [] };
-          } else {
-            throw error;
+      session: {
+        strategy: "jwt",
+        maxAge: 30 * 24 * 60 * 60,
+      },
+      callbacks: {
+        async jwt({ token, user }: any) {
+          if (user) {
+            token.id = user.id;
+            token.email = user.email;
           }
-        }
-        const users = state.users || [];
-
-        const dbUser = users.find(u => u.email.toLowerCase() === email);
-        if (dbUser) {
-          const hash = await sha256Hex(password);
-          if (dbUser.passwordHash === hash) {
-            return { id: dbUser.id, email: dbUser.email, name: dbUser.email.split("@")[0] };
+          return token;
+        },
+        async session({ session, token }: any) {
+          if (token && session.user) {
+            (session.user as any).id = token.id;
           }
+          return session;
         }
+      },
+      secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key"
+    };
 
-        // Admin fallback
-        if (
-          (email === ADMIN_USERNAME.toLowerCase() || email === "admin@telebase.io") &&
-          password === ADMIN_PASSWORD
-        ) {
-          return { id: "1", name: "Administrator", email: "admin@telebase.io" };
-        }
+    handler = NextAuth(authOptions);
+  }
+  return handler;
+}
 
-        return null;
-      }
-    })
-  ],
-  pages: {
-    signIn: "/login",
-  },
-  session: {
-    strategy: "jwt",
-    // JWT tokens last 30 days — users stay logged in and can always re-login
-    maxAge: 30 * 24 * 60 * 60,
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.email = user.email;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        (session.user as any).id = token.id;
-      }
-      return session;
-    }
-  },
-  secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key"
-};
+export async function GET(req: any, ctx: any) {
+  const h = await getHandler();
+  return h(req, ctx);
+}
 
-const handler = NextAuth(authOptions);
-
-export { handler as GET, handler as POST };
+export async function POST(req: any, ctx: any) {
+  const h = await getHandler();
+  return h(req, ctx);
+}
