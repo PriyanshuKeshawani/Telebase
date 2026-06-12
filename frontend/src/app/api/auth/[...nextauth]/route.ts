@@ -104,9 +104,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     }
   },
-  secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key",
-  // Use resolved URL for proper redirect handling on all environments
-  ...((process.env.NEXTAUTH_URL || resolveNextAuthUrl()) ? { url: process.env.NEXTAUTH_URL || resolveNextAuthUrl() } : {})
+  secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key"
 };
 
 const handler = NextAuth(authOptions);
