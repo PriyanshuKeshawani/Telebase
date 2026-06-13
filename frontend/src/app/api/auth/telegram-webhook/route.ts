@@ -51,8 +51,12 @@ export async function POST(req: NextRequest) {
       state.loginRequests = [];
     }
 
+    console.log(`[Webhook] Received code: ${code}`);
+    console.log(`[Webhook] Active login requests in database:`, JSON.stringify(state.loginRequests));
+
     const request = state.loginRequests.find((r: any) => r.code === code);
     if (!request) {
+      console.warn(`[Webhook] Code ${code} not found in active database requests.`);
       await replyToTelegram(botToken, chatId, "❌ Invalid or expired login request code.");
       return NextResponse.json({ ok: true });
     }

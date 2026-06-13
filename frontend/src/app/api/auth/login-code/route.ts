@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString()
     };
 
+    console.log(`[LoginCode] Generated code: ${code}`);
+    console.log(`[LoginCode] Active login requests in database:`, JSON.stringify(state.loginRequests));
     state.loginRequests.push(newRequest);
     await saveDatabaseState(state);
+    console.log(`[LoginCode] Successfully saved state with request:`, code);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
     let botUsername = 'TelebaseBot';
