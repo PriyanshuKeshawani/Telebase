@@ -1,3 +1,18 @@
+// Polyfill process.env for Cloudflare Edge Runtime module evaluation compatibility
+if (typeof globalThis !== 'undefined') {
+  if (!(globalThis as any).process) {
+    (globalThis as any).process = { env: {} };
+  } else if (!(globalThis as any).process.env) {
+    (globalThis as any).process.env = {};
+  }
+  if (!(globalThis as any).process.env.NEXTAUTH_URL) {
+    (globalThis as any).process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
+  }
+  if (!(globalThis as any).process.env.NEXTAUTH_SECRET) {
+    (globalThis as any).process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
+  }
+}
+
 // Polyfill util.inspect.custom for openid-client compatibility on Edge runtime
 try {
   const util = require('util');
@@ -15,13 +30,6 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { getDatabaseState, saveDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
-
-if (!process.env.NEXTAUTH_SECRET) {
-  process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
-}
-if (!process.env.NEXTAUTH_URL) {
-  process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
-}
 
 let handler: any = null;
 
