@@ -15,17 +15,33 @@ function parseWhereClause(whereStr: string): Record<string, any> {
   // Split by AND (case-insensitive)
   const parts = whereStr.split(/\s+AND\s+/i);
   parts.forEach(part => {
-    // Find matching operator. Supported: >=, <=, !=, <>, =, >, <
-    const opMatch = part.match(/(.*?)(>=|<=|!=|<>|=|>|<)(.*)/);
+    // Find matching operator. Supported: >=, <=, !=, <>, =, >, <, LIKE
+    const opMatch = part.match(/(.*?)(>=|<=|!=|<>|=|>|<|\s+LIKE\s+)(.*)/i);
     if (opMatch) {
       const key = opMatch[1].trim();
-      const op = opMatch[2].trim();
+      const op = opMatch[2].trim().toUpperCase();
       const rawVal = opMatch[3].trim();
-      const cleanedVal = rawVal.replace(/['"]/g, '');
       
-      const val = isNaN(Number(cleanedVal)) 
-        ? (cleanedVal === 'true' ? true : cleanedVal === 'false' ? false : cleanedVal) 
-        : Number(cleanedVal);
+      const isQuoted = (rawVal.startsWith("'") && rawVal.endsWith("'")) || 
+                       (rawVal.startsWith('"') && rawVal.endsWith('"'));
+      const cleanedVal = isQuoted ? rawVal.slice(1, -1) : rawVal;
+      
+      let val: any;
+      if (isQuoted) {
+        val = cleanedVal === 'true' ? true : cleanedVal === 'false' ? false : cleanedVal;
+      } else {
+        if (cleanedVal.toLowerCase() === 'null') {
+          val = null;
+        } else if (cleanedVal.toLowerCase() === 'true') {
+          val = true;
+        } else if (cleanedVal.toLowerCase() === 'false') {
+          val = false;
+        } else if (!isNaN(Number(cleanedVal)) && cleanedVal !== '') {
+          val = Number(cleanedVal);
+        } else {
+          val = cleanedVal;
+        }
+      }
 
       let mongoOp = '$eq';
       if (op === '=') mongoOp = '$eq';
@@ -35,6 +51,24 @@ function parseWhereClause(whereStr: string): Record<string, any> {
       else if (op === '>=') mongoOp = '$gte';
       else if (op === '<') mongoOp = '$lt';
       else if (op === '<=') mongoOp = '$lte';
+      else if (op === 'LIKE') {
+        mongoOp = '$regex';
+        // Convert SQL LIKE pattern (%abc% -> abc, %abc -> abc$, abc% -> ^abc) to RegExp string
+        let pattern = cleanedVal;
+        // Escape special regex characters except % and _
+        pattern = pattern.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        // Convert % to .* and _ to .
+        pattern = pattern.replace(/%/g, '.*').replace(/_/g, '.');
+        // If it doesn't start with %, match start of string
+        if (!cleanedVal.startsWith('%')) {
+          pattern = '^' + pattern;
+        }
+        // If it doesn't end with %, match end of string
+        if (!cleanedVal.endsWith('%')) {
+          pattern = pattern + '$';
+        }
+        val = pattern;
+      }
 
       noSqlQuery[key] = { [mongoOp]: val };
     }
@@ -79,34 +113,50 @@ function parseSQL(sql: string): {
     if (match) {
       const keys = match[1].split(',').map(s => s.trim());
       const valsStr = match[2].trim();
-      const vals: string[] = [];
+      const vals: { value: string; wasQuoted: boolean }[] = [];
       let current = '';
       let inQuotes: string | null = null;
+      let wasQuoted = false;
       for (let i = 0; i < valsStr.length; i++) {
         const char = valsStr[i];
         if (char === "'" || char === '"') {
           if (inQuotes === char) {
             inQuotes = null;
+            wasQuoted = true;
           } else if (inQuotes === null) {
             inQuotes = char;
           } else {
             current += char;
           }
         } else if (char === ',' && !inQuotes) {
-          vals.push(current.trim());
+          vals.push({ value: current.trim(), wasQuoted });
           current = '';
+          wasQuoted = false;
         } else {
           current += char;
         }
       }
-      vals.push(current.trim());
+      vals.push({ value: current.trim(), wasQuoted });
 
       keys.forEach((key, idx) => {
-        const val = vals[idx];
-        if (val !== undefined) {
-          insertData[key] = isNaN(Number(val)) 
-            ? (val === 'true' ? true : val === 'false' ? false : val) 
-            : Number(val);
+        const item = vals[idx];
+        if (item !== undefined) {
+          const { value: val, wasQuoted } = item;
+          if (wasQuoted) {
+            insertData[key] = val === 'true' ? true : val === 'false' ? false : val;
+          } else {
+            if (val.toLowerCase() === 'null') {
+              insertData[key] = null;
+            } else if (val.toLowerCase() === 'true') {
+              insertData[key] = true;
+            } else if (val.toLowerCase() === 'false') {
+              insertData[key] = false;
+            } else if (!isNaN(Number(val)) && val !== '') {
+              insertData[key] = Number(val);
+            } else {
+              insertData[key] = val;
+            }
+          }
         }
       });
     }
@@ -120,34 +170,52 @@ function parseSQL(sql: string): {
     const updateSet: Record<string, any> = {};
     if (match) {
       const setsStr = match[1].trim();
-      const sets: string[] = [];
+      const sets: { value: string; wasQuoted: boolean }[] = [];
       let current = '';
       let inQuotes: string | null = null;
+      let wasQuoted = false;
       for (let i = 0; i < setsStr.length; i++) {
         const char = setsStr[i];
         if (char === "'" || char === '"') {
           if (inQuotes === char) {
             inQuotes = null;
+            wasQuoted = true;
           } else if (inQuotes === null) {
             inQuotes = char;
           } else {
             current += char;
           }
         } else if (char === ',' && !inQuotes) {
-          sets.push(current.trim());
+          sets.push({ value: current.trim(), wasQuoted });
           current = '';
+          wasQuoted = false;
         } else {
           current += char;
         }
       }
-      sets.push(current.trim());
+      sets.push({ value: current.trim(), wasQuoted });
 
-      sets.forEach(s => {
+      sets.forEach(item => {
+        const s = item.value;
         const eqIdx = s.indexOf('=');
         if (eqIdx !== -1) {
           const k = s.slice(0, eqIdx).trim();
           const v = s.slice(eqIdx + 1).trim();
-          updateSet[k] = isNaN(Number(v)) ? (v === 'true' ? true : v === 'false' ? false : v) : Number(v);
+          if (item.wasQuoted) {
+            updateSet[k] = v === 'true' ? true : v === 'false' ? false : v;
+          } else {
+            if (v.toLowerCase() === 'null') {
+              updateSet[k] = null;
+            } else if (v.toLowerCase() === 'true') {
+              updateSet[k] = true;
+            } else if (v.toLowerCase() === 'false') {
+              updateSet[k] = false;
+            } else if (!isNaN(Number(v)) && v !== '') {
+              updateSet[k] = Number(v);
+            } else {
+              updateSet[k] = v;
+            }
+          }
         }
       });
     }
@@ -283,17 +351,6 @@ export async function POST(req: NextRequest) {
 
       // Save state synchronously — this is what makes the table appear in dashboard
       await saveDatabaseState(state);
-
-      // Initialize empty table records in the background (KV / Telegram)
-      // This runs after the HTTP response so dashboard loads instantly
-      TelebaseQueryEngine.executeQuery(project, tableName, {
-        type: 'INSERT',
-        insertData: { id: 'schema_init_anchor', __schema_init: true },
-        schema
-      }).then(() => TelebaseQueryEngine.executeQuery(project, tableName, {
-        type: 'DELETE',
-        noSqlQuery: { __schema_init: true }
-      })).catch(e => console.warn('[CREATE_TABLE BG] Init failed:', e.message));
 
       return NextResponse.json({ success: true, message: `Table "${tableName}" successfully created!` });
     }
