@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     console.log(`[LoginCode] Generated code: ${code}`);
     console.log(`[LoginCode] Active login requests in database:`, JSON.stringify(state.loginRequests));
     state.loginRequests.push(newRequest);
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
     console.log(`[LoginCode] Successfully saved state with request:`, code);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;

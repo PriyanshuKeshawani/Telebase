@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       state.users.push(newUser);
     }
 
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
 
     await replyToTelegram(botToken, chatId, `✅ Login request verified!\n\nYou can now return to the website to access your TeleBase dashboard.`);
     return NextResponse.json({ ok: true });

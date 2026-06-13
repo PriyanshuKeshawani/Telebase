@@ -1,4 +1,4 @@
-import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptState, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
+import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
 
 async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Response(compressedBytes as any).body
@@ -595,7 +595,7 @@ export async function saveTableRecords(
           state.files = state.files.filter((f: any) => !(f.project_id === project.id && f.filename === filename));
           state.files.push(newTableFile);
           
-          const stateEncryptedHex = encryptState(state);
+          const stateEncryptedHex = await encryptStateAsync(state);
           
           const batchPutUrl = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/batch-put`;
           const res = await fetch(batchPutUrl, {

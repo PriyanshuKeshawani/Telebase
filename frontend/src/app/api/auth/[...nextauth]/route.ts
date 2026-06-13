@@ -63,7 +63,7 @@ async function getHandler() {
 
             // Mark request as used to prevent replay attacks
             request.isUsed = true;
-            await saveDatabaseState(state);
+            await saveDatabaseState(state, { allowShrink: true });
 
             // Telegram user identity matches request owner telegram ID
             return {
