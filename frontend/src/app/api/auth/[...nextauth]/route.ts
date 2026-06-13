@@ -41,16 +41,16 @@ function base64urlDecode(str: string): ArrayBuffer {
 }
 
 export async function createSessionToken(payload: Record<string, any>): Promise<string> {
-  const header = base64url(new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
+  const header = base64url(new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" })).buffer);
   const body = base64url(new TextEncoder().encode(JSON.stringify({
     ...payload,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE,
-  })));
+  })).buffer);
   const sigInput = `${header}.${body}`;
   const key = await getSecretKey();
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(sigInput));
-  return `${sigInput}.${base64url(sig)}`;
+  return `${sigInput}.${base64url((sig as ArrayBuffer))}`;
 }
 
 export async function verifySessionToken(token: string): Promise<Record<string, any> | null> {
