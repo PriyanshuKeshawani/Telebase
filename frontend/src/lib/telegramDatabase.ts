@@ -636,12 +636,7 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
       throw new TelebaseStateError('INVALID_OVERWRITE', `Aborted save: Incoming state is smaller than existing state (Projects: ${incomingProjects}/${existingProjects}, Users: ${incomingUsers}/${existingUsers}).`);
     }
 
-    const incomingSize = JSON.stringify(state).length;
-    const existingSize = JSON.stringify(existingState).length;
-    if (incomingSize < existingSize && !options?.allowShrink) {
-      console.warn(`[TeleStore] Overwrite protection blocked: incoming size (${incomingSize} chars) is smaller than existing size (${existingSize} chars).`);
-      throw new TelebaseStateError('INVALID_OVERWRITE', 'Aborted save: Incoming state payload is smaller than existing state.');
-    }
+
 
     // E. Implement State Versioning
     if (state.version !== undefined && existingState.version !== undefined && state.version <= existingState.version) {

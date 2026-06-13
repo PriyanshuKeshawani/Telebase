@@ -407,7 +407,43 @@ export async function getTableRecords(
     .sort((a, b) => b.version - a.version)[0]; // get newest version
 
   if (!tableFile || tableFile.size === 0) {
-    // Table file doesn't exist yet or is uninitialized (empty), return empty list
+    // A. If Cloudflare KV is configured, attempt direct recovery from KV binding/REST
+    if (isKVConfigured || isCFWorkerConfigured) {
+      try {
+        const kvBinding = getKVBinding();
+        const kvRestGetFn = async (key: string): Promise<string | null> => {
+          if (kvBinding && typeof kvBinding.get === 'function') return await kvBinding.get(key);
+          const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+          const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
+          const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+          const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
+          const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
+          if (res.status === 404) return null;
+          if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
+          return res.text();
+        };
+        const encryptedHex = await kvGetChunked(`table_${project.id}_${tableName}`, kvRestGetFn);
+        if (encryptedHex && encryptedHex !== '__chunked__') {
+          const encryptedBuffer = hexToBytes(encryptedHex);
+          if (encryptedBuffer.length >= 28) {
+            const iv = encryptedBuffer.slice(0, 12);
+            const authTag = encryptedBuffer.slice(12, 28);
+            const cipherText = encryptedBuffer.slice(28);
+            const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
+            const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
+            const decompressed = await gzipDecompress(decrypted);
+            const loadedRecords = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+            console.log(`[Query Engine] Table "${tableName}" successfully recovered directly from Cloudflare KV (state was stale)!`);
+            tableCache[cacheKey] = { data: loadedRecords, timestamp: now };
+            return { records: loadedRecords, cacheHit: false };
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[Query Engine] Direct KV state recovery failed for ${tableName}:`, e.message);
+      }
+    }
+
+    // B. Table file doesn't exist yet or is uninitialized (empty), return empty list
     return { records: [], cacheHit: false };
   }
 
@@ -858,7 +894,7 @@ async function dispatchTelegramBackup(
     };
 
     state.files.push(newTableFile);
-    await saveDatabaseState(state);
+    await saveDatabaseState(state, { allowShrink: true });
     console.log(`[Query Engine BG] Table "${tableName}" successfully saved and cryptographically committed to Telegram!`);
 
   } catch (error: any) {
