@@ -108,13 +108,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'BOT_TOKEN is not configured.' });
     }
 
-    const host = req.headers.get('host') || req.headers.get('x-forwarded-host') || '';
-    if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
-      return NextResponse.json({ success: true, message: 'Local development environment. Telegram webhook skipped.' });
+    const nextAuthUrl = process.env.NEXTAUTH_URL || '';
+    let webhookUrl = '';
+
+    if (nextAuthUrl && !nextAuthUrl.includes('localhost') && !nextAuthUrl.includes('127.0.0.1')) {
+      webhookUrl = `${nextAuthUrl.replace(/\/$/, '')}/api/auth/telegram-webhook`;
+    } else {
+      const host = req.headers.get('host') || req.headers.get('x-forwarded-host') || '';
+      if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
+        return NextResponse.json({ success: true, message: 'Local development environment. Telegram webhook skipped.' });
+      }
+      const protocol = 'https';
+      webhookUrl = `${protocol}://${host}/api/auth/telegram-webhook`;
     }
 
-    const protocol = 'https';
-    const webhookUrl = `${protocol}://${host}/api/auth/telegram-webhook`;
+    console.log(`[Webhook Register] Registering webhook target: ${webhookUrl}`);
     const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
     const data = await res.json();
 
