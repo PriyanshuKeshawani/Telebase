@@ -14,7 +14,7 @@ function randomHex(bytes: number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key" });
+    const token = await getSession(req);
     if (!token) {
       return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
         throw error;
       }
     }
-    const owner_telegram_id = (token.owner_telegram_id || token.id) as string;
+    const owner_telegram_id = (token.owner_telegram_id || token.sub) as string;
 
     // Filter projects:
     // If admin (owner_telegram_id === "1"), return all projects.
