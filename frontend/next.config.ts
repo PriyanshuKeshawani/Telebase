@@ -9,11 +9,9 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
-  experimental: {
-    turbo: {
-      resolveAlias: {
-        crypto: 'node:crypto',
-      },
+  turbopack: {
+    resolveAlias: {
+      crypto: 'node:crypto',
     },
   },
 };
