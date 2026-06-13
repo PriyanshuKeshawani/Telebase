@@ -80,7 +80,16 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [files, setFiles] = useState<StoredFile[]>([]);
-  const [activeTab, setActiveTab] = useState<"db" | "files" | "bots" | "speed" | "ai">("db");
+  const [activeTab, setActiveTab] = useState<"db" | "files" | "auth" | "bots" | "speed" | "ai">("db");
+
+  // Auth Tab States
+  const [authUsers, setAuthUsers] = useState<any[]>([]);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [addUserError, setAddUserError] = useState<string | null>(null);
+  const [isAddingUser, setIsAddingUser] = useState(false);
 
   // Mobile layout state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -359,6 +368,85 @@ export default function Dashboard() {
     }
   };
 
+  const fetchAuthUsers = async (projectId: string, projectList = projects) => {
+    const proj = projectList.find(p => p.id === projectId);
+    if (!proj) return;
+    setIsAuthLoading(true);
+    try {
+      const res = await fetch(`/api/db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': proj.api_key },
+        body: JSON.stringify({ action: 'SELECT', tableName: '_telebase_users' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAuthUsers(data.records || []);
+      } else {
+        setAuthUsers([]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch auth users:", e);
+      setAuthUsers([]);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleAddAuthUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserEmail || !newUserPassword) return;
+    setIsAddingUser(true);
+    setAddUserError(null);
+    const proj = projects.find(p => p.id === selectedProjectId);
+    if (!proj) return;
+
+    try {
+      const res = await fetch(`/api/v1/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': proj.api_key },
+        body: JSON.stringify({ email: newUserEmail, password: newUserPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewUserEmail("");
+        setNewUserPassword("");
+        setIsAddUserModalOpen(false);
+        await fetchAuthUsers(selectedProjectId);
+      } else {
+        setAddUserError(data.error || "Failed to create user");
+      }
+    } catch (err: any) {
+      setAddUserError(err.message || "Failed to create user");
+    } finally {
+      setIsAddingUser(false);
+    }
+  };
+
+  const handleDeleteAuthUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    const proj = projects.find(p => p.id === selectedProjectId);
+    if (!proj) return;
+    try {
+      const res = await fetch(`/api/db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': proj.api_key },
+        body: JSON.stringify({ 
+          action: 'DELETE', 
+          tableName: '_telebase_users',
+          noSqlQuery: { id: { $eq: userId } }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchAuthUsers(selectedProjectId);
+      } else {
+        alert("Failed to delete user: " + data.error);
+      }
+    } catch (err: any) {
+      alert("Failed to delete user: " + err.message);
+    }
+  };
+
   useEffect(() => {
     if (status === "authenticated") {
       loadDatabase();
@@ -368,8 +456,11 @@ export default function Dashboard() {
   useEffect(() => {
     if (selectedProjectId) {
       loadDBMetadata(selectedProjectId);
+      if (activeTab === "auth") {
+        fetchAuthUsers(selectedProjectId);
+      }
     }
-  }, [selectedProjectId]);
+  }, [selectedProjectId, activeTab]);
 
   const handleForceSync = async () => {
     setIsSyncing(true);
@@ -1285,6 +1376,7 @@ When writing code for the developer:
   const tabs = [
     { id: "db" as const, label: "Database", icon: Database },
     { id: "files" as const, label: "Storage", icon: HardDrive },
+    { id: "auth" as const, label: "Authentication", icon: Lock },
     { id: "bots" as const, label: "Bot Pool", icon: Bot },
     { id: "speed" as const, label: "Performance", icon: Zap },
     { id: "ai" as const, label: "AI Connect", icon: Cpu },
@@ -1496,7 +1588,7 @@ When writing code for the developer:
               <>
                 <span className="text-sm font-bold text-white truncate max-w-[100px] sm:max-w-none">{currentProject.name}</span>
                 <ChevronRight size={14} className="text-zinc-600 flex-shrink-0" />
-                <span className="text-sm text-zinc-400 font-medium capitalize truncate max-w-[100px] sm:max-w-none">{activeTab === "db" ? "Database" : activeTab === "files" ? "Storage" : activeTab === "bots" ? "Bot Pool" : "Performance"}</span>
+                <span className="text-sm text-zinc-400 font-medium capitalize truncate max-w-[100px] sm:max-w-none">{activeTab === "db" ? "Database" : activeTab === "files" ? "Storage" : activeTab === "auth" ? "Authentication" : activeTab === "bots" ? "Bot Pool" : activeTab === "speed" ? "Performance" : "AI Connect"}</span>
               </>
             ) : (
               <span className="text-sm text-zinc-500">Select a project</span>
@@ -2909,6 +3001,174 @@ When writing code for the developer:
                   </div>
                 </div>
               )}
+              
+              {/* ════════ AUTHENTICATION TAB ════════ */}
+              {activeTab === "auth" && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column: Users List */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                      <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/40">
+                        <div className="flex items-center gap-2.5">
+                          <Lock size={15} className="text-blue-400" />
+                          <h3 className="text-sm font-bold text-zinc-200">End Users</h3>
+                        </div>
+                        <button
+                          onClick={() => setIsAddUserModalOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[10px] font-bold text-white transition-all shadow-lg shadow-blue-500/10"
+                        >
+                          <Plus size={10} />
+                          <span>Add User</span>
+                        </button>
+                      </div>
+
+                      {isAuthLoading ? (
+                        <div className="py-16 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
+                          <RefreshCw className="animate-spin text-blue-500" size={14} />
+                          <span>Loading end users...</span>
+                        </div>
+                      ) : authUsers.length === 0 ? (
+                        <div className="py-16 text-center">
+                          <Lock className="w-10 h-10 text-zinc-850 mx-auto mb-3" />
+                          <p className="text-xs text-zinc-600">No registered users yet. Start by adding one or integrating signup API.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left">
+                            <thead>
+                              <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
+                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">User ID</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Email Address</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Created At</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {authUsers.map((user) => (
+                                <tr key={user.id} className="border-b border-zinc-800/20 table-row-hover transition-colors">
+                                  <td className="py-3.5 px-5">
+                                    <div className="flex items-center gap-2 font-mono text-[10px] text-zinc-400">
+                                      <span className="truncate max-w-[150px]" title={user.id}>{user.id}</span>
+                                      <button 
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(user.id);
+                                        }}
+                                        className="p-1 rounded bg-zinc-800/40 hover:bg-zinc-800 hover:text-white text-zinc-500 transition-colors"
+                                      >
+                                        <Copy size={10} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="py-3.5 px-5 text-xs text-zinc-200 font-medium">{user.email}</td>
+                                  <td className="py-3.5 px-5 text-[11px] text-zinc-500">{new Date(user.created_at).toLocaleString()}</td>
+                                  <td className="py-3.5 px-5 text-right">
+                                    <button 
+                                      onClick={() => handleDeleteAuthUser(user.id)}
+                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-all"
+                                      title="Delete User"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Code Snippets & SMTP Info */}
+                  <div className="space-y-6">
+                    <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                      <div className="flex items-center gap-2 text-zinc-200">
+                        <Key size={14} className="text-yellow-400" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider">Developer API Endpoints</h4>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 leading-relaxed">
+                        Integrate Telebase authentication into your application. Use the signup/login HTTP endpoints to register users and fetch JWTs.
+                      </p>
+
+                      <div className="space-y-3.5 pt-2">
+                        {/* Signup snippet */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px] text-zinc-400 font-semibold">
+                            <span>Register End-User (cURL)</span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`curl -X POST https://telebase.pages.dev/api/v1/auth/signup \\
+  -H "x-api-key: ${currentProject?.api_key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"email": "user@example.com", "password": "password123"}'`);
+                              }}
+                              className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                          <pre className="p-3 bg-[#050506] border border-zinc-800/50 rounded-lg text-[9px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap select-all">
+                            {`curl -X POST https://telebase.pages.dev/api/v1/auth/signup \\
+  -H "x-api-key: ${currentProject?.api_key || 'YOUR_API_KEY'}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"email": "user@example.com", "password": "password123"}'`}
+                          </pre>
+                        </div>
+
+                        {/* Login snippet */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px] text-zinc-400 font-semibold">
+                            <span>Login & Retrieve JWT (JS Fetch)</span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`fetch('https://telebase.pages.dev/api/v1/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject?.api_key}'
+  },
+  body: JSON.stringify({ email: 'user@example.com', password: 'password123' })
+})
+.then(r => r.json())
+.then(data => console.log("JWT:", data.token));`);
+                              }}
+                              className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                          <pre className="p-3 bg-[#050506] border border-zinc-800/50 rounded-lg text-[9px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap select-all">
+                            {`fetch('https://telebase.pages.dev/api/v1/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${currentProject?.api_key || 'YOUR_API_KEY'}'
+  },
+  body: JSON.stringify({ email: 'user@example.com', password: 'password123' })
+})`}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-3">
+                      <div className="flex items-center gap-2 text-zinc-200">
+                        <Shield className="text-emerald-400 w-3.5 h-3.5" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider">SMTP Server Settings</h4>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 leading-relaxed">
+                        To enable OTP & Magic Link mailings directly to your end-users, set up your mailer configuration in environment variables:
+                      </p>
+                      <div className="p-3 bg-[#050506] border border-zinc-800/50 rounded-lg text-[9px] font-mono text-zinc-400 leading-normal">
+                        <div>SMTP_HOST=your-smtp-host.com</div>
+                        <div>SMTP_PORT=587</div>
+                        <div>SMTP_USER=user@domain.com</div>
+                        <div>SMTP_PASS=password</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ════════ BOT POOL TAB ════════ */}
               {activeTab === "bots" && (
@@ -3615,6 +3875,87 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                     className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Create Table
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════ ADD AUTH USER MODAL ════════ */}
+      <AnimatePresence>
+        {isAddUserModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                      <Lock size={16} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Add End-User</h3>
+                      <p className="text-[11px] text-zinc-500">Create a new credentials-based user</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsAddUserModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleAddAuthUser} className="p-6 space-y-4">
+                {addUserError && (
+                  <div className="flex items-center gap-2 text-xs text-rose-400 font-semibold bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <span>{addUserError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Email Address</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={newUserEmail} 
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    placeholder="user@example.com" 
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={newUserPassword} 
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="••••••••" 
+                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAddUserModalOpen(false)}
+                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-400 hover:text-zinc-300 rounded-xl border border-zinc-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isAddingUser}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-blue-500/10"
+                  >
+                    {isAddingUser ? "Adding..." : "Add User"}
                   </button>
                 </div>
               </form>
