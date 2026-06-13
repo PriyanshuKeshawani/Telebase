@@ -286,23 +286,45 @@ async function writeRawKV(key: string, value: string): Promise<boolean> {
 
 async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSchema): Promise<void> {
   if (!BOT_TOKEN || !TELEGRAM_CHANNEL_ID) return;
-  const formData = new FormData();
-  formData.append('chat_id', TELEGRAM_CHANNEL_ID);
-  
-  const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
-  formData.append('document', fileBlob, 'telebase_db.json');
+  const stateText = new TextDecoder().decode(finalBuffer);
 
-  const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-    method: 'POST',
-    body: formData
-  });
-  
-  const uploadData = await uploadRes.json();
-  if (!uploadData.ok) {
-    throw new Error(`sendDocument failed: ${JSON.stringify(uploadData)}`);
+  // Try to edit the existing pinned message first to keep channel clean
+  if (state.last_pinned_message_id) {
+    try {
+      const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHANNEL_ID,
+          message_id: state.last_pinned_message_id,
+          text: stateText
+        })
+      });
+      const editData = await editRes.json();
+      if (editData.ok) {
+        console.log('[TeleStore] Successfully edited pinned text database state.');
+        return;
+      }
+    } catch (e: any) {
+      console.warn('[TeleStore] Failed to edit message, sending new one:', e.message);
+    }
   }
 
-  const newMessageId = uploadData.result.message_id;
+  const sendRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHANNEL_ID,
+      text: stateText
+    })
+  });
+  
+  const sendData = await sendRes.json();
+  if (!sendData.ok) {
+    throw new Error(`sendMessage failed: ${JSON.stringify(sendData)}`);
+  }
+
+  const newMessageId = sendData.result.message_id;
 
   // Pin the new message
   const pinRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/pinChatMessage`, {
@@ -513,11 +535,10 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       }
 
       const pinnedMessage = chatData.result?.pinned_message;
-      if (!pinnedMessage || !pinnedMessage.document) {
-        throw new TelebaseStateError('TELEGRAM_PIN_MISSING', 'Backing Telegram channel has no pinned database document.');
+      if (!pinnedMessage) {
+        throw new TelebaseStateError('TELEGRAM_PIN_MISSING', 'Backing Telegram channel has no pinned database message.');
       }
 
-      const fileId = pinnedMessage.document.file_id;
       const latestPinnedMessageId = pinnedMessage.message_id;
 
       // --- MONOTONIC STATE CACHE CHECK ---
@@ -531,35 +552,42 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       }
       // ------------------------------------
 
-      const getFileRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: fileId })
-      });
-      const fileData = await getFileRes.json();
-      if (!fileData.ok) {
-        throw new Error(`getFile failed: ${JSON.stringify(fileData)}`);
-      }
+      let decrypted = '';
+      if (pinnedMessage.text) {
+        decrypted = pinnedMessage.text;
+      } else if (pinnedMessage.document) {
+        const fileId = pinnedMessage.document.file_id;
+        const getFileRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: fileId })
+        });
+        const fileData = await getFileRes.json();
+        if (!fileData.ok) {
+          throw new Error(`getFile failed: ${JSON.stringify(fileData)}`);
+        }
 
-      const filePath = fileData.result.file_path;
-      const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+        const filePath = fileData.result.file_path;
+        const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
 
-      const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
-      const encryptedArrayBuffer = await downloadRes.arrayBuffer();
-      const encryptedBuffer = new Uint8Array(encryptedArrayBuffer);
+        const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
+        const encryptedArrayBuffer = await downloadRes.arrayBuffer();
+        const encryptedBuffer = new Uint8Array(encryptedArrayBuffer);
 
-      let decrypted;
-      try {
-        decrypted = await decryptStatePayload(encryptedBuffer);
-      } catch (decErr: any) {
-        throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for Telegram database file: ${decErr.message}`);
+        try {
+          decrypted = await decryptStatePayload(encryptedBuffer);
+        } catch (decErr: any) {
+          throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for Telegram database file: ${decErr.message}`);
+        }
+      } else {
+        throw new TelebaseStateError('TELEGRAM_PIN_MISSING', 'Pinned message is neither text nor document.');
       }
 
       let state: DatabaseSchema;
       try {
         state = JSON.parse(decrypted) as DatabaseSchema;
       } catch (parseErr: any) {
-        throw new TelebaseStateError('CORRUPTION_DETECTED', `JSON Parse failed for Telegram database file: ${parseErr.message}`);
+        throw new TelebaseStateError('CORRUPTION_DETECTED', `JSON Parse failed for Telegram database: ${parseErr.message}`);
       }
       
       state.last_pinned_message_id = pinnedMessage.message_id;
@@ -750,6 +778,7 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
   } else {
     // ALWAYS-FREE CLOUD KV FALLBACK (KVDB.IO)
     try {
+      const key = await getEncryptionKey();
       const bucketId = bytesToHex(await sha256Bytes(key)).substring(0, 16);
       const url = `https://kvdb.io/${bucketId}/telebase_state_current`;
       const res = await fetch(url, {
