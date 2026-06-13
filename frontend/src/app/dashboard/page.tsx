@@ -477,6 +477,34 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeepTelegramScan = async () => {
+    setIsSyncing(true);
+    try {
+      const startId = prompt("Enter Telegram Message ID to start scanning from (Optional):", "");
+      const endId = prompt("Enter Telegram Message ID to end scanning at (Optional):", "");
+      const res = await fetch('/api/sync/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          startId: startId ? Number(startId) : undefined, 
+          endId: endId ? Number(endId) : undefined 
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        await loadDatabase(true);
+      } else {
+        alert("Deep Scan failed: " + data.error);
+      }
+    } catch (e: any) {
+      console.error("Deep Scan error:", e);
+      alert("Deep Scan error: " + e.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName) return;
@@ -1505,6 +1533,14 @@ When writing code for the developer:
           >
             <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
             <span>{isSyncing ? "Syncing..." : "Sync Master Index"}</span>
+          </button>
+          <button 
+            onClick={handleDeepTelegramScan}
+            disabled={isSyncing}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-all text-xs font-medium disabled:opacity-50"
+          >
+            <AlertCircle size={14} className={isSyncing ? "animate-pulse text-amber-500" : "text-amber-500/80"} />
+            <span>Deep Scan Channel</span>
           </button>
           <button
             onClick={() => handleSignOut()}

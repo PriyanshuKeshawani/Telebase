@@ -386,7 +386,8 @@ export async function getTableRecords(
             const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
             const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
             const decompressed = await gzipDecompress(decrypted);
-            records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+            const parsed = JSON.parse(new TextDecoder().decode(decompressed));
+            records = Array.isArray(parsed) ? parsed : (parsed.records || []);
             console.log(`[Query Engine] Table "${tableName}" successfully loaded via Batch GET edge route!`);
           }
         }
@@ -432,8 +433,45 @@ export async function getTableRecords(
             const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
             const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
             const decompressed = await gzipDecompress(decrypted);
-            const loadedRecords = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+            
+            const rawText = new TextDecoder().decode(decompressed);
+            const parsed = JSON.parse(rawText);
+            const loadedRecords = Array.isArray(parsed) ? parsed : (parsed.records || []);
+            
             console.log(`[Query Engine] Table "${tableName}" successfully recovered directly from Cloudflare KV (state was stale)!`);
+            
+            // Auto-heal state file index back into master state
+            try {
+              const fileHashBytes = await sha256Bytes(cipherText);
+              const fileHashHex = bytesToHex(fileHashBytes);
+              const recoveredTableFile: StoredFile = {
+                uuid: globalThis.crypto.randomUUID(),
+                project_id: project.id,
+                filename,
+                version: 1,
+                chunk_count: 1,
+                file_hash: fileHashHex,
+                size: rawText.length,
+                created_at: new Date().toISOString(),
+                chunks: [
+                  {
+                    chunk_index: 0,
+                    message_id: 'pending_telegram_backup',
+                    iv: bytesToHex(iv),
+                    auth_tag: bytesToHex(authTag)
+                  }
+                ]
+              };
+              
+              const activeState = await getDatabaseState(true);
+              activeState.files = activeState.files.filter(f => !(f.project_id === project.id && f.filename === filename));
+              activeState.files.push(recoveredTableFile);
+              await saveDatabaseState(activeState, { allowShrink: true });
+              console.log(`[Query Engine] Master state auto-healed for table "${tableName}"!`);
+            } catch (healErr: any) {
+              console.error(`[Query Engine] Failed to save auto-healed state:`, healErr.message);
+            }
+
             tableCache[cacheKey] = { data: loadedRecords, timestamp: now };
             return { records: loadedRecords, cacheHit: false };
           }
@@ -478,7 +516,8 @@ export async function getTableRecords(
           const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
           const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
           const decompressed = await gzipDecompress(decrypted);
-          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+          const parsed = JSON.parse(new TextDecoder().decode(decompressed));
+          records = Array.isArray(parsed) ? parsed : (parsed.records || []);
           console.log(`[Query Engine] Table "${tableName}" loaded from Cloudflare Worker KV (chunked-aware)!`);
         }
       }
@@ -516,7 +555,8 @@ export async function getTableRecords(
           const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
           const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
           const decompressed = await gzipDecompress(decrypted);
-          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+          const parsed = JSON.parse(new TextDecoder().decode(decompressed));
+          records = Array.isArray(parsed) ? parsed : (parsed.records || []);
           console.log(`[Query Engine] Table "${tableName}" loaded from Cloudflare KV (chunked-aware)!`);
         }
       }
@@ -543,7 +583,8 @@ export async function getTableRecords(
           const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
           const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
           const decompressed = await gzipDecompress(decrypted);
-          records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+          const parsed = JSON.parse(new TextDecoder().decode(decompressed));
+          records = Array.isArray(parsed) ? parsed : (parsed.records || []);
           console.log(`[Query Engine] Table "${tableName}" successfully loaded from Free KV (kvdb.io)!`);
         }
       }
@@ -591,7 +632,8 @@ export async function getTableRecords(
         offset += c.length;
       }
       const decompressed = await gzipDecompress(gzippedBuffer);
-      records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
+      const parsed = JSON.parse(new TextDecoder().decode(decompressed));
+      records = Array.isArray(parsed) ? parsed : (parsed.records || []);
       console.log(`[Query Engine] Table "${tableName}" successfully loaded and decrypted from Telegram!`);
     } catch (error: any) {
       console.warn(`[Query Engine] Telegram read failed for ${tableName}:`, error.message);
@@ -637,7 +679,11 @@ export async function saveTableRecords(
       statePromise = getDatabaseState(true);
     }
 
-    const rawData = JSON.stringify(records);
+    const rawData = JSON.stringify({
+      tableName,
+      projectId: project.id,
+      records
+    });
     const gzipped = await gzipCompress(new TextEncoder().encode(rawData));
     
     const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
