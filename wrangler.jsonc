@@ -1,14 +1,1 @@
-{
-  "name": "telebase-worker",
-  "compatibility_date": "2026-06-12",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "main": "frontend/cloudflare-worker.js",
-  "kv_namespaces": [
-    {
-      "binding": "TELEBASE_KV",
-      "id": "3a197fb397ad42f58fb03ad20a4f9cf3"
-    }
-  ]
-}
+{}

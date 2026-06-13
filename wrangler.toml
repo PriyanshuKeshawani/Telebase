@@ -1,0 +1,8 @@
+name = "telebase"
+compatibility_date = "2026-06-12"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "frontend/.vercel/output/static"
+
+[[kv_namespaces]]
+binding = "TELEBASE_KV"
+id = "3a197fb397ad42f58fb03ad20a4f9cf3"
