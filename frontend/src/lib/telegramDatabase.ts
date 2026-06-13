@@ -5,11 +5,19 @@ if (typeof globalThis !== 'undefined') {
   } else if (!(globalThis as any).process.env) {
     (globalThis as any).process.env = {};
   }
-  if (!(globalThis as any).process.env.NEXTAUTH_URL) {
-    (globalThis as any).process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
+  if (!(globalThis as any).process.env['NEXTAUTH_URL']) {
+    (globalThis as any).process.env['NEXTAUTH_URL'] = "https://telebase.pages.dev";
   }
-  if (!(globalThis as any).process.env.NEXTAUTH_SECRET) {
-    (globalThis as any).process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
+  if (!(globalThis as any).process.env['NEXTAUTH_SECRET']) {
+    (globalThis as any).process.env['NEXTAUTH_SECRET'] = "telebase_secret_token_2026_super_secure_32b_key";
+  }
+  if (!(globalThis as any).process.version) {
+    (globalThis as any).process.version = "v18.0.0";
+  }
+  if (!(globalThis as any).process.versions) {
+    (globalThis as any).process.versions = { node: "18.0.0" };
+  } else if (!(globalThis as any).process.versions.node) {
+    (globalThis as any).process.versions.node = "18.0.0";
   }
 }
 
@@ -71,11 +79,11 @@ export function formatTelegramChannelId(channelId: string): string {
   return cleaned;
 }
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.AUTH_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_ID || '');
+const BOT_TOKEN = process.env['TELEGRAM_BOT_TOKEN'] || process.env['BOT_TOKEN'] || '';
+const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env['AUTH_CHANNEL_ID'] || process.env['TELEGRAM_CHANNEL_ID'] || '');
 
 const LOCAL_STATE_DIR = (path && os)
-  ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
+  ? (process.env['VERCEL'] || process.env['NODE_ENV'] === 'production'
     ? path.join(os.tmpdir(), '.telebase_data')
     : path.join((typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : ''), '.telebase_data'))
   : '';
@@ -103,14 +111,14 @@ export function loadLocalState(): DatabaseSchema | null {
 }
 
 // Optional Cloudflare KV REST API integration to unlock real DB speed (<15ms reads, <150ms writes)
-const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
-const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+const CLOUDFLARE_ACCOUNT_ID = process.env['CLOUDFLARE_ACCOUNT_ID'] || '';
+const CLOUDFLARE_KV_NAMESPACE_ID = process.env['CLOUDFLARE_KV_NAMESPACE_ID'] || '';
+const CLOUDFLARE_API_TOKEN = process.env['CLOUDFLARE_API_TOKEN'] || '';
 
 export const isKVConfigured = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN);
 
-const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
-const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
+const CLOUDFLARE_WORKER_URL = process.env['CLOUDFLARE_WORKER_URL'] || '';
+const CLOUDFLARE_WORKER_KEY = process.env['CLOUDFLARE_WORKER_KEY'] || '';
 export const isCFWorkerConfigured = !!(CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_KEY);
 
 // Derive a secure, stable 32-byte key from BOT_TOKEN to ensure zero-config absolute safety
@@ -121,7 +129,7 @@ let _encKeyPromise: Promise<Uint8Array> | null = null;
 async function getEncryptionKey(): Promise<Uint8Array> {
   if (_encKeyPromise) return _encKeyPromise;
   _encKeyPromise = (async () => {
-    const envKey = process.env.ENCRYPTION_KEY || '';
+    const envKey = process.env['ENCRYPTION_KEY'] || '';
     let derived: Uint8Array;
     if (envKey.length === 64) {
       derived = hexToBytes(envKey);

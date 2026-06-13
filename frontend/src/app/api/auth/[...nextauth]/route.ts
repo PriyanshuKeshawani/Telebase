@@ -5,13 +5,22 @@ if (typeof globalThis !== 'undefined') {
   } else if (!(globalThis as any).process.env) {
     (globalThis as any).process.env = {};
   }
-  if (!(globalThis as any).process.env.NEXTAUTH_URL) {
-    (globalThis as any).process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
+  if (!(globalThis as any).process.env['NEXTAUTH_URL']) {
+    (globalThis as any).process.env['NEXTAUTH_URL'] = "https://telebase.pages.dev";
   }
-  if (!(globalThis as any).process.env.NEXTAUTH_SECRET) {
-    (globalThis as any).process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
+  if (!(globalThis as any).process.env['NEXTAUTH_SECRET']) {
+    (globalThis as any).process.env['NEXTAUTH_SECRET'] = "telebase_secret_token_2026_super_secure_32b_key";
+  }
+  if (!(globalThis as any).process.version) {
+    (globalThis as any).process.version = "v18.0.0";
+  }
+  if (!(globalThis as any).process.versions) {
+    (globalThis as any).process.versions = { node: "18.0.0" };
+  } else if (!(globalThis as any).process.versions.node) {
+    (globalThis as any).process.versions.node = "18.0.0";
   }
 }
+
 
 // Polyfill util.inspect.custom for openid-client compatibility on Edge runtime
 try {
@@ -117,7 +126,7 @@ async function getHandler() {
           return session;
         }
       },
-      secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key"
+      secret: process.env['NEXTAUTH_SECRET'] || "telebase_secret_token_2026_super_secure_32b_key"
     };
 
     handler = NextAuth(authOptions);
