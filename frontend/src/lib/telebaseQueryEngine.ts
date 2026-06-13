@@ -559,6 +559,10 @@ export async function getTableRecords(
   // If successfully loaded from cloud/Telegram, update local cache and memory cache
   if (records) {
     saveLocalTableRecords(project.id, tableName, records, tableFile.uuid);
+    tableCache[cacheKey] = { data: records, timestamp: now };
+    return { records, cacheHit: false };
+  }
+
   // Fallback: If all else fails, load from local file system
   const fallbackRecords = getLocalTableRecords(project.id, tableName);
   tableCache[cacheKey] = { data: fallbackRecords, timestamp: now };
