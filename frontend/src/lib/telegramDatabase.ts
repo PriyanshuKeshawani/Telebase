@@ -115,7 +115,7 @@ const CLOUDFLARE_ACCOUNT_ID = process.env['CLOUDFLARE_ACCOUNT_ID'] || '';
 const CLOUDFLARE_KV_NAMESPACE_ID = process.env['CLOUDFLARE_KV_NAMESPACE_ID'] || '';
 const CLOUDFLARE_API_TOKEN = process.env['CLOUDFLARE_API_TOKEN'] || '';
 
-const getKVBinding = () => (process.env.TELEBASE_KV as any) || (globalThis as any).TELEBASE_KV;
+export const getKVBinding = () => (process.env.TELEBASE_KV as any) || (globalThis as any).TELEBASE_KV;
 export const isKVConfigured = !!(
   (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) ||
   (getKVBinding() && typeof getKVBinding().get === 'function' && typeof getKVBinding().put === 'function')
@@ -480,10 +480,24 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
     return stateCache;
   }
 
-  // Note: We bypass Cloudflare Worker KV, KV REST, and kvdb.io for the master state file
-  // to ensure 100% real-time synchronization with the Telegram channel's pinned text message.
+  // 1. CLOUDFLARE KV (Ultra-fast edge state read)
+  if (isCFWorkerConfigured || isKVConfigured) {
+    try {
+      const stateHex = await readRawKV('telebase_state_current');
+      if (stateHex) {
+        const encryptedBuffer = hexToBytes(stateHex);
+        const decryptedText = await decryptStatePayload(encryptedBuffer);
+        const state = JSON.parse(decryptedText) as DatabaseSchema;
+        stateCache = state;
+        lastCacheFetchTime = now;
+        return state;
+      }
+    } catch (kvErr: any) {
+      console.warn('[TeleStore] Failed to read state from KV, falling back to Telegram:', kvErr.message);
+    }
+  }
 
-  // 4. TELEGRAM BACKEND
+  // 2. TELEGRAM BACKEND (Fallback / Source of truth)
   if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
     try {
       const getChatUrl = `https://api.telegram.org/bot${BOT_TOKEN}/getChat`;

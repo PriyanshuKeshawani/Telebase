@@ -21,7 +21,7 @@ if (typeof globalThis !== 'undefined') {
   }
 }
 
-import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId, decryptStatePayload } from './telegramDatabase';
+import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId, decryptStatePayload, getKVBinding } from './telegramDatabase';
 
 async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Response(compressedBytes as any).body
@@ -451,13 +451,19 @@ export async function getTableRecords(
     }
   }
 
-  // 3. Cloudflare KV REST API — with automatic chunk reassembly
+  // 3. Cloudflare KV REST API or direct KV binding — with automatic chunk reassembly
   if (!records && isKVConfigured) {
     try {
-      const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-      const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
-      const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+      const kvBinding = getKVBinding();
       const kvRestGetFn = async (key: string): Promise<string | null> => {
+        // A. Direct binding has priority (0-latency and works natively on Cloudflare Pages)
+        if (kvBinding && typeof kvBinding.get === 'function') {
+          return await kvBinding.get(key);
+        }
+        // B. Fallback to Cloudflare KV REST API
+        const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+        const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
+        const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
         const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
         const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
         if (res.status === 404) return null;
@@ -475,11 +481,11 @@ export async function getTableRecords(
           const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
           const decompressed = await gzipDecompress(decrypted);
           records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
-          console.log(`[Query Engine] Table "${tableName}" loaded from Cloudflare KV REST API (chunked-aware)!`);
+          console.log(`[Query Engine] Table "${tableName}" loaded from Cloudflare KV (chunked-aware)!`);
         }
       }
     } catch (error: any) {
-      console.warn(`[Query Engine] Cloudflare KV REST API read failed for ${tableName}:`, error.message);
+      console.warn(`[Query Engine] Cloudflare KV read failed for ${tableName}:`, error.message);
     }
   }
 
@@ -659,13 +665,20 @@ export async function saveTableRecords(
         }
       }
 
-      // ─── 2. Cloudflare KV REST API — chunked write ───
+      // ─── 2. Cloudflare KV REST API or direct KV binding — chunked write ───
       if (isKVConfigured) {
         try {
-          const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-          const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
-          const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+          const kvBinding = getKVBinding();
           const kvRestPutFn = async (key: string, value: string): Promise<boolean> => {
+            // A. Direct binding has priority (0-latency and works natively on Cloudflare Pages)
+            if (kvBinding && typeof kvBinding.put === 'function') {
+              await kvBinding.put(key, value);
+              return true;
+            }
+            // B. Fallback to Cloudflare KV REST API
+            const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+            const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
+            const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
             const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
             const res = await fetch(url, {
               method: 'PUT',
@@ -677,11 +690,11 @@ export async function saveTableRecords(
           };
           const ok = await kvPutChunked(`table_${project.id}_${tableName}`, encryptedHex, kvRestPutFn);
           if (ok) {
-            console.log(`[Query Engine] Table "${tableName}" saved to Cloudflare KV REST API (chunked-aware, ${(encryptedHex.length / 1024).toFixed(1)} KB)`);
+            console.log(`[Query Engine] Table "${tableName}" saved to Cloudflare KV (chunked-aware, ${(encryptedHex.length / 1024).toFixed(1)} KB)`);
             return true;
           }
         } catch (error: any) {
-          console.error('[Query Engine] Cloudflare KV REST API chunked write failed:', error.message);
+          console.error('[Query Engine] Cloudflare KV chunked write failed:', error.message);
         }
       }
       return false;
