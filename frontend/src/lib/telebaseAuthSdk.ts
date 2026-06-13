@@ -56,7 +56,7 @@ export async function verifyTelebaseToken(
     );
     const b64 = sigStr.replace(/-/g, "+").replace(/_/g, "/");
     const bin = atob(b64);
-    const sigBytes = new Uint8Array(bin.length).map((_, i) => bin.charCodeAt(i));
+    const sigBytes = Uint8Array.from({ length: bin.length }, (_, i) => bin.charCodeAt(i));
     const valid = await crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(`${header}.${body}`));
     if (!valid) return null;
     const payloadB64 = body.replace(/-/g, "+").replace(/_/g, "/");

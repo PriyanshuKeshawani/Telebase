@@ -68,10 +68,10 @@ function b64url(data: Uint8Array | ArrayBuffer): string {
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-function b64urlDecode(str: string): Uint8Array {
+function b64urlDecode(str: string): Uint8Array<ArrayBuffer> {
   const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
   const bin = atob(b64);
-  return new Uint8Array(bin.length).map((_, i) => bin.charCodeAt(i));
+  return Uint8Array.from({ length: bin.length }, (_, i) => bin.charCodeAt(i));
 }
 
 // ─────────────────────────────────────────────────────────────

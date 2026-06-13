@@ -176,12 +176,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
     }
 
-    const state = await getDatabaseState();
+    // Always force-refresh to get the absolute latest file index from Telegram/KV
+    const state = await getDatabaseState(true);
     
-    // Get list of tables matching this project
+    // Get list of tables matching this project (exclude internal auth tables)
     const tablePrefix = `table_${project.id}_`;
     const tables = state.files
-      .filter(f => f.project_id === project.id && f.filename.startsWith(tablePrefix))
+      .filter(f => 
+        f.project_id === project.id && 
+        f.filename.startsWith(tablePrefix) &&
+        !f.filename.includes('_telebase_users') &&
+        !f.filename.includes('_telebase_otps')
+      )
       .map(f => {
         const tableName = f.filename.replace(tablePrefix, '').replace('.json', '');
         const schemaKey = `${project.id}_${tableName}`;
@@ -254,26 +260,40 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: `Table "${tableName}" already exists.` }, { status: 400 });
       }
 
-      // Initialize table with empty array
-      await TelebaseQueryEngine.executeQuery(project, tableName, {
-        type: 'INSERT',
-        insertData: { id: 'schema_init_anchor', __schema_init: true }, // dummy initial row
-        schema
-      });
+      // ── SYNCHRONOUS table registration ─────────────────────────────────────
+      // We directly add the file entry into state.files BEFORE any background
+      // sync runs. This guarantees the dashboard sees the table immediately.
+      const newFileEntry = {
+        uuid: globalThis.crypto.randomUUID(),
+        project_id: project.id,
+        filename,
+        version: 1,
+        chunk_count: 1,
+        file_hash: '',
+        size: 0,
+        created_at: new Date().toISOString(),
+        chunks: [{ chunk_index: 0, message_id: '', iv: '', auth_tag: '' }]
+      };
+      state.files.push(newFileEntry);
 
-      // Clear the dummy row immediately, committing the empty table page to Telegram/KV
-      await TelebaseQueryEngine.executeQuery(project, tableName, {
-        type: 'DELETE',
-        noSqlQuery: { __schema_init: true }
-      });
-
-      // Persist the schema in master index state
-      if (!state.schemas) {
-        state.schemas = {};
-      }
+      // Persist schema in master index state
+      if (!state.schemas) state.schemas = {};
       const schemaKey = `${project.id}_${tableName}`;
       state.schemas[schemaKey] = schema;
+
+      // Save state synchronously — this is what makes the table appear in dashboard
       await saveDatabaseState(state);
+
+      // Initialize empty table records in the background (KV / Telegram)
+      // This runs after the HTTP response so dashboard loads instantly
+      TelebaseQueryEngine.executeQuery(project, tableName, {
+        type: 'INSERT',
+        insertData: { id: 'schema_init_anchor', __schema_init: true },
+        schema
+      }).then(() => TelebaseQueryEngine.executeQuery(project, tableName, {
+        type: 'DELETE',
+        noSqlQuery: { __schema_init: true }
+      })).catch(e => console.warn('[CREATE_TABLE BG] Init failed:', e.message));
 
       return NextResponse.json({ success: true, message: `Table "${tableName}" successfully created!` });
     }
@@ -338,7 +358,8 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    const state = await getDatabaseState();
+    // Force-refresh state so SQL and NoSQL always see the same committed data
+    const state = await getDatabaseState(true);
     const schemaKey = `${project.id}_${tableName}`;
     const tableSchema = state.schemas?.[schemaKey];
 
@@ -346,6 +367,17 @@ export async function POST(req: NextRequest) {
       ...queryAction,
       schema: tableSchema
     });
+
+    // After any write, return the latest full record set so the explorer
+    // can immediately reflect the change without an extra round-trip
+    if (['INSERT', 'UPDATE', 'DELETE'].includes(queryAction.type) && result.success) {
+      const latest = await TelebaseQueryEngine.executeQuery(project, tableName, {
+        type: 'SELECT',
+        noSqlQuery: {}
+      });
+      return NextResponse.json({ ...result, latestRecords: latest.records || [] });
+    }
+
     return NextResponse.json(result);
 
   } catch (error: any) {
