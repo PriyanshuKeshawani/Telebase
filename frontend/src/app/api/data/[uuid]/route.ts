@@ -4,7 +4,7 @@ import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, isCFWorkerCon
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-const BOT_TOKEN = process.env.BOT_TOKEN || '';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';

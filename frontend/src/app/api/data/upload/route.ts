@@ -4,8 +4,8 @@ import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, F
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
+const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.AUTH_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_ID || '');
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';

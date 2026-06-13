@@ -57,8 +57,8 @@ export function formatTelegramChannelId(channelId: string): string {
   return cleaned;
 }
 
-const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.TELEGRAM_CHANNEL_ID || '');
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
+const TELEGRAM_CHANNEL_ID = formatTelegramChannelId(process.env.AUTH_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_ID || '');
 
 const LOCAL_STATE_DIR = (path && os)
   ? (process.env.VERCEL || process.env.NODE_ENV === 'production'
