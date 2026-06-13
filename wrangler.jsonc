@@ -1,6 +1,9 @@
 {
   "name": "telebase-worker",
   "compatibility_date": "2026-06-12",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "main": "frontend/cloudflare-worker.js",
   "kv_namespaces": [
     {
