@@ -215,16 +215,27 @@ export function encryptState(state: DatabaseSchema): string {
   throw new Error('Use encryptStateAsync instead');
 }
 
+export async function decryptStatePayload(encryptedBuffer: Uint8Array): Promise<string> {
+  const text = new TextDecoder().decode(encryptedBuffer);
+  try {
+    JSON.parse(text);
+    return text;
+  } catch (e) {
+    if (encryptedBuffer.length < 28) {
+      throw new Error('State document is too small or corrupted.');
+    }
+    const iv = encryptedBuffer.slice(0, 12);
+    const authTag = encryptedBuffer.slice(12, 28);
+    const cipherText = encryptedBuffer.slice(28);
+    const key = await getEncryptionKey();
+    const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
+    return new TextDecoder().decode(decryptedBytes);
+  }
+}
+
 export async function encryptStateAsync(state: DatabaseSchema): Promise<string> {
   const payload = new TextEncoder().encode(JSON.stringify(state));
-  const key = await getEncryptionKey();
-  const iv = randomBytes(12);
-  const { cipherText, authTag } = await aesGcmEncrypt(key, iv, payload);
-  const finalBuffer = new Uint8Array(iv.length + authTag.length + cipherText.length);
-  finalBuffer.set(iv, 0);
-  finalBuffer.set(authTag, iv.length);
-  finalBuffer.set(cipherText, iv.length + authTag.length);
-  return bytesToHex(finalBuffer);
+  return bytesToHex(payload);
 }
 
 async function readRawKV(key: string): Promise<string | null> {
@@ -279,7 +290,7 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
   formData.append('chat_id', TELEGRAM_CHANNEL_ID);
   
   const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
-  formData.append('document', fileBlob, 'telebase_db.enc');
+  formData.append('document', fileBlob, 'telebase_db.json');
 
   const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
     method: 'POST',
@@ -373,20 +384,9 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         const encryptedHex = await res.text();
         const encryptedBuffer = hexToBytes(encryptedHex);
 
-        if (encryptedBuffer.length < 28) {
-          throw new TelebaseStateError('CORRUPTION_DETECTED', 'Cloudflare Worker KV state document is too small or corrupted.');
-        }
-
-        // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-        const iv = encryptedBuffer.slice(0, 12);
-        const authTag = encryptedBuffer.slice(12, 28);
-        const cipherText = encryptedBuffer.slice(28);
-
         let decrypted;
         try {
-          const key = await getEncryptionKey();
-          const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
-          decrypted = new TextDecoder().decode(decryptedBytes);
+          decrypted = await decryptStatePayload(encryptedBuffer);
         } catch (decErr: any) {
           throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for Cloudflare Worker state: ${decErr.message}`);
         }
@@ -430,20 +430,9 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         const encryptedHex = await res.text();
         const encryptedBuffer = hexToBytes(encryptedHex);
 
-        if (encryptedBuffer.length < 28) {
-          throw new TelebaseStateError('CORRUPTION_DETECTED', 'Cloudflare KV state document is too small or corrupted.');
-        }
-
-        // Decrypt (AES-256-GCM structure: IV [12b] + AuthTag [16b] + CipherText)
-        const iv = encryptedBuffer.slice(0, 12);
-        const authTag = encryptedBuffer.slice(12, 28);
-        const cipherText = encryptedBuffer.slice(28);
-
         let decrypted;
         try {
-          const key = await getEncryptionKey();
-          const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
-          decrypted = new TextDecoder().decode(decryptedBytes);
+          decrypted = await decryptStatePayload(encryptedBuffer);
         } catch (decErr: any) {
           throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for Cloudflare KV state: ${decErr.message}`);
         }
@@ -481,15 +470,10 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         const encryptedHex = await res.text();
         const encryptedBuffer = hexToBytes(encryptedHex);
 
-        if (encryptedBuffer.length >= 28) {
-          const iv = encryptedBuffer.slice(0, 12);
-          const authTag = encryptedBuffer.slice(12, 28);
-          const cipherText = encryptedBuffer.slice(28);
-
+        if (encryptedBuffer.length > 0) {
           let decrypted;
           try {
-            const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
-            decrypted = new TextDecoder().decode(decryptedBytes);
+            decrypted = await decryptStatePayload(encryptedBuffer);
           } catch (decErr: any) {
             throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for kvdb.io state: ${decErr.message}`);
           }
@@ -564,19 +548,9 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
       const encryptedArrayBuffer = await downloadRes.arrayBuffer();
       const encryptedBuffer = new Uint8Array(encryptedArrayBuffer);
 
-      if (encryptedBuffer.length < 28) {
-        throw new TelebaseStateError('CORRUPTION_DETECTED', 'Downloaded Telegram database file is too small or corrupted.');
-      }
-
-      const iv = encryptedBuffer.slice(0, 12);
-      const authTag = encryptedBuffer.slice(12, 28);
-      const cipherText = encryptedBuffer.slice(28);
-
       let decrypted;
       try {
-        const key = await getEncryptionKey();
-        const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
-        decrypted = new TextDecoder().decode(decryptedBytes);
+        decrypted = await decryptStatePayload(encryptedBuffer);
       } catch (decErr: any) {
         throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for Telegram database file: ${decErr.message}`);
       }
@@ -690,14 +664,8 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
 
   const payload = new TextEncoder().encode(JSON.stringify(state));
 
-  // 1. Encrypt state payload (AES-256-GCM)
-  const key = await getEncryptionKey();
-  const iv = randomBytes(12);
-  const { cipherText, authTag } = await aesGcmEncrypt(key, iv, payload);
-  const finalBuffer = new Uint8Array(iv.length + authTag.length + cipherText.length);
-  finalBuffer.set(iv, 0);
-  finalBuffer.set(authTag, iv.length);
-  finalBuffer.set(cipherText, iv.length + authTag.length);
+  // Save as plaintext JSON (hex-encoded for KV/Telegram storage)
+  const finalBuffer = payload;
   const encryptedHex = bytesToHex(finalBuffer);
 
   // Always write to local backup file first to guarantee durability & prevent data loss!

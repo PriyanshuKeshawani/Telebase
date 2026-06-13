@@ -1,4 +1,4 @@
-import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId } from './telegramDatabase';
+import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId, decryptStatePayload } from './telegramDatabase';
 
 async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Response(compressedBytes as any).body
@@ -259,15 +259,12 @@ export async function getTableRecords(
         const stateHex = batchData['telebase_state'];
         if (stateHex) {
           const encryptedBuffer = hexToBytes(stateHex);
-          if (encryptedBuffer.length >= 28) {
-            const iv = encryptedBuffer.slice(0, 12);
-            const authTag = encryptedBuffer.slice(12, 28);
-            const cipherText = encryptedBuffer.slice(28);
-            const masterKeyBytes = ENCRYPTION_KEY;
-            const decryptedBytes = await aesGcmDecrypt(masterKeyBytes, iv, cipherText, authTag);
-            const decryptedText = new TextDecoder().decode(decryptedBytes);
+          try {
+            const decryptedText = await decryptStatePayload(encryptedBuffer);
             state = JSON.parse(decryptedText) as DatabaseSchema;
             updateStateCache(state);
+          } catch (decErr) {
+            console.error('[Query Engine] Master state decryption failed:', decErr);
           }
         } else {
           state = { projects: [], files: [] };
