@@ -118,11 +118,33 @@ async function getHandler() {
 }
 
 export async function GET(req: any, ctx: any) {
-  const h = await getHandler();
-  return h(req, ctx);
+  try {
+    const h = await getHandler();
+    return await h(req, ctx);
+  } catch (err: any) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: err.message,
+      stack: err.stack
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 export async function POST(req: any, ctx: any) {
-  const h = await getHandler();
-  return h(req, ctx);
+  try {
+    const h = await getHandler();
+    return await h(req, ctx);
+  } catch (err: any) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: err.message,
+      stack: err.stack
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
