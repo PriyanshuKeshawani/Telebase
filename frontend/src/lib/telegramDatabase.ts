@@ -115,7 +115,11 @@ const CLOUDFLARE_ACCOUNT_ID = process.env['CLOUDFLARE_ACCOUNT_ID'] || '';
 const CLOUDFLARE_KV_NAMESPACE_ID = process.env['CLOUDFLARE_KV_NAMESPACE_ID'] || '';
 const CLOUDFLARE_API_TOKEN = process.env['CLOUDFLARE_API_TOKEN'] || '';
 
-export const isKVConfigured = !!(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN);
+const getKVBinding = () => (process.env.TELEBASE_KV as any) || (globalThis as any).TELEBASE_KV;
+export const isKVConfigured = !!(
+  (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) ||
+  (getKVBinding() && typeof getKVBinding().get === 'function' && typeof getKVBinding().put === 'function')
+);
 
 const CLOUDFLARE_WORKER_URL = process.env['CLOUDFLARE_WORKER_URL'] || '';
 const CLOUDFLARE_WORKER_KEY = process.env['CLOUDFLARE_WORKER_KEY'] || '';
@@ -261,6 +265,15 @@ export async function encryptStateAsync(state: DatabaseSchema): Promise<string> 
 }
 
 async function readRawKV(key: string): Promise<string | null> {
+  const kvBinding = getKVBinding();
+  if (kvBinding && typeof kvBinding.get === 'function') {
+    try {
+      const val = await kvBinding.get(key);
+      if (val !== null) return val;
+    } catch (e) {
+      console.warn('[TeleStore KV] Direct KV get failed, falling back:', e);
+    }
+  }
   if (isCFWorkerConfigured) {
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
@@ -269,7 +282,7 @@ async function readRawKV(key: string): Promise<string | null> {
       if (res.ok) return await res.text();
     } catch (e) {}
   }
-  if (isKVConfigured) {
+  if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
     try {
       const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
       const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
@@ -281,6 +294,15 @@ async function readRawKV(key: string): Promise<string | null> {
 }
 
 async function writeRawKV(key: string, value: string): Promise<boolean> {
+  const kvBinding = getKVBinding();
+  if (kvBinding && typeof kvBinding.put === 'function') {
+    try {
+      await kvBinding.put(key, value);
+      return true;
+    } catch (e) {
+      console.warn('[TeleStore KV] Direct KV put failed, falling back:', e);
+    }
+  }
   if (isCFWorkerConfigured) {
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
@@ -292,7 +314,7 @@ async function writeRawKV(key: string, value: string): Promise<boolean> {
       return res.ok;
     } catch (e) {}
   }
-  if (isKVConfigured) {
+  if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
     try {
       const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
       const res = await fetch(url, {
@@ -309,6 +331,57 @@ async function writeRawKV(key: string, value: string): Promise<boolean> {
 async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSchema): Promise<void> {
   if (!BOT_TOKEN || !TELEGRAM_CHANNEL_ID) return;
   const stateText = new TextDecoder().decode(finalBuffer);
+
+  // If the serialized state exceeds Telegram message length limit (4096),
+  // send it as a document instead.
+  if (stateText.length >= 4000) {
+    console.log('[TeleStore] State size exceeds 4000 characters. Uploading as a document...');
+    const formData = new FormData();
+    formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+    const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
+    formData.append('document', fileBlob, 'telebase_db.json');
+
+    const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+      method: 'POST',
+      body: formData
+    });
+    const uploadData = await uploadRes.json();
+    if (!uploadData.ok) {
+      throw new Error(`sendDocument failed: ${JSON.stringify(uploadData)}`);
+    }
+
+    const newMessageId = uploadData.result.message_id;
+
+    // Pin the new message
+    const pinRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/pinChatMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHANNEL_ID,
+        message_id: newMessageId,
+        disable_notification: true
+      })
+    });
+    const pinData = await pinRes.json();
+    if (!pinData.ok) {
+      console.warn('[TeleStore] Pin new message failed:', JSON.stringify(pinData));
+    }
+
+    // Clean up previous message
+    if (state.last_pinned_message_id) {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHANNEL_ID,
+          message_id: state.last_pinned_message_id
+        })
+      }).catch((e) => console.warn('[TeleStore] Failed to delete previous message:', e.message));
+    }
+
+    state.last_pinned_message_id = newMessageId;
+    return;
+  }
 
   // Try to edit the existing pinned message first to keep channel clean
   if (state.last_pinned_message_id) {
@@ -610,6 +683,10 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
       
       const current = await readRawKV('telebase_state_current');
       if (current) await writeRawKV('telebase_state_backup_1', current);
+
+      // Save the updated state to telebase_state_current
+      await writeRawKV('telebase_state_current', encryptedHex);
+      console.log('[TeleStore] Successfully saved current state to Cloudflare KV.');
     } catch (rotErr: any) {
       console.warn('[TeleStore] KV Backup rotation failed (continuing state save):', rotErr.message);
     }
@@ -621,6 +698,11 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
       await uploadStateToTelegram(finalBuffer, state);
     } catch (error: any) {
       console.error('[TeleStore] Telegram upload failed:', error.message);
+      // In serverless / edge environments where local FS is transient/null,
+      // a Telegram upload failure is fatal to state durability.
+      if (!fs) {
+        throw new Error(`Failed to save database state to Telegram: ${error.message}`);
+      }
     }
   }
 }

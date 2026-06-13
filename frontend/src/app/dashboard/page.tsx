@@ -412,9 +412,12 @@ export default function Dashboard() {
         setNewChannelId("");
         setNewBots([""]);
         await loadDatabase();
+      } else {
+        alert("Failed to create project: " + (data.error || "Unknown error"));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Create project failed:", error);
+      alert("Failed to create project: " + error.message);
     }
   };
 

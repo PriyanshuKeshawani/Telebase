@@ -429,7 +429,8 @@ export async function getTableRecords(
   }
 
   // 5. Telegram Chunks Fallback (Under 1.5s reads)
-  if (!records && process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+  const hasTelegramConfig = !!((project.bots && project.bots.length > 0 && project.channel_id) || (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID));
+  if (!records && hasTelegramConfig) {
     try {
       const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
       const decryptedChunks: Uint8Array[] = [];
@@ -637,7 +638,8 @@ export async function saveTableRecords(
             console.log(`[Query Engine BG] Table "${tableName}" and master state successfully saved via Batch PUT edge route!`);
             
             // Still dispatch Telegram backup for background durability
-            if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+            const hasTelegramBackupConfig = !!((project.bots && project.bots.length > 0 && project.channel_id) || (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID));
+            if (hasTelegramBackupConfig) {
               dispatchTelegramBackup(project, tableName, fileUuid, filename, encrypted, iv, authTag, rawData.length);
             }
             return;
@@ -663,7 +665,8 @@ export async function saveTableRecords(
             await saveDatabaseState(state, { allowShrink: true });
             
             // Dispatch Telegram backup for background durability
-            if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+            const hasTelegramBackupConfig = !!((project.bots && project.bots.length > 0 && project.channel_id) || (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID));
+            if (hasTelegramBackupConfig) {
               dispatchTelegramBackup(project, tableName, fileUuid, filename, encrypted, iv, authTag, rawData.length);
             }
             return;
@@ -694,7 +697,8 @@ export async function saveTableRecords(
       }
 
       // If Telegram is configured, run synchronous/sequential Telegram backup (since it failed Cloud KV)
-      if (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID) {
+      const hasTelegramBackupConfig = !!((project.bots && project.bots.length > 0 && project.channel_id) || (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID));
+      if (hasTelegramBackupConfig) {
         await dispatchTelegramBackup(project, tableName, fileUuid, filename, encrypted, iv, authTag, rawData.length);
       }
 
