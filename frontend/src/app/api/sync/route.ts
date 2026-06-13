@@ -77,6 +77,127 @@ export async function POST() {
     const orphanedUuids = [...kvUuids].filter(uuid => !existingUuids.has(uuid));
     const recoveredFiles: StoredFile[] = [];
 
+    // Scan for any unregistered database tables in KV (key starts with 'table_')
+    const tableKeys = keys.filter(k => k.startsWith('table_') && !k.includes('__chunk_') && !k.endsWith('__meta') && !k.endsWith('__telebase_users'));
+    for (const key of tableKeys) {
+      const parts = key.split('_');
+      if (parts.length >= 3) {
+        const projectId = parts[1];
+        const tableName = parts.slice(2).join('_');
+        const filename = `table_${projectId}_${tableName}.json`;
+        
+        const isRegistered = state.files.some(f => f.project_id === projectId && f.filename === filename);
+        if (!isRegistered) {
+          console.log(`[Sync API] Found unregistered table key in KV: "${key}". Recovering...`);
+          const project = state.projects.find(p => p.id === projectId);
+          if (project) {
+            let encryptedHex = '';
+            if (workerUrl && workerKey) {
+              const res = await fetch(`${workerUrl.replace(/\/$/, '')}/${key}`, { headers: { 'x-worker-key': workerKey } });
+              if (res.ok) encryptedHex = await res.text();
+            }
+            if (!encryptedHex && accountId && namespaceId && apiToken) {
+              const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/values/${key}`, { headers: { 'Authorization': `Bearer ${apiToken}` } });
+              if (res.ok) encryptedHex = await res.text();
+            }
+
+            if (encryptedHex) {
+              if (encryptedHex === '__chunked__') {
+                const metaKey = `${key}__meta`;
+                let metaHex = '';
+                if (workerUrl && workerKey) {
+                  const res = await fetch(`${workerUrl.replace(/\/$/, '')}/${metaKey}`, { headers: { 'x-worker-key': workerKey } });
+                  if (res.ok) metaHex = await res.text();
+                }
+                if (!metaHex && accountId && namespaceId && apiToken) {
+                  const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/values/${metaKey}`, { headers: { 'Authorization': `Bearer ${apiToken}` } });
+                  if (res.ok) metaHex = await res.text();
+                }
+                
+                if (metaHex) {
+                  try {
+                    const meta = JSON.parse(metaHex) as { chunks: number; totalSize: number; chunked: boolean };
+                    if (meta.chunked && meta.chunks > 1) {
+                      const chunksData: string[] = [];
+                      for (let i = 0; i < meta.chunks; i++) {
+                        const chunkKey = `${key}__chunk_${i}`;
+                        let chunkHex = '';
+                        if (workerUrl && workerKey) {
+                          const res = await fetch(`${workerUrl.replace(/\/$/, '')}/${chunkKey}`, { headers: { 'x-worker-key': workerKey } });
+                          if (res.ok) chunkHex = await res.text();
+                        }
+                        if (!chunkHex && accountId && namespaceId && apiToken) {
+                          const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/values/${chunkKey}`, { headers: { 'Authorization': `Bearer ${apiToken}` } });
+                          if (res.ok) chunkHex = await res.text();
+                        }
+                        if (chunkHex) {
+                          chunksData.push(chunkHex);
+                        }
+                      }
+                      if (chunksData.length === meta.chunks) {
+                        encryptedHex = chunksData.join('');
+                      }
+                    }
+                  } catch (e) {}
+                }
+              }
+
+              if (encryptedHex && encryptedHex !== '__chunked__') {
+                try {
+                  const encryptedBuffer = hexToBytes(encryptedHex);
+                  if (encryptedBuffer.length >= 28) {
+                    const iv = encryptedBuffer.slice(0, 12);
+                    const authTag = encryptedBuffer.slice(12, 28);
+                    const cipherText = encryptedBuffer.slice(28);
+                    
+                    const keyData = new TextEncoder().encode(project.api_key);
+                    const hashBuf = await globalThis.crypto.subtle.digest('SHA-256', keyData as any);
+                    const projectAESKey = new Uint8Array(hashBuf);
+                    const cryptoKey = await globalThis.crypto.subtle.importKey('raw', projectAESKey as any, { name: 'AES-GCM' }, false, ['decrypt']);
+                    
+                    const combined = new Uint8Array(authTag.length + cipherText.length);
+                    combined.set(authTag);
+                    combined.set(cipherText, authTag.length);
+                    
+                    const decryptedBytes = new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any }, cryptoKey, combined as any));
+                    
+                    if (decryptedBytes[0] === 0x1f && decryptedBytes[1] === 0x8b) {
+                      const stream = new Response(decryptedBytes as any).body?.pipeThrough(new globalThis.DecompressionStream('gzip') as any);
+                      const decompressedBuffer = await new Response(stream as any).arrayBuffer();
+                      const rawJson = new TextDecoder().decode(decompressedBuffer);
+                      
+                      const fileUuid = globalThis.crypto.randomUUID();
+                      const recoveredTableFile: StoredFile = {
+                        uuid: fileUuid,
+                        project_id: project.id,
+                        filename,
+                        version: 1,
+                        chunk_count: 1,
+                        file_hash: bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', cipherText as any))),
+                        size: rawJson.length,
+                        created_at: new Date().toISOString(),
+                        chunks: [{
+                          chunk_index: 0,
+                          message_id: 'pending_telegram_backup',
+                          iv: bytesToHex(iv),
+                          auth_tag: bytesToHex(authTag)
+                        }]
+                      };
+                      state.files.push(recoveredTableFile);
+                      recoveredFiles.push(recoveredTableFile);
+                      console.log(`[Sync API] Restored state index for table "${tableName}" of project "${project.name}".`);
+                    }
+                  }
+                } catch (e: any) {
+                  console.error(`[Sync API] Decrypt fail for table ${key}:`, e.message);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     if (orphanedUuids.length > 0) {
       console.log(`[Sync API] Detected ${orphanedUuids.length} orphaned file UUIDs in KV cache. Initiating healing...`);
 
@@ -288,7 +409,9 @@ export async function POST() {
 
         for (const chunk of pendingChunks) {
           try {
-            const kvKey = `chunk_${file.uuid}_${chunk.chunk_index}`;
+            const kvKey = file.filename.startsWith('table_')
+              ? file.filename.replace('.json', '')
+              : `chunk_${file.uuid}_${chunk.chunk_index}`;
             let encryptedHex = '';
 
             // Fetch from Cloudflare Worker
@@ -318,7 +441,11 @@ export async function POST() {
                   const formData = new FormData();
                   formData.append('chat_id', channelId);
                   const chunkBlob = new Blob([new Uint8Array(encryptedChunk) as any], { type: 'application/octet-stream' });
-                  formData.append('document', chunkBlob, `${file.uuid}_chunk_${chunk.chunk_index}.enc`);
+                  
+                  const uploadFilename = file.filename.startsWith('table_')
+                    ? `${file.uuid}_table.enc`
+                    : `${file.uuid}_chunk_${chunk.chunk_index}.enc`;
+                  formData.append('document', chunkBlob, uploadFilename);
 
                   const uploadRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
                     method: 'POST',
