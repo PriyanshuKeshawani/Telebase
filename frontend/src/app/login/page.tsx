@@ -214,9 +214,18 @@ export default function LoginPage() {
                     <ExternalLink size={13} className="opacity-75" />
                   </a>
 
+                  <a
+                    href={`https://web.telegram.org/a/#?tgaddr=tg%3A%2F%2Fresolve%3Fdomain%3D${botUsername}%26start%3D${code}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-800"
+                  >
+                    <span>Open in Telegram Web</span>
+                  </a>
+
                   <button
                     onClick={handleStartLogin}
-                    className="w-full py-3 rounded-xl bg-transparent border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-300 text-xs transition-colors cursor-pointer"
+                    className="w-full py-2.5 rounded-xl bg-transparent border border-zinc-900 hover:border-zinc-800 text-zinc-500 hover:text-zinc-400 text-[11px] transition-colors cursor-pointer"
                   >
                     Cancel / Generate New Code
                   </button>
