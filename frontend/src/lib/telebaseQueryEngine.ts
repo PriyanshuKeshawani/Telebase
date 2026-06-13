@@ -72,6 +72,86 @@ async function aesGcmDecrypt(keyBytes: Uint8Array, iv: Uint8Array, cipherText: U
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || '';
 const CLOUDFLARE_WORKER_KEY = process.env.CLOUDFLARE_WORKER_KEY || '';
 
+// ─── KV CHUNKING CONSTANTS ───────────────────────────────────────────────────
+// Cloudflare KV values must be ≤ 25MB. We use 20MB as the safe chunk size
+// (hex encoding doubles the size, so each chunk is ~10MB of raw encrypted data).
+const KV_CHUNK_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB of raw hex bytes per chunk key
+
+/**
+ * Splits a large hex string into KV-safe chunks and writes them all.
+ * Keys written: `{baseKey}__chunk_0`, `{baseKey}__chunk_1`, ...
+ * An index key `{baseKey}__meta` is written containing { chunks, totalSize }.
+ */
+async function kvPutChunked(
+  baseKey: string,
+  hexValue: string,
+  putFn: (key: string, value: string) => Promise<boolean>
+): Promise<boolean> {
+  const chunkCount = Math.ceil(hexValue.length / KV_CHUNK_SIZE_BYTES);
+  if (chunkCount <= 1) {
+    // Small enough — write directly
+    return putFn(baseKey, hexValue);
+  }
+
+  // Write index metadata first (so readers always know the chunk count)
+  const meta = JSON.stringify({ chunks: chunkCount, totalSize: hexValue.length, chunked: true });
+  const metaOk = await putFn(`${baseKey}__meta`, meta);
+  if (!metaOk) return false;
+
+  // Write each chunk in parallel
+  const chunkPromises: Promise<boolean>[] = [];
+  for (let i = 0; i < chunkCount; i++) {
+    const slice = hexValue.slice(i * KV_CHUNK_SIZE_BYTES, (i + 1) * KV_CHUNK_SIZE_BYTES);
+    chunkPromises.push(putFn(`${baseKey}__chunk_${i}`, slice));
+  }
+  const results = await Promise.all(chunkPromises);
+  const allOk = results.every(Boolean);
+  if (allOk) {
+    // Remove the un-chunked key if it previously existed
+    await putFn(baseKey, '__chunked__').catch(() => {}); // sentinel
+    console.log(`[KV Chunk] Wrote ${chunkCount} chunks for key "${baseKey}" (total ${(hexValue.length / 1024).toFixed(1)} KB hex)`);
+  }
+  return allOk;
+}
+
+/**
+ * Reads a (possibly chunked) value back from KV.
+ * Returns the full reassembled hex string, or null if key not found.
+ */
+async function kvGetChunked(
+  baseKey: string,
+  getFn: (key: string) => Promise<string | null>
+): Promise<string | null> {
+  // Check if a metadata key exists
+  const metaStr = await getFn(`${baseKey}__meta`);
+  if (metaStr) {
+    try {
+      const meta = JSON.parse(metaStr) as { chunks: number; totalSize: number; chunked: boolean };
+      if (meta.chunked && meta.chunks > 1) {
+        // Read all chunks in parallel
+        const chunkPromises: Promise<string | null>[] = [];
+        for (let i = 0; i < meta.chunks; i++) {
+          chunkPromises.push(getFn(`${baseKey}__chunk_${i}`));
+        }
+        const chunks = await Promise.all(chunkPromises);
+        if (chunks.some(c => c === null)) {
+          console.error(`[KV Chunk] Missing chunk(s) for key "${baseKey}". Chunk count: ${meta.chunks}`);
+          return null;
+        }
+        console.log(`[KV Chunk] Reassembled ${meta.chunks} chunks for key "${baseKey}"`);
+        return chunks.join('');
+      }
+    } catch (e) { /* fall through to direct read */ }
+  }
+
+  // Non-chunked direct read
+  const val = await getFn(baseKey);
+  if (val === '__chunked__') return null; // sentinel with missing meta — corrupted
+  return val;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Local storage fallback path when Telegram credentials are not present
 const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
 const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
@@ -342,27 +422,28 @@ export async function getTableRecords(
     }
   }
 
-  // Fallback 2: Standard Cloudflare Worker KV Single GET Pathway (if batch read didn't resolve the records)
+  // Fallback 2: Standard Cloudflare Worker KV GET — with automatic chunk reassembly
   if (!records && isCFWorkerConfigured) {
     try {
-      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/table_${project.id}_${tableName}`;
-      const res = await fetch(url, {
-        cache: 'no-store',
-        headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY }
-      });
-      if (res.ok) {
-        const encryptedHex = await res.text();
+      const workerGetFn = async (key: string): Promise<string | null> => {
+        const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
+        const res = await fetch(url, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`Worker KV GET failed: ${res.status}`);
+        return res.text();
+      };
+      const encryptedHex = await kvGetChunked(`table_${project.id}_${tableName}`, workerGetFn);
+      if (encryptedHex && encryptedHex !== '__chunked__') {
         const encryptedBuffer = hexToBytes(encryptedHex);
         if (encryptedBuffer.length >= 28) {
           const iv = encryptedBuffer.slice(0, 12);
           const authTag = encryptedBuffer.slice(12, 28);
           const cipherText = encryptedBuffer.slice(28);
-
           const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
           const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
           const decompressed = await gzipDecompress(decrypted);
           records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
-          console.log(`[Query Engine] Table "${tableName}" successfully loaded from Cloudflare Worker KV!`);
+          console.log(`[Query Engine] Table "${tableName}" loaded from Cloudflare Worker KV (chunked-aware)!`);
         }
       }
     } catch (error: any) {
@@ -370,30 +451,31 @@ export async function getTableRecords(
     }
   }
 
-  // 3. Cloudflare KV REST API Fast-Path (Under 15ms reads!)
+  // 3. Cloudflare KV REST API — with automatic chunk reassembly
   if (!records && isKVConfigured) {
     try {
-      const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-      const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
-      const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
-      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/table_${project.id}_${tableName}`;
-      const res = await fetch(url, {
-        cache: 'no-store',
-        headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` }
-      });
-      if (res.ok) {
-        const encryptedHex = await res.text();
+      const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+      const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
+      const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+      const kvRestGetFn = async (key: string): Promise<string | null> => {
+        const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
+        const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
+        return res.text();
+      };
+      const encryptedHex = await kvGetChunked(`table_${project.id}_${tableName}`, kvRestGetFn);
+      if (encryptedHex && encryptedHex !== '__chunked__') {
         const encryptedBuffer = hexToBytes(encryptedHex);
         if (encryptedBuffer.length >= 28) {
           const iv = encryptedBuffer.slice(0, 12);
           const authTag = encryptedBuffer.slice(12, 28);
           const cipherText = encryptedBuffer.slice(28);
-
           const projectAESKey = await sha256Bytes(new TextEncoder().encode(project.api_key));
           const decrypted = await aesGcmDecrypt(projectAESKey, iv, cipherText, authTag);
           const decompressed = await gzipDecompress(decrypted);
           records = JSON.parse(new TextDecoder().decode(decompressed)) as any[];
-          console.log(`[Query Engine] Table "${tableName}" successfully loaded from Cloudflare KV REST API!`);
+          console.log(`[Query Engine] Table "${tableName}" loaded from Cloudflare KV REST API (chunked-aware)!`);
         }
       }
     } catch (error: any) {
@@ -556,61 +638,62 @@ export async function saveTableRecords(
       let cloudSaveSuccess = false;
 
       const saveTableToCloud = async (): Promise<boolean> => {
-        // 1. Cloudflare Worker KV Fast-Path (Under 150ms writes!)
+        // ─── 1. Cloudflare Worker KV — chunked write ───
         if (isCFWorkerConfigured) {
           try {
-            const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/table_${project.id}_${tableName}`;
-            const res = await fetch(url, {
-              method: 'PUT',
-              headers: {
-                'x-worker-key': CLOUDFLARE_WORKER_KEY,
-                'Content-Type': 'text/plain'
-              },
-              body: encryptedHex
-            });
-            if (res.ok) {
-              console.log(`[Query Engine BG] Table "${tableName}" successfully saved in Cloudflare Worker KV!`);
+            const workerPutFn = async (key: string, value: string): Promise<boolean> => {
+              const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
+              const res = await fetch(url, {
+                method: 'PUT',
+                headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
+                body: value
+              });
+              if (!res.ok) throw new Error(`Worker KV PUT failed: ${await res.text()}`);
               return true;
-            } else {
-              const errText = await res.text();
-              throw new Error(`Worker KV PUT failed: ${errText}`);
+            };
+            const ok = await kvPutChunked(`table_${project.id}_${tableName}`, encryptedHex, workerPutFn);
+            if (ok) {
+              console.log(`[Query Engine BG] Table "${tableName}" saved to Cloudflare Worker KV (chunked-aware, ${(encryptedHex.length / 1024).toFixed(1)} KB)`);
+              return true;
             }
           } catch (error: any) {
-            console.error('[Query Engine BG] Cloudflare Worker KV write failed:', error.message);
+            console.error('[Query Engine BG] Cloudflare Worker KV chunked write failed:', error.message);
           }
         }
 
-        // 2. Cloudflare KV namespace REST API Fast-Path (Under 150ms writes!)
+        // ─── 2. Cloudflare KV REST API — chunked write ───
         if (isKVConfigured) {
           try {
-            const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
-            const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
-            const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
-            const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/table_${project.id}_${tableName}`;
-            const res = await fetch(url, {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`,
-                'Content-Type': 'text/plain'
-              },
-              body: encryptedHex
-            });
-            if (res.ok) {
-              console.log(`[Query Engine BG] Table "${tableName}" successfully saved in Cloudflare KV REST API!`);
+            const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+            const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
+            const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+            const kvRestPutFn = async (key: string, value: string): Promise<boolean> => {
+              const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
+              const res = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${CF_TOKEN}`, 'Content-Type': 'text/plain' },
+                body: value
+              });
+              if (!res.ok) throw new Error(`KV REST PUT failed: ${await res.text()}`);
               return true;
-            } else {
-              const errText = await res.text();
-              throw new Error(`Cloudflare KV REST PUT failed: ${errText}`);
+            };
+            const ok = await kvPutChunked(`table_${project.id}_${tableName}`, encryptedHex, kvRestPutFn);
+            if (ok) {
+              console.log(`[Query Engine BG] Table "${tableName}" saved to Cloudflare KV REST API (chunked-aware, ${(encryptedHex.length / 1024).toFixed(1)} KB)`);
+              return true;
             }
           } catch (error: any) {
-            console.error('[Query Engine BG] Cloudflare KV REST API write failed:', error.message);
+            console.error('[Query Engine BG] Cloudflare KV REST API chunked write failed:', error.message);
           }
         }
         return false;
       };
 
-      // ─── OPTIMIZATION: Cloudflare Worker Batch PUT Pathway (Under 40ms for both table records and state in exactly 1 request!) ───
-      if (isCFWorkerConfigured) {
+      // ─── OPTIMIZATION: Cloudflare Worker Batch PUT Pathway ───
+      // For tables > 5MB, skip batch and use individual chunked writes to avoid
+      // HTTP request body size limits in the Worker.
+      const BATCH_PUT_MAX_HEX = 5 * 1024 * 1024; // 5 MB hex threshold for batch PUT
+      if (isCFWorkerConfigured && encryptedHex.length <= BATCH_PUT_MAX_HEX) {
         try {
           const state = await (statePromise ? statePromise : getDatabaseState(true));
           state.files = state.files.filter((f: any) => !(f.project_id === project.id && f.filename === filename));
@@ -635,7 +718,7 @@ export async function saveTableRecords(
 
           if (res.ok) {
             updateStateCache(state); // Sync local cache
-            console.log(`[Query Engine BG] Table "${tableName}" and master state successfully saved via Batch PUT edge route!`);
+            console.log(`[Query Engine BG] Table "${tableName}" and master state saved via Batch PUT edge route!`);
             
             // Still dispatch Telegram backup for background durability
             const hasTelegramBackupConfig = !!((project.bots && project.bots.length > 0 && project.channel_id) || (process.env.BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID));
