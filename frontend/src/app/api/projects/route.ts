@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { getSession } from '@/lib/session';
 import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId, TelebaseStateError } from '@/lib/telegramDatabase';
 
 export const runtime = 'edge';
@@ -51,12 +51,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key" });
+    const token = await getSession(req);
     if (!token) {
       return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
 
-    const owner_telegram_id = (token.owner_telegram_id || token.id) as string;
+    const owner_telegram_id = (token.owner_telegram_id || token.sub) as string;
     const body = await req.json();
     let { name, channel_id, storage_type, bots } = body;
 

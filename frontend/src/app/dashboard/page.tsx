@@ -11,7 +11,6 @@ import {
   Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code
 } from "lucide-react";
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 interface Project {
@@ -55,8 +54,28 @@ interface DBTable {
 }
 
 export default function Dashboard() {
-  const { data: session, status } = useSession();
+  const [session, setSession] = useState<any>(null);
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
   const router = useRouter();
+
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then(r => r.json())
+      .then(data => {
+        if (data?.user) {
+          setSession(data);
+          setStatus('authenticated');
+        } else {
+          setStatus('unauthenticated');
+        }
+      })
+      .catch(() => setStatus('unauthenticated'));
+  }, []);
+
+  const handleSignOut = async () => {
+    await fetch('/api/auth/signout', { method: 'GET' });
+    router.push('/login');
+  };
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
@@ -1393,7 +1412,7 @@ When writing code for the developer:
             <span>{isSyncing ? "Syncing..." : "Sync Master Index"}</span>
           </button>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => handleSignOut()}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-xs font-medium"
           >
             <LogOut size={14} />

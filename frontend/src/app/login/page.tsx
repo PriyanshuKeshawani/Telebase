@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Database, ShieldAlert, CheckCircle2, MessageSquare, Copy, ExternalLink, RefreshCw, Send } from "lucide-react";
@@ -30,13 +29,15 @@ export default function LoginPage() {
           setIsPolling(false);
           clearInterval(interval);
           
-          // Auto sign in using next-auth
-          const signInRes = await signIn("credentials", {
-            code,
-            redirect: false,
+          // Auto sign in using custom JWT auth
+          const signInRes = await fetch('/api/auth/signin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
           });
+          const signInData = await signInRes.json();
 
-          if (signInRes?.error) {
+          if (!signInData.success) {
             setError("Authentication failed. Please try again.");
           } else {
             router.push("/dashboard");

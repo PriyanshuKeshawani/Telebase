@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { getSession } from "@/lib/session";
 import { getDatabaseState, saveDatabaseState } from "@/lib/telegramDatabase";
 
 export const runtime = 'edge';
@@ -10,7 +10,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || "telebase_secret_token_2026_super_secure_32b_key" });
+    const token = await getSession(req);
     if (!token) {
       return NextResponse.json(
         { success: false, error: "Unauthorized. Please sign in." },
