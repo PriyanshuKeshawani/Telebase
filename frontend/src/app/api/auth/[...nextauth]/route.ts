@@ -16,6 +16,13 @@ export const dynamic = 'force-dynamic';
 
 import { getDatabaseState, saveDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
 
+if (!process.env.NEXTAUTH_SECRET) {
+  process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
+}
+if (!process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
+}
+
 let handler: any = null;
 
 async function getHandler() {
