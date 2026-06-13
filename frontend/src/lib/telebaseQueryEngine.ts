@@ -1,3 +1,18 @@
+// Polyfill process.env for Cloudflare Edge Runtime module evaluation compatibility
+if (typeof globalThis !== 'undefined') {
+  if (!(globalThis as any).process) {
+    (globalThis as any).process = { env: {} };
+  } else if (!(globalThis as any).process.env) {
+    (globalThis as any).process.env = {};
+  }
+  if (!(globalThis as any).process.env.NEXTAUTH_URL) {
+    (globalThis as any).process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
+  }
+  if (!(globalThis as any).process.env.NEXTAUTH_SECRET) {
+    (globalThis as any).process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
+  }
+}
+
 import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId, decryptStatePayload } from './telegramDatabase';
 
 async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {

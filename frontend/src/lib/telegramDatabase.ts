@@ -1,5 +1,19 @@
-// Edge Runtime compatible - no Node.js crypto or Buffer imports
+// Polyfill process.env for Cloudflare Edge Runtime module evaluation compatibility
+if (typeof globalThis !== 'undefined') {
+  if (!(globalThis as any).process) {
+    (globalThis as any).process = { env: {} };
+  } else if (!(globalThis as any).process.env) {
+    (globalThis as any).process.env = {};
+  }
+  if (!(globalThis as any).process.env.NEXTAUTH_URL) {
+    (globalThis as any).process.env.NEXTAUTH_URL = "https://telebase.pages.dev";
+  }
+  if (!(globalThis as any).process.env.NEXTAUTH_SECRET) {
+    (globalThis as any).process.env.NEXTAUTH_SECRET = "telebase_secret_token_2026_super_secure_32b_key";
+  }
+}
 
+// Edge Runtime compatible - no Node.js crypto or Buffer imports
 const fs = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('fs') : null;
 const path = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('path') : null;
 const os = typeof window === 'undefined' && process.env.NEXT_RUNTIME !== 'edge' ? require('os') : null;
