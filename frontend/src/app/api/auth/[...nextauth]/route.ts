@@ -35,7 +35,6 @@ try {
   }
 } catch (e) {}
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { getDatabaseState, saveDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabaseState, saveDatabaseState, TelebaseStateError, UserRecord, isCFWorkerConfigured, isKVConfigured } from '@/lib/telegramDatabase';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
