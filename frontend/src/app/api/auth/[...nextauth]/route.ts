@@ -63,7 +63,11 @@ async function getHandler() {
 
             // Mark request as used to prevent replay attacks
             request.isUsed = true;
-            await saveDatabaseState(state, { allowShrink: true });
+            try {
+              await saveDatabaseState(state, { allowShrink: true });
+            } catch (saveErr: any) {
+              console.error('[NextAuth] Failed to mark login request as used:', saveErr.message);
+            }
 
             // Telegram user identity matches request owner telegram ID
             return {
@@ -88,7 +92,10 @@ async function getHandler() {
           return token;
         },
         async session({ session, token }: any) {
-          if (token && session.user) {
+          if (token) {
+            if (!session.user) {
+              session.user = {};
+            }
             session.user.owner_telegram_id = token.owner_telegram_id;
             session.user.id = token.owner_telegram_id;
           }
