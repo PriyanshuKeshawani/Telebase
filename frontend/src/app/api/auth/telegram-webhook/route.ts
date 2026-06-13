@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabaseState, saveDatabaseState, TelebaseStateError, UserRecord } from '@/lib/telegramDatabase';
+import { getDatabaseState, saveDatabaseState, TelebaseStateError, UserRecord, isCFWorkerConfigured, isKVConfigured } from '@/lib/telegramDatabase';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -54,10 +54,12 @@ export async function POST(req: NextRequest) {
     console.log(`[Webhook] Received code: ${code}`);
     console.log(`[Webhook] Active login requests in database:`, JSON.stringify(state.loginRequests));
 
-    const request = state.loginRequests.find((r: any) => r.code === code);
+    const request = state.loginRequests?.find((r: any) => r.code === code);
     if (!request) {
+      const activeCodes = (state.loginRequests || []).map((r: any) => r.code).join(', ') || 'none';
+      const source = isCFWorkerConfigured ? 'Worker KV' : (isKVConfigured ? 'KV REST' : (process.env.BOT_TOKEN ? 'Telegram' : 'Local'));
       console.warn(`[Webhook] Code ${code} not found in active database requests.`);
-      await replyToTelegram(botToken, chatId, "❌ Invalid or expired login request code.");
+      await replyToTelegram(botToken, chatId, `❌ Code ${code} not found in database.\n\n🔍 Debug Info:\n- Active Codes: ${activeCodes}\n- Storage Source: ${source}\n- Total Projects: ${state.projects?.length || 0}`);
       return NextResponse.json({ ok: true });
     }
 
