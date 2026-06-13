@@ -19,7 +19,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const userId = token.id as string;
+    const owner_telegram_id = (token.owner_telegram_id || token.id) as string;
 
     const state = await getDatabaseState(true); // force refresh
 
@@ -34,7 +34,7 @@ export async function DELETE(
     const project = state.projects[projectIndex];
 
     // Enforce isolation ownership: non-admins can only delete their own projects
-    if (userId !== "1" && project.userId !== userId) {
+    if (owner_telegram_id !== "1" && project.owner_telegram_id !== owner_telegram_id) {
       return NextResponse.json(
         { success: false, error: "Forbidden: You do not own this project" },
         { status: 403 }

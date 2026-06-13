@@ -1,29 +1,41 @@
 /**
  * TeleBase Email Service - Edge Runtime Compatible
- * Uses Resend API (fetch-based) with Dev Console fallback.
- * nodemailer is NOT supported in Edge Runtime (Cloudflare Pages).
+ * Uses Resend API (fetch-based) - nodemailer NOT supported on Cloudflare Pages Edge Runtime.
  *
- * Setup:
- * 1. Add RESEND_API_KEY to environment variables for email support
- * 2. Or set SMTP_USER + SMTP_PASS — OTP will be logged to console as fallback on Edge
+ * Setup for Cloudflare Pages:
+ * 1. Sign up at https://resend.com (free: 1000 emails/month)
+ * 2. Create an API key and add RESEND_API_KEY to Cloudflare Pages environment variables
+ * 3. (Optional) Add a verified domain at Resend and set RESEND_FROM_EMAIL
+ *    - Without a verified domain, Resend only sends to your own Resend account email
+ *    - With a verified domain, you can send to any email address
  */
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const SMTP_USER = process.env.SMTP_USER || '';
-const FROM_EMAIL = SMTP_USER ? `TeleBase <${SMTP_USER}>` : 'TeleBase <onboarding@resend.dev>';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'TeleBase <onboarding@resend.dev>';
+
+// onboarding@resend.dev (Resend test sender) can ONLY deliver to your Resend account email,
+// not to arbitrary recipients. A verified custom domain is required for real delivery.
+function isTestSender(): boolean {
+  return FROM_EMAIL.includes('onboarding@resend.dev');
+}
 
 export function isEmailConfigured(): boolean {
-  return !!RESEND_API_KEY || !!SMTP_USER;
+  return !!RESEND_API_KEY && !isTestSender();
+}
+
+export function isEmailFullyFunctional(): boolean {
+  return !!RESEND_API_KEY && !isTestSender();
 }
 
 /**
  * Sends OTP verification email via Resend API (Edge-compatible fetch)
  */
 export async function sendOTPEmail(toEmail: string, otp: string): Promise<{ success: boolean; error?: string }> {
-  // 1. Resend API (Edge-compatible)
-  if (RESEND_API_KEY) {
+  // If using the Resend test sender (onboarding@resend.dev), skip the API call entirely
+  // because it can only deliver to your own Resend account email, not to arbitrary recipients.
+  if (RESEND_API_KEY && !isTestSender()) {
     try {
-      console.log(`[TeleBase Email] Dispatching OTP via Resend API to ${toEmail}...`);
+      console.log(`[TeleBase Email] Sending OTP via Resend API to ${toEmail}...`);
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -38,27 +50,34 @@ export async function sendOTPEmail(toEmail: string, otp: string): Promise<{ succ
         }),
       });
 
+      const responseText = await res.text();
+      
       if (!res.ok) {
-        const errBody = await res.text();
-        console.error('[TeleBase Email] Resend API error:', res.status, errBody);
-        return { success: false, error: `Resend API failed (${res.status})` };
+        console.error('[TeleBase Email] Resend API error:', res.status, responseText);
+        return { success: false, error: `Resend API error (${res.status}): ${responseText}` };
       }
 
-      const data = await res.json();
-      console.log('[TeleBase Email] OTP sent via Resend. ID:', data.id);
+      let data: any = {};
+      try { data = JSON.parse(responseText); } catch {}
+      console.log('[TeleBase Email] OTP sent successfully via Resend. Message ID:', data.id);
       return { success: true };
     } catch (err: any) {
-      console.error('[TeleBase Email] Resend API error:', err.message);
+      console.error('[TeleBase Email] Resend API fetch error:', err.message);
       return { success: false, error: err.message };
     }
   }
 
-  // 2. Dev/Console Fallback — OTP logged (no email sent)
-  console.warn('[TeleBase Email] No RESEND_API_KEY set. OTP logged to console (dev mode).');
-  console.log(`\n=== DEV MODE OTP ===`);
-  console.log(`Email: ${toEmail}`);
+  // Log OTP to console (dev/testing only)
+  console.log(`\n=== OTP FOR ${toEmail} ===`);
   console.log(`OTP Code: ${otp}`);
-  console.log(`===================\n`);
+  if (RESEND_API_KEY && isTestSender()) {
+    console.log(`Note: Using Resend test sender (onboarding@resend.dev).`);
+    console.log(`To deliver emails to any address, verify a custom domain at https://resend.com/domains`);
+    console.log(`and set RESEND_FROM_EMAIL to your verified sender.`);
+  } else {
+    console.log(`Note: No RESEND_API_KEY configured. Set it in .env.local to enable email delivery.`);
+  }
+  console.log(`=========================\n`);
   return { success: true };
 }
 
@@ -140,7 +159,9 @@ function generateOTPEmailHTML(otp: string, email: string): string {
  * Generates a cryptographically random 6-digit OTP
  */
 export function generateOTP(): string {
-  const num = Math.floor(100000 + Math.random() * 900000);
+  const arr = new Uint8Array(1);
+  globalThis.crypto.getRandomValues(arr);
+  // Ensure 6 digits: use modulo on a wider range
+  const num = 100000 + (arr[0] * 1000 + Math.floor(Math.random() * 900000)) % 900000;
   return num.toString();
 }
-

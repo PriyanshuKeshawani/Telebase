@@ -98,11 +98,16 @@ export async function POST(req: NextRequest) {
 
     await saveDatabaseState(state);
 
+    // Log OTP for development (serverless logs on Cloudflare Pages)
+    console.log(`\n=== OTP FOR ${trimmedEmail} ===`);
+    console.log(`OTP Code: ${otp}`);
+    console.log(`Expires at: ${new Date(Date.now() + OTP_EXPIRY_MS).toISOString()}`);
+    console.log(`===============================\n`);
+
     // Send OTP email
     const emailResult = await sendOTPEmail(trimmedEmail, otp);
     if (!emailResult.success) {
       console.warn("[Register] Email send failed, but OTP is stored. Error:", emailResult.error);
-      // Still return success — in dev mode OTP is logged to console
     }
 
     return NextResponse.json({

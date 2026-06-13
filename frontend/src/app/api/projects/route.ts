@@ -29,14 +29,14 @@ export async function GET(req: NextRequest) {
         throw error;
       }
     }
-    const userId = token.id as string;
+    const owner_telegram_id = (token.owner_telegram_id || token.id) as string;
 
     // Filter projects:
-    // If admin (userId === "1"), return all projects.
-    // Otherwise, only return projects belonging to the logged-in userId.
+    // If admin (owner_telegram_id === "1"), return all projects.
+    // Otherwise, only return projects belonging to the logged-in owner_telegram_id.
     const userProjects = state.projects.filter(p => {
-      if (userId === "1") return true;
-      return p.userId === userId;
+      if (owner_telegram_id === "1") return true;
+      return p.owner_telegram_id === owner_telegram_id;
     });
 
     // Also filter files to only include files belonging to the filtered projects
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
     }
 
-    const userId = token.id as string;
+    const owner_telegram_id = (token.owner_telegram_id || token.id) as string;
     const body = await req.json();
     let { name, channel_id, storage_type, bots } = body;
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const apiKey = `sk_proj_${randomHex(16)}`;
     const newProject: Project = {
       id: globalThis.crypto.randomUUID(),
-      userId: userId, // Assign owner to isolate this workspace
+      owner_telegram_id: owner_telegram_id, // Assign owner to isolate this workspace
       name,
       api_key: apiKey,
       channel_id: channel_id || '',

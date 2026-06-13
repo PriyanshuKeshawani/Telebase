@@ -105,8 +105,8 @@ async function handleFetch(request, env, ctx) {
       </p>
       
       <!-- Status Badge -->
-      <div class="mt-4 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase \${isHealthy ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">
-        \${isHealthy ? 'Active & Secure' : 'Configuration Required'}
+      <div class="mt-4 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase ${isHealthy ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">
+        ${isHealthy ? 'Active & Secure' : 'Configuration Required'}
       </div>
       
       <div class="w-full border-t border-slate-800/80 my-6"></div>
@@ -115,60 +115,60 @@ async function handleFetch(request, env, ctx) {
       <div class="w-full space-y-4 text-left">
         <div class="bg-slate-950/40 border border-slate-800/50 p-4 rounded-2xl flex items-center justify-between">
           <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center \${isWorkerKeySet ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
-              \${isWorkerKeySet ? '✓' : '✗'}
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center ${isWorkerKeySet ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
+              ${isWorkerKeySet ? '✓' : '✗'}
             </div>
             <div>
               <p class="text-sm font-semibold">WORKER_KEY</p>
               <p class="text-xs text-slate-400">Environment Variable</p>
             </div>
           </div>
-          <span class="text-xs font-medium px-2.5 py-1 rounded-md \${isWorkerKeySet ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
-            \${isWorkerKeySet ? 'Configured' : 'Missing'}
+          <span class="text-xs font-medium px-2.5 py-1 rounded-md ${isWorkerKeySet ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
+            ${isWorkerKeySet ? 'Configured' : 'Missing'}
           </span>
         </div>
         
         <div class="bg-slate-950/40 border border-slate-800/50 p-4 rounded-2xl flex items-center justify-between">
           <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center \${isKVBound ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
-              \${isKVBound ? '✓' : '✗'}
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center ${isKVBound ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
+              ${isKVBound ? '✓' : '✗'}
             </div>
             <div>
               <p class="text-sm font-semibold">TELEBASE_KV Binding</p>
               <p class="text-xs text-slate-400">KV Namespace Variable</p>
             </div>
           </div>
-          <span class="text-xs font-medium px-2.5 py-1 rounded-md \${isKVBound ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
-            \${isKVBound ? 'Bound' : 'Missing'}
+          <span class="text-xs font-medium px-2.5 py-1 rounded-md ${isKVBound ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
+            ${isKVBound ? 'Bound' : 'Missing'}
           </span>
         </div>
 
         <div class="bg-slate-950/40 border border-slate-800/50 p-4 rounded-2xl flex items-center justify-between">
           <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center \${isKVFunctional ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
-              \${isKVFunctional ? '✓' : '✗'}
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center ${isKVFunctional ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
+              ${isKVFunctional ? '✓' : '✗'}
             </div>
             <div>
               <p class="text-sm font-semibold">KV Operations</p>
               <p class="text-xs text-slate-400">Read/Write Functionality</p>
             </div>
           </div>
-          <span class="text-xs font-medium px-2.5 py-1 rounded-md \${isKVFunctional ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
-            \${isKVFunctional ? 'Functional' : 'Failing'}
+          <span class="text-xs font-medium px-2.5 py-1 rounded-md ${isKVFunctional ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}">
+            ${isKVFunctional ? 'Functional' : 'Failing'}
           </span>
         </div>
       </div>
       
       <!-- Diagnostic Help Box -->
-      \${!isHealthy ? `
+      ${!isHealthy ? `
       <div class="w-full bg-slate-950/60 border border-amber-500/10 p-4 rounded-2xl text-left mt-6">
         <p class="text-xs font-semibold text-amber-400 flex items-center mb-2">
           <span class="mr-1.5">⚠️</span> Setup Instructions:
         </p>
         <ul class="text-[11px] text-slate-400 space-y-1.5 list-disc list-inside">
-          \${!isWorkerKeySet ? '<li>Go to Worker Dashboard &rarr; <b>Settings</b> &rarr; <b>Variables</b> &rarr; Add <b>WORKER_KEY</b> (value: <code>telebase_worker_secret_2026</code>)</li>' : ''}
-          \${!isKVBound ? '<li>Create a KV Namespace <b>TELEBASE_KV</b> &rarr; Go to Worker Settings &rarr; Bind it with variable name <b>TELEBASE_KV</b></li>' : ''}
-          \${(isKVBound && !isKVFunctional) ? `<li class="text-red-400">KV Namespace exists but failed read test: <code>\${kvErrorMsg}</code>. Make sure it is properly bound in settings!</li>` : ''}
+          ${!isWorkerKeySet ? '<li>Go to Worker Dashboard &rarr; <b>Settings</b> &rarr; <b>Variables</b> &rarr; Add <b>WORKER_KEY</b> (value: <code>telebase_worker_secret_2026</code>)</li>' : ''}
+          ${!isKVBound ? '<li>Create a KV Namespace <b>TELEBASE_KV</b> &rarr; Go to Worker Settings &rarr; Bind it with variable name <b>TELEBASE_KV</b></li>' : ''}
+          ${(isKVBound && !isKVFunctional) ? `<li class="text-red-400">KV Namespace exists but failed read test: <code>${kvErrorMsg}</code>. Make sure it is properly bound in settings!</li>` : ''}
         </ul>
       </div>
       ` : `

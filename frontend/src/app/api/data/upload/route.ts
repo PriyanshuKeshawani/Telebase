@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
     });
 
     const chunks: FileChunk[] = preparedChunks.map(pc => ({ chunk_index: pc.chunkIndex, message_id: 'pending_telegram_backup', iv: bytesToHex(pc.iv), auth_tag: bytesToHex(pc.authTag) }));
-    const newFile: StoredFile = { uuid: fileUuid, project_id: project.id, filename, version: 1, chunk_count: chunks.length, file_hash: fileHash, size: fileBytes.length, created_at: new Date().toISOString(), chunks };
+    const newFile: StoredFile = { uuid: fileUuid, project_id: project.id, owner_telegram_id: project.owner_telegram_id, filename, version: 1, chunk_count: chunks.length, file_hash: fileHash, size: fileBytes.length, created_at: new Date().toISOString(), chunks };
 
     try {
       const encryptedMeta = await encryptPayload(JSON.stringify(newFile));

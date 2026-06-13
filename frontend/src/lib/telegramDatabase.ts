@@ -134,7 +134,7 @@ export class TelebaseStateError extends Error {
 
 export interface Project {
   id: string;
-  userId?: string; // Links project to its owner user
+  owner_telegram_id?: string; // Links project to its owner user
   name: string;
   api_key: string;
   channel_id: string;
@@ -144,9 +144,8 @@ export interface Project {
 }
 
 export interface UserRecord {
-  id: string;
-  email: string;
-  passwordHash: string; // SHA-256 hex string
+  owner_telegram_id: string;
+  username?: string;
   created_at: string;
 }
 
@@ -168,6 +167,7 @@ export interface FileChunk {
 export interface StoredFile {
   uuid: string;
   project_id: string;
+  owner_telegram_id?: string; // Links file to its owner user
   filename: string;
   version: number;
   chunk_count: number;
@@ -177,11 +177,20 @@ export interface StoredFile {
   chunks: FileChunk[];
 }
 
+export interface LoginRequest {
+  code: string;
+  owner_telegram_id?: string;
+  expiresAt: number;
+  isUsed: boolean;
+  created_at: string;
+}
+
 export interface DatabaseSchema {
   projects: Project[];
   files: StoredFile[];
   users?: UserRecord[];
   pendingUsers?: PendingUser[];
+  loginRequests?: LoginRequest[];
   schemas?: Record<string, any>;
   last_pinned_message_id?: number;
   

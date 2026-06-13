@@ -14,17 +14,7 @@ try {
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-import { getDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
-
-async function sha256Hex(text: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data as any);
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "telebase2026";
+import { getDatabaseState, saveDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
 
 let handler: any = null;
 
@@ -38,49 +28,48 @@ async function getHandler() {
     const authOptions: any = {
       providers: [
         CredentialsProvider({
-          name: "Telebase Console Auth",
+          name: "Telebase Telegram Auth",
           credentials: {
-            email: { label: "Email", type: "text", placeholder: "user@example.com" },
-            password: { label: "Password", type: "password" }
+            code: { label: "Login Code", type: "text" }
           },
           async authorize(credentials) {
-            if (!credentials?.email || !credentials?.password) {
+            if (!credentials?.code) {
               return null;
             }
 
-            const email = credentials.email.toLowerCase().trim();
-            const password = credentials.password;
+            const code = credentials.code.trim();
 
-            // Fetch current database state to verify user
             let state;
             try {
               state = await getDatabaseState(true);
             } catch (error: any) {
               if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
-                state = { projects: [], files: [], users: [] };
+                return null;
               } else {
                 throw error;
               }
             }
-            const users = state.users || [];
 
-            const dbUser = users.find(u => u.email.toLowerCase() === email);
-            if (dbUser) {
-              const hash = await sha256Hex(password);
-              if (dbUser.passwordHash === hash) {
-                return { id: dbUser.id, email: dbUser.email, name: dbUser.email.split("@")[0] };
-              }
+            const requests = state.loginRequests || [];
+            const reqIdx = requests.findIndex((r: any) => r.code === code);
+            if (reqIdx === -1) {
+              return null;
             }
 
-            // Admin fallback
-            if (
-              (email === ADMIN_USERNAME.toLowerCase() || email === "admin@telebase.io") &&
-              password === ADMIN_PASSWORD
-            ) {
-              return { id: "1", name: "Administrator", email: "admin@telebase.io" };
+            const request = requests[reqIdx];
+            if (request.isUsed || request.expiresAt < Date.now() || !request.owner_telegram_id) {
+              return null;
             }
 
-            return null;
+            // Mark request as used to prevent replay attacks
+            request.isUsed = true;
+            await saveDatabaseState(state);
+
+            // Telegram user identity matches request owner telegram ID
+            return {
+              id: request.owner_telegram_id,
+              name: request.owner_telegram_id,
+            };
           }
         })
       ],
@@ -94,14 +83,14 @@ async function getHandler() {
       callbacks: {
         async jwt({ token, user }: any) {
           if (user) {
-            token.id = user.id;
-            token.email = user.email;
+            token.owner_telegram_id = user.id;
           }
           return token;
         },
         async session({ session, token }: any) {
           if (token && session.user) {
-            (session.user as any).id = token.id;
+            session.user.owner_telegram_id = token.owner_telegram_id;
+            session.user.id = token.owner_telegram_id;
           }
           return session;
         }
