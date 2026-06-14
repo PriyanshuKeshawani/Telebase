@@ -39,6 +39,9 @@ async function gzipCompress(rawBytes: Uint8Array): Promise<Uint8Array> {
 
 // --- Edge-compatible hex/bytes utilities ---
 function hexToBytes(hex: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(hex, 'hex'));
+  }
   const arr = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
   return arr;
