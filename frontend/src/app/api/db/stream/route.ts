@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readRawKV } from '@/lib/telegramDatabase';
-import crypto from 'crypto';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic'; // Ensures the request hits the edge worker, but we will return edge cache headers
@@ -20,7 +19,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Hash the encrypted hex to create a fast comparison token for the UI
-    const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(stateHex));
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-1', new TextEncoder().encode(stateHex));
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
