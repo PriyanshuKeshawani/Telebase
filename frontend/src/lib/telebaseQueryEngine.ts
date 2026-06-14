@@ -729,7 +729,7 @@ export async function saveTableRecords(
       chunks: [
         {
           chunk_index: 0,
-          message_id: '', // Cloud KV stored, no message ID needed
+          message_id: 'pending_telegram_backup', // Webhook will pick this up for background backup
           iv: bytesToHex(iv),
           auth_tag: bytesToHex(authTag)
         }

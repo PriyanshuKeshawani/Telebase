@@ -102,6 +102,84 @@ export async function POST(req: NextRequest) {
       const ok = await writeRawKV('telebase_state_current', encryptedHex);
       if (ok) {
         console.log(`[Webhook] Successfully synced DB update (msg: ${post.message_id}) to KV!`);
+        
+        // --- BACKGROUND TABLE BACKUP (ZERO-LATENCY FOR USER) ---
+        // The edge runtime will try to execute this after responding, if not killed immediately
+        // For Next.js on Cloudflare/Vercel, we can just fire-and-forget
+        (async () => {
+          try {
+            const { decryptPayload, encryptStateAsync, getDatabaseState, saveDatabaseState } = await import('@/lib/telegramDatabase');
+            const stateJson = await decryptPayload(encryptedHex);
+            const state = JSON.parse(stateJson);
+            
+            const pendingTables = state.files.filter((f: any) => 
+              f.filename.startsWith('table_') && 
+              f.chunks[0]?.message_id === 'pending_telegram_backup'
+            );
+
+            if (pendingTables.length > 0) {
+              console.log(`[Webhook] Found ${pendingTables.length} tables pending Telegram backup.`);
+              for (const tableFile of pendingTables) {
+                // Fetch table data from KV
+                const tableKey = `table_${tableFile.project_id}_${tableFile.filename.replace('table_' + tableFile.project_id + '_', '').replace('.json', '')}`;
+                let tableHex = '';
+                if (CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_KEY) {
+                  const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${tableKey}`, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+                  if (res.ok) tableHex = await res.text();
+                } else if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
+                  const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${tableKey}`, { headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
+                  if (res.ok) tableHex = await res.text();
+                }
+
+                if (tableHex) {
+                  // Upload to Telegram
+                  const formData = new FormData();
+                  formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+                  
+                  // hex to bytes
+                  const hexChars = tableHex.length;
+                  const encryptedBytes = new Uint8Array(hexChars / 2);
+                  for (let i = 0; i < hexChars; i += 2) {
+                    encryptedBytes[i / 2] = parseInt(tableHex.slice(i, i + 2), 16);
+                  }
+
+                  const chunkBlob = new Blob([encryptedBytes as any], { type: 'application/octet-stream' });
+                  formData.append('document', chunkBlob, `${tableFile.uuid}_table.enc`);
+
+                  const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+                    method: 'POST',
+                    body: formData
+                  });
+                  const uploadData = await uploadRes.json();
+                  
+                  if (uploadData.ok) {
+                    const fileId = uploadData.result.document.file_id;
+                    tableFile.chunks[0].message_id = fileId;
+                    console.log(`[Webhook] Successfully backed up ${tableFile.filename} to Telegram.`);
+                  }
+                }
+              }
+
+              // Save the updated state with the new message_ids back to KV and Telegram
+              const updatedHex = await encryptStateAsync(state);
+              await writeRawKV('telebase_state_current', updatedHex);
+              
+              const finalBuffer = new TextEncoder().encode(updatedHex);
+              const formData = new FormData();
+              formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+              if (state.last_pinned_message_id) {
+                formData.append('message_id', state.last_pinned_message_id.toString());
+                const media = { type: 'document', media: 'attach://telebase_db.json' };
+                formData.append('media', JSON.stringify(media));
+                const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
+                formData.append('telebase_db.json', fileBlob, 'telebase_db.json');
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageMedia`, { method: 'POST', body: formData });
+              }
+            }
+          } catch (e: any) {
+            console.error('[Webhook] Background table backup failed:', e.message);
+          }
+        })();
       } else {
         console.warn(`[Webhook] KV write failed.`);
       }

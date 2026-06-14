@@ -31,23 +31,11 @@ function bytesToHex(bytes: Uint8Array): string {
   return hexChars.join('');
 }
 
-async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
-  const cs = new globalThis.CompressionStream('gzip');
-  const writer = cs.writable.getWriter();
-  writer.write(data as any);
-  writer.close();
-  const chunks: Uint8Array[] = [];
-  const reader = cs.readable.getReader();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  const totalLen = chunks.reduce((a, c) => a + c.length, 0);
-  const result = new Uint8Array(totalLen);
-  let off = 0;
-  for (const c of chunks) { result.set(c, off); off += c.length; }
-  return result;
+async function gzipCompress(rawBytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Response(rawBytes as any).body
+    ?.pipeThrough(new globalThis.CompressionStream('gzip') as any);
+  const compressedBuffer = await new Response(stream as any).arrayBuffer();
+  return new Uint8Array(compressedBuffer);
 }
 
 async function aesGcmEncryptChunk(keyBytes: Uint8Array, plaintext: Uint8Array): Promise<{ iv: Uint8Array; authTag: Uint8Array; cipherText: Uint8Array }> {
