@@ -204,7 +204,8 @@ export async function GET(
     const isCompressed = fileRecord.is_compressed !== false; // Default true
     if ((fileRecord.version === 1 || fileRecord.version === undefined) && isCompressed) {
       // Buffer and decompress in memory to salvage corrupted gzip tails
-      const ds = new DecompressionStream('gzip');
+      const DS = (globalThis as any).DecompressionStream;
+      const ds = new DS('gzip');
       const decompressedStream = stream.pipeThrough(ds);
       const reader = decompressedStream.getReader();
       const chunks: Uint8Array[] = [];

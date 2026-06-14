@@ -129,9 +129,9 @@ export async function POST(req: NextRequest) {
       const end = Math.min(offset + CHUNK_SIZE, finalBytes.length);
       const chunkData = finalBytes.slice(offset, end);
       
-      let iv = new Uint8Array(0);
-      let authTag = new Uint8Array(0);
-      let cipherText = chunkData;
+      let iv: any = new Uint8Array(0);
+      let authTag: any = new Uint8Array(0);
+      let cipherText: any = chunkData;
 
       if (encryptFiles) {
         const encrypted = await aesGcmEncryptChunk(projectAESKey, chunkData);
