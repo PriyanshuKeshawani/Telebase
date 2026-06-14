@@ -1029,9 +1029,38 @@ export default function Dashboard() {
       const fileUuid = crypto.randomUUID();
       const originalSize = file.size;
 
-      // 2. We NO LONGER compress the file! Compression caused severe Edge CPU timeouts during decompression for large files.
-      // We directly chunk the raw file buffer.
-      const compressedBytes = new Uint8Array(fileBuffer);
+      // 2. Safely compress using CompressionStream with chunked streaming
+      const cs = new CompressionStream('gzip');
+      const writer = cs.writable.getWriter();
+      const reader = file.stream().getReader();
+      
+      const pump = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            await writer.close();
+            break;
+          }
+          await writer.write(value);
+        }
+      };
+      pump(); // run in background
+
+      const chunksOut = [];
+      const outReader = cs.readable.getReader();
+      while (true) {
+        const { done, value } = await outReader.read();
+        if (done) break;
+        chunksOut.push(value);
+      }
+      
+      const totalLen = chunksOut.reduce((a, c) => a + c.length, 0);
+      const compressedBytes = new Uint8Array(totalLen);
+      let off = 0;
+      for (const c of chunksOut) {
+        compressedBytes.set(c, off);
+        off += c.length;
+      }
 
       setUploadStatus("chunking");
       setUploadStatusText("Uploading and encrypting chunks...");
@@ -1105,7 +1134,7 @@ export default function Dashboard() {
           filename: file.name,
           fileHash,
           size: originalSize,
-          version: 2,
+          version: 1, // V1 indicates compressed bytes
           chunks: uploadedChunks
         })
       });
