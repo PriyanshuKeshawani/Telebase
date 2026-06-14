@@ -196,12 +196,40 @@ export async function GET(
       }
     });
 
-    let finalStream: ReadableStream = stream;
     if (fileRecord.version === 1 || fileRecord.version === undefined) {
-      finalStream = stream.pipeThrough(new DecompressionStream('gzip'));
+      // Buffer and decompress in memory to salvage corrupted gzip tails
+      const ds = new DecompressionStream('gzip');
+      const decompressedStream = stream.pipeThrough(ds);
+      const reader = decompressedStream.getReader();
+      const chunks: Uint8Array[] = [];
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+      } catch (err: any) {
+        console.warn(`[Download Warning] Salvaged corrupted gzip stream for "${fileRecord.filename}":`, err.message);
+      }
+      
+      const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
+      const salvagedBuffer = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        salvagedBuffer.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      return new NextResponse(salvagedBuffer, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
+          'Cache-Control': 'no-store, max-age=0'
+        }
+      });
     }
 
-    return new NextResponse(finalStream, {
+    return new NextResponse(stream, {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,

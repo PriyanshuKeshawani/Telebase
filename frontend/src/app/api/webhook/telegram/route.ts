@@ -169,10 +169,10 @@ export async function POST(req: NextRequest) {
               formData.append('chat_id', TELEGRAM_CHANNEL_ID);
               if (state.last_pinned_message_id) {
                 formData.append('message_id', state.last_pinned_message_id.toString());
-                const media = { type: 'document', media: 'attach://telebase_db.json' };
+                const media = { type: 'document', media: 'attach://document' };
                 formData.append('media', JSON.stringify(media));
                 const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
-                formData.append('telebase_db.json', fileBlob, 'telebase_db.json');
+                formData.append('document', fileBlob, 'telebase_db.json');
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageMedia`, { method: 'POST', body: formData });
               }
             }

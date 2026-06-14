@@ -359,12 +359,12 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
         
         const media = {
           type: 'document',
-          media: 'attach://telebase_db.json'
+          media: 'attach://document'
         };
         formData.append('media', JSON.stringify(media));
         
         const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
-        formData.append('telebase_db.json', fileBlob, 'telebase_db.json');
+        formData.append('document', fileBlob, 'telebase_db.json');
         
         const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageMedia`, {
           method: 'POST',
