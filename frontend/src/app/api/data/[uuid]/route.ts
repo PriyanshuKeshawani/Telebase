@@ -161,7 +161,12 @@ export async function GET(
               cipherText = await fetchBinaryWithRetry(downloadUrl);
             }
 
-            // 4. Decrypt using AES-256-GCM
+            // 4. Decrypt using AES-256-GCM (if encrypted)
+            const isEncrypted = fileRecord.is_encrypted !== false; // Default true
+            if (!isEncrypted) {
+              return cipherText;
+            }
+
             const iv = hexToBytes(chunk.iv);
             const authTag = hexToBytes(chunk.auth_tag);
             return await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
@@ -196,7 +201,8 @@ export async function GET(
       }
     });
 
-    if (fileRecord.version === 1 || fileRecord.version === undefined) {
+    const isCompressed = fileRecord.is_compressed !== false; // Default true
+    if ((fileRecord.version === 1 || fileRecord.version === undefined) && isCompressed) {
       // Buffer and decompress in memory to salvage corrupted gzip tails
       const ds = new DecompressionStream('gzip');
       const decompressedStream = stream.pipeThrough(ds);

@@ -173,6 +173,11 @@ export class TelebaseStateError extends Error {
   }
 }
 
+export interface StorageOptions {
+  compress_files: boolean;
+  encrypt_files: boolean;
+}
+
 export interface Project {
   id: string;
   owner_telegram_id?: string; // Links project to its owner user
@@ -180,6 +185,7 @@ export interface Project {
   api_key: string;
   channel_id: string;
   storage_type: 'TELEGRAM' | 'SUPABASE';
+  storage_options?: StorageOptions;
   bots: string[];
   created_at: string;
 }
@@ -215,6 +221,8 @@ export interface StoredFile {
   file_hash: string;
   size: number;
   created_at: string;
+  is_compressed?: boolean; // Default to true if undefined
+  is_encrypted?: boolean; // Default to true if undefined
   chunks: FileChunk[];
 }
 

@@ -248,6 +248,10 @@ export default function Dashboard() {
   const [newBotTokenInput, setNewBotTokenInput] = useState("");
   const [isAddingBot, setIsAddingBot] = useState(false);
 
+  // Storage Settings States
+  const [isUpdatingStorageSettings, setIsUpdatingStorageSettings] = useState(false);
+  const [compressFiles, setCompressFiles] = useState(true);
+  const [encryptFiles, setEncryptFiles] = useState(true);
   // Drag and Drop Uploader States
   const [isDragActive, setIsDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "compressing" | "chunking" | "uploading" | "success" | "error">("idle");
@@ -271,6 +275,14 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const currentProject = projects.find(p => p.id === selectedProjectId);
+
+  useEffect(() => {
+    if (currentProject) {
+      setCompressFiles(currentProject.storage_options?.compress_files ?? true);
+      setEncryptFiles(currentProject.storage_options?.encrypt_files ?? true);
+    }
+  }, [currentProject?.id]);
+
   const projectFiles = files.filter(f => f.project_id === selectedProjectId);
 
   const getFilteredRecords = () => {
@@ -295,6 +307,41 @@ export default function Dashboard() {
     });
   };
   const filteredRecords = getFilteredRecords();
+
+  const handleUpdateStorageSettings = async (compress: boolean, encrypt: boolean) => {
+    if (!currentProject) return;
+    setIsUpdatingStorageSettings(true);
+    try {
+      const res = await fetch('/api/project/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': currentProject.api_key
+        },
+        body: JSON.stringify({
+          projectId: currentProject.id,
+          storage_options: {
+            compress_files: compress,
+            encrypt_files: encrypt
+          }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update settings');
+      
+      setCompressFiles(compress);
+      setEncryptFiles(encrypt);
+      setProjects(prev => prev.map(p => p.id === currentProject.id ? data.project : p));
+      
+    } catch (err: any) {
+      alert(err.message);
+      // Revert states
+      setCompressFiles(currentProject.storage_options?.compress_files ?? true);
+      setEncryptFiles(currentProject.storage_options?.encrypt_files ?? true);
+    } finally {
+      setIsUpdatingStorageSettings(false);
+    }
+  };
 
   // Load database state
   const loadDatabase = async (forceSync = false) => {
@@ -3016,6 +3063,62 @@ When writing code for the developer:
                     <p className="text-[12px] text-emerald-300/80 leading-relaxed">
                       <strong>End-to-End Encrypted.</strong> All uploads are compressed (zlib) and fully encrypted via AES-256-GCM. Telegram servers only see encrypted binary data.
                     </p>
+                  </div>
+
+                  {/* Storage Settings */}
+                  <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] mb-6">
+                    <h3 className="text-sm font-bold text-zinc-200 mb-4 flex items-center gap-2">
+                      <Settings size={15} className="text-zinc-400" />
+                      Storage Settings
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {/* Compress Toggle */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-[13px] font-semibold text-zinc-300">Compress Uploads (gzip)</h4>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">Compresses file data using zlib before uploading. Disabling it speeds up uploads but consumes more Telegram storage.</p>
+                        </div>
+                        <button
+                          onClick={() => handleUpdateStorageSettings(!compressFiles, encryptFiles)}
+                          disabled={isUpdatingStorageSettings}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent focus:outline-none transition-colors ${
+                            compressFiles ? 'bg-blue-600' : 'bg-zinc-700'
+                          } ${isUpdatingStorageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span className="sr-only">Toggle Compression</span>
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              compressFiles ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="h-px w-full bg-zinc-800/60" />
+
+                      {/* Encrypt Toggle */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-[13px] font-semibold text-zinc-300">End-to-End Encryption (AES-GCM)</h4>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">Encrypts files before sending them to Telegram. Disabling it means Telegram servers can read the raw binary data.</p>
+                        </div>
+                        <button
+                          onClick={() => handleUpdateStorageSettings(compressFiles, !encryptFiles)}
+                          disabled={isUpdatingStorageSettings}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent focus:outline-none transition-colors ${
+                            encryptFiles ? 'bg-emerald-600' : 'bg-zinc-700'
+                          } ${isUpdatingStorageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span className="sr-only">Toggle Encryption</span>
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              encryptFiles ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Upload Area */}

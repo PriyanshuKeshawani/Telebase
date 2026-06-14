@@ -109,7 +109,14 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Upload] Processing "${filename}" (${(fileBytes.length / 1024).toFixed(2)} KB)...`);
 
-    const compressedBytes = await gzipCompress(fileBytes);
+    const compressFiles = project.storage_options?.compress_files ?? true;
+    const encryptFiles = project.storage_options?.encrypt_files ?? true;
+
+    let finalBytes = fileBytes;
+    if (compressFiles) {
+      finalBytes = await gzipCompress(fileBytes);
+    }
+    
     const fileHash = bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', fileBytes as any)));
     const fileUuid = globalThis.crypto.randomUUID();
     const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
@@ -118,9 +125,21 @@ export async function POST(req: NextRequest) {
     const preparedChunks: PreparedChunk[] = [];
     let offset = 0, chunkIdx = 0;
 
-    while (offset < compressedBytes.length) {
-      const end = Math.min(offset + CHUNK_SIZE, compressedBytes.length);
-      const { iv, authTag, cipherText } = await aesGcmEncryptChunk(projectAESKey, compressedBytes.slice(offset, end));
+    while (offset < finalBytes.length) {
+      const end = Math.min(offset + CHUNK_SIZE, finalBytes.length);
+      const chunkData = finalBytes.slice(offset, end);
+      
+      let iv = new Uint8Array(0);
+      let authTag = new Uint8Array(0);
+      let cipherText = chunkData;
+
+      if (encryptFiles) {
+        const encrypted = await aesGcmEncryptChunk(projectAESKey, chunkData);
+        iv = encrypted.iv;
+        authTag = encrypted.authTag;
+        cipherText = encrypted.cipherText;
+      }
+      
       offset = end;
       const botToken = project.bots.length > 0 ? project.bots[chunkIdx % project.bots.length] : BOT_TOKEN;
       let channelId = formatTelegramChannelId(project.channel_id || TELEGRAM_CHANNEL_ID);
@@ -150,7 +169,14 @@ export async function POST(req: NextRequest) {
     });
 
     const chunks: FileChunk[] = preparedChunks.map(pc => ({ chunk_index: pc.chunkIndex, message_id: 'pending_telegram_backup', iv: bytesToHex(pc.iv), auth_tag: bytesToHex(pc.authTag) }));
-    const newFile: StoredFile = { uuid: fileUuid, project_id: project.id, owner_telegram_id: project.owner_telegram_id, filename, version: 1, chunk_count: chunks.length, file_hash: fileHash, size: fileBytes.length, created_at: new Date().toISOString(), chunks };
+    const newFile: StoredFile = { 
+      uuid: fileUuid, project_id: project.id, owner_telegram_id: project.owner_telegram_id, 
+      filename, version: 1, chunk_count: chunks.length, file_hash: fileHash, size: fileBytes.length, 
+      created_at: new Date().toISOString(), 
+      is_compressed: compressFiles,
+      is_encrypted: encryptFiles,
+      chunks 
+    };
 
     try {
       const encryptedMeta = await encryptPayload(JSON.stringify(newFile));
