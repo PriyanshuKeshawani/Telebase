@@ -1055,7 +1055,7 @@ export default function Dashboard() {
       setUploadProgress(15);
 
       // 3. Chunk the compressed bytes and upload
-      const CHUNK_SIZE = 19 * 1024 * 1024; // 19MB
+      const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
       const totalChunks = Math.ceil(compressedBytes.length / CHUNK_SIZE);
       const uploadedChunks: any[] = [];
       
