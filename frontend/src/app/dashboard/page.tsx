@@ -1018,56 +1018,132 @@ export default function Dashboard() {
     if (!currentProject) return;
 
     setUploadStatus("compressing");
-    setUploadStatusText("Compressing file payload (gzipSync)...");
-    setUploadProgress(15);
+    setUploadStatusText("Compressing file payload (client-side gzip)...");
+    setUploadProgress(5);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // 1. Compute original file hash and get UUID
+      const fileBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
+      const fileHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      const fileUuid = crypto.randomUUID();
+      const originalSize = file.size;
 
-      setTimeout(() => {
-        setUploadStatus("chunking");
-        setUploadStatusText("Chunking & encrypting chunks (AES-256-GCM)...");
-        setUploadProgress(45);
-      }, 800);
+      // 2. Compress the file using native CompressionStream
+      const cs = new CompressionStream('gzip');
+      const writer = cs.writable.getWriter();
+      writer.write(new Uint8Array(fileBuffer));
+      writer.close();
 
-      setTimeout(() => {
-        setUploadStatus("uploading");
-        setUploadStatusText("Uploading loads to Telegram channel...");
-        setUploadProgress(75);
-      }, 1600);
-
-      const res = await fetch("/api/data/upload", {
-        method: "POST",
-        headers: {
-          "x-api-key": currentProject.api_key
-        },
-        body: formData
-      });
-
-      if (!res.ok) {
-        if (res.status === 413) {
-          throw new Error("File is too large for your hosting provider or proxy (e.g., Vercel limits uploads to 4.5MB, Nginx limits to 1MB). Please upload a smaller file or increase your server's upload limit.");
-        }
-        let errText = "";
-        try {
-          errText = await res.text();
-        } catch (_) {}
-        throw new Error(errText || `Upload failed with status ${res.status}`);
+      const chunksOut = [];
+      const reader = cs.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunksOut.push(value);
+      }
+      const totalLen = chunksOut.reduce((a, c) => a + c.length, 0);
+      const compressedBytes = new Uint8Array(totalLen);
+      let off = 0;
+      for (const c of chunksOut) {
+        compressedBytes.set(c, off);
+        off += c.length;
       }
 
-      const data = await res.json();
-      if (data.success) {
+      setUploadStatus("chunking");
+      setUploadStatusText("Uploading and encrypting chunks...");
+      setUploadProgress(15);
+
+      // 3. Chunk the compressed bytes and upload
+      const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
+      const totalChunks = Math.ceil(compressedBytes.length / CHUNK_SIZE);
+      const uploadedChunks: any[] = [];
+      
+      const uploadChunk = async (chunkIndex: number, start: number, end: number) => {
+        const chunkBytes = compressedBytes.slice(start, end);
+        const res = await fetch("/api/data/upload/chunk", {
+          method: "POST",
+          headers: {
+            "x-api-key": currentProject.api_key,
+            "x-file-uuid": fileUuid,
+            "x-chunk-index": chunkIndex.toString()
+          },
+          body: chunkBytes
+        });
+        
+        if (!res.ok) {
+           if (res.status === 413) {
+             throw new Error("Chunk is too large for your hosting provider.");
+           }
+           const errText = await res.text().catch(() => "");
+           throw new Error(errText || `Chunk ${chunkIndex} upload failed with status ${res.status}`);
+        }
+        
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || `Chunk ${chunkIndex} upload failed`);
+        return data.chunkData;
+      };
+
+      // Upload chunks concurrently (e.g. 3 at a time)
+      const CONCURRENCY = 3;
+      const executing = new Set<Promise<void>>();
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, compressedBytes.length);
+        
+        const p = uploadChunk(i, start, end).then(chunkData => {
+           uploadedChunks.push(chunkData);
+           setUploadProgress(15 + Math.floor((uploadedChunks.length / totalChunks) * 75));
+        });
+        
+        executing.add(p);
+        p.finally(() => executing.delete(p));
+        
+        if (executing.size >= CONCURRENCY) {
+          await Promise.race(executing);
+        }
+      }
+      await Promise.all(executing);
+
+      setUploadStatus("uploading");
+      setUploadStatusText("Finalizing database state...");
+      setUploadProgress(95);
+
+      // 4. Finalize the upload
+      const finalizeRes = await fetch("/api/data/upload/finalize", {
+        method: "POST",
+        headers: {
+          "x-api-key": currentProject.api_key,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fileUuid,
+          filename: file.name,
+          fileHash,
+          size: originalSize,
+          chunks: uploadedChunks
+        })
+      });
+
+      if (!finalizeRes.ok) {
+        const errText = await finalizeRes.text().catch(() => "");
+        throw new Error(errText || `Finalize failed with status ${finalizeRes.status}`);
+      }
+      
+      const finalizeData = await finalizeRes.json();
+      if (finalizeData.success) {
         setUploadStatus("success");
-        setUploadStatusText(`Successfully saved! Size: ${(data.file.size / 1024 / 1024).toFixed(2)} MB`);
+        setUploadStatusText(`Successfully saved! Size: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
         setUploadProgress(100);
         await loadDatabase();
         setTimeout(() => {
           setUploadStatus("idle");
         }, 3000);
       } else {
-        throw new Error(data.error || "Upload failed");
+        throw new Error(finalizeData.error || "Finalize failed");
       }
+
     } catch (error: any) {
       setUploadStatus("error");
       setUploadStatusText(`Error: ${error.message}`);

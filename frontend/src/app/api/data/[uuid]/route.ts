@@ -112,13 +112,19 @@ export async function GET(
 
     console.log(`[Download] Streaming "${fileRecord.filename}" (${fileRecord.chunk_count} chunks)...`);
 
+    // Ensure chunks are sorted by index to prevent sequential corruption
+    fileRecord.chunks.sort((a, b) => a.chunk_index - b.chunk_index);
+
     // Derive project AES key using Web Crypto
     const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for (let i = 0; i < fileRecord.chunks.length; i++) {
+          const PREFETCH_WINDOW = 4;
+          const activeFetches = new Map<number, Promise<Uint8Array>>();
+
+          const fetchChunkData = async (i: number): Promise<Uint8Array> => {
             const chunk = fileRecord.chunks[i];
             const botToken = project.bots.length > 0 ? project.bots[i % project.bots.length] : BOT_TOKEN;
             const kvKey = `chunk_${fileRecord.uuid}_${chunk.chunk_index}`;
@@ -155,8 +161,28 @@ export async function GET(
             // 4. Decrypt using AES-256-GCM
             const iv = hexToBytes(chunk.iv);
             const authTag = hexToBytes(chunk.auth_tag);
-            const decryptedChunk = await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
+            return await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
+          };
+
+          // Kick off initial prefetches
+          for (let i = 0; i < Math.min(PREFETCH_WINDOW, fileRecord.chunks.length); i++) {
+            activeFetches.set(i, fetchChunkData(i));
+          }
+
+          for (let i = 0; i < fileRecord.chunks.length; i++) {
+            if (!activeFetches.has(i)) {
+              activeFetches.set(i, fetchChunkData(i));
+            }
+
+            const decryptedChunk = await activeFetches.get(i);
             controller.enqueue(decryptedChunk);
+            activeFetches.delete(i);
+
+            // Queue the next fetch
+            const nextIdx = i + PREFETCH_WINDOW;
+            if (nextIdx < fileRecord.chunks.length) {
+              activeFetches.set(nextIdx, fetchChunkData(nextIdx));
+            }
           }
           console.log(`[Download] Streaming complete for "${fileRecord.filename}"`);
           controller.close();
@@ -167,10 +193,11 @@ export async function GET(
       }
     });
 
-    return new NextResponse(stream, {
+    const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+
+    return new NextResponse(decompressedStream, {
       headers: {
         'Content-Type': 'application/octet-stream',
-        'Content-Encoding': 'gzip',
         'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
         'Cache-Control': 'no-store, max-age=0'
       }
