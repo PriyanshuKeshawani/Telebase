@@ -453,6 +453,34 @@ export default function Dashboard() {
     }
   }, [status]);
 
+  // Edge-Cached Realtime Polling Hook
+  const [dbHash, setDbHash] = useState<string | null>(null);
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    const pollRealtime = async () => {
+      try {
+        const res = await fetch('/api/db/stream', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (dbHash && data.hash && data.hash !== dbHash) {
+            console.log('[Realtime] Database state change detected via Webhook sync. Reloading...');
+            await loadDatabase(true);
+          }
+          if (data.hash) {
+            setDbHash(data.hash);
+          }
+        }
+      } catch (e) {}
+    };
+    
+    if (status === "authenticated") {
+      pollRealtime();
+      interval = setInterval(pollRealtime, 3000);
+    }
+    
+    return () => clearInterval(interval);
+  }, [status, dbHash]);
+
   useEffect(() => {
     if (selectedProjectId) {
       loadDBMetadata(selectedProjectId);
@@ -3306,6 +3334,34 @@ When writing code for the developer:
                     <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
                       Rotated bots handle chunk fetches and uploads concurrently, circumventing Telegram API rate limits. Add multiple bot tokens for high-throughput workloads.
                     </p>
+
+                    {/* Realtime Webhook Setting */}
+                    <div className="mb-8 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-2 mb-1">
+                            <Zap size={14} /> Telegram Realtime Webhook
+                          </h4>
+                          <p className="text-[10px] text-zinc-400">
+                            Connect your bot to Cloudflare Edge to receive instant, 0-cost realtime updates across all connected clients.
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/webhook/telegram/setup', { method: 'POST' });
+                              const data = await res.json();
+                              alert(data.success ? data.message : "Error: " + data.error);
+                            } catch (e: any) {
+                              alert("Setup failed: " + e.message);
+                            }
+                          }}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg transition-all shadow-lg shadow-emerald-500/20"
+                        >
+                          Connect Realtime
+                        </button>
+                      </div>
+                    </div>
 
                     <form onSubmit={handleRegisterBot} className="flex gap-2 mb-6">
                       <input

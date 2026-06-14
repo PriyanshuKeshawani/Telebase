@@ -279,7 +279,7 @@ export async function encryptStateAsync(state: DatabaseSchema): Promise<string> 
   return bytesToHex(payload);
 }
 
-async function readRawKV(key: string): Promise<string | null> {
+export async function readRawKV(key: string): Promise<string | null> {
   const kvBinding = getKVBinding();
   if (kvBinding && typeof kvBinding.get === 'function') {
     try {
