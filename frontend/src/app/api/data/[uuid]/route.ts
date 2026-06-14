@@ -196,9 +196,12 @@ export async function GET(
       }
     });
 
-    const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+    let finalStream: ReadableStream = stream;
+    if (fileRecord.version === 1 || fileRecord.version === undefined) {
+      finalStream = stream.pipeThrough(new DecompressionStream('gzip'));
+    }
 
-    return new NextResponse(decompressedStream, {
+    return new NextResponse(finalStream, {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,

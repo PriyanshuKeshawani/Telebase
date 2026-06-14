@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!project) return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
 
     const body = await req.json();
-    const { fileUuid, filename, fileHash, size, chunks } = body;
+    const { fileUuid, filename, fileHash, size, chunks, version } = body;
 
     if (!fileUuid || !filename || !fileHash || typeof size !== 'number' || !Array.isArray(chunks)) {
       return NextResponse.json({ success: false, error: 'Missing or invalid fields in request body' }, { status: 400 });
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       project_id: project.id,
       owner_telegram_id: project.owner_telegram_id,
       filename,
-      version: 1,
+      version: version || 1,
       chunk_count: fileChunks.length,
       file_hash: fileHash,
       size,
