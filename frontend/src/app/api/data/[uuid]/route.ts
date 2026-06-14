@@ -69,7 +69,7 @@ async function fetchBinaryWithRetry(url: string, options?: RequestInit, retries 
   throw new Error('Binary fetch failed after maximum retries');
 }
 
-async function fetchChunkFromKV(kvKey: string): Promise<Uint8Array | null> {
+async function fetchChunkFromKV(kvKey: string, isEncrypted: boolean): Promise<Uint8Array | null> {
   if (isCFWorkerConfigured) {
     try {
       const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
@@ -77,7 +77,11 @@ async function fetchChunkFromKV(kvKey: string): Promise<Uint8Array | null> {
         const hex = await res.text();
         if (hex && hex !== 'Not found') {
           const buf = hexToBytes(hex);
-          if (buf.length >= 28) return buf.slice(28); // strip IV+authTag header, return ciphertext
+          if (isEncrypted) {
+            if (buf.length >= 28) return buf.slice(28); // strip IV+authTag header, return ciphertext
+            return buf;
+          }
+          return buf;
         }
       }
     } catch (e) {}
@@ -87,8 +91,14 @@ async function fetchChunkFromKV(kvKey: string): Promise<Uint8Array | null> {
       const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
       if (res.ok) {
         const hex = await res.text();
-        const buf = hexToBytes(hex);
-        if (buf.length >= 28) return buf.slice(28);
+        if (hex && hex !== 'Not found') {
+          const buf = hexToBytes(hex);
+          if (isEncrypted) {
+            if (buf.length >= 28) return buf.slice(28);
+            return buf;
+          }
+          return buf;
+        }
       }
     } catch (e) {}
   }
@@ -136,15 +146,17 @@ export async function GET(
 
             let cipherText: Uint8Array | null = null;
 
+            const isEncrypted = fileRecord.is_encrypted !== false; // Default true
+
             // 1. Try Cloudflare KV (fast path)
-            cipherText = await fetchChunkFromKV(kvKey);
+            cipherText = await fetchChunkFromKV(kvKey, isEncrypted);
 
             // 2. Fallback: pending backup - retry KV
             if (!cipherText && chunk.message_id === 'pending_telegram_backup') {
               console.log(`[Download] Chunk ${chunk.chunk_index} pending. Retrying KV...`);
               for (let attempt = 0; attempt < 10 && !cipherText; attempt++) {
                 await new Promise(r => setTimeout(r, 1000));
-                cipherText = await fetchChunkFromKV(kvKey);
+                cipherText = await fetchChunkFromKV(kvKey, isEncrypted);
               }
               if (!cipherText) throw new Error(`Chunk ${chunk.chunk_index} pending backup and not available in KV.`);
             }
@@ -162,7 +174,6 @@ export async function GET(
             }
 
             // 4. Decrypt using AES-256-GCM (if encrypted)
-            const isEncrypted = fileRecord.is_encrypted !== false; // Default true
             if (!isEncrypted) {
               return cipherText;
             }

@@ -84,9 +84,9 @@ export async function POST(req: NextRequest) {
 
     const encryptFiles = project.storage_options?.encrypt_files ?? true;
     
-    let iv = new Uint8Array(0);
-    let authTag = new Uint8Array(0);
-    let cipherText = chunkBytes;
+    let iv: any = new Uint8Array(0);
+    let authTag: any = new Uint8Array(0);
+    let cipherText: any = chunkBytes;
 
     if (encryptFiles) {
       const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
