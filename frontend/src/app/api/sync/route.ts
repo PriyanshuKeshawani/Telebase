@@ -11,8 +11,20 @@ function hexToBytes(hex: string): Uint8Array {
   return arr;
 }
 // Edge-compatible bytes-to-hex
+const byteToHex: string[] = [];
+for (let n = 0; n <= 0xff; ++n) {
+  byteToHex.push(n.toString(16).padStart(2, '0'));
+}
+
 function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('hex');
+  }
+  const hexChars = new Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    hexChars[i] = byteToHex[bytes[i]];
+  }
+  return hexChars.join('');
 }
 
 export async function POST() {

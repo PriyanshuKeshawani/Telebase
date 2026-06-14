@@ -15,8 +15,20 @@ const CLOUDFLARE_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 
 // --- Edge-compatible helpers ---
+const byteToHex: string[] = [];
+for (let n = 0; n <= 0xff; ++n) {
+  byteToHex.push(n.toString(16).padStart(2, '0'));
+}
+
 function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('hex');
+  }
+  const hexChars = new Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    hexChars[i] = byteToHex[bytes[i]];
+  }
+  return hexChars.join('');
 }
 
 async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
