@@ -213,7 +213,7 @@ export async function GET(
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          if (value) chunks.push(value);
+          if (value) chunks.push(value as any);
         }
       } catch (err: any) {
         console.warn(`[Download Warning] Salvaged corrupted gzip stream for "${fileRecord.filename}":`, err.message);
