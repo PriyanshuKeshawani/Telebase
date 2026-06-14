@@ -347,10 +347,39 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
   if (!BOT_TOKEN || !TELEGRAM_CHANNEL_ID) return;
   const stateText = new TextDecoder().decode(finalBuffer);
 
-  // If the serialized state exceeds Telegram message length limit (4096),
-  // send it as a document instead.
   if (stateText.length >= 4000) {
     console.log('[TeleStore] State size exceeds 4000 characters. Uploading as a document...');
+    
+    // Try to edit the existing document first to keep channel clean
+    if (state.last_pinned_message_id) {
+      try {
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+        formData.append('message_id', state.last_pinned_message_id.toString());
+        
+        const media = {
+          type: 'document',
+          media: 'attach://telebase_db.json'
+        };
+        formData.append('media', JSON.stringify(media));
+        
+        const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
+        formData.append('telebase_db.json', fileBlob, 'telebase_db.json');
+        
+        const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageMedia`, {
+          method: 'POST',
+          body: formData
+        });
+        const editData = await editRes.json();
+        if (editData.ok) {
+          console.log('[TeleStore] Successfully edited pinned document database state.');
+          return;
+        }
+      } catch (e: any) {
+        console.warn('[TeleStore] Failed to edit document media, sending new one:', e.message);
+      }
+    }
+
     const formData = new FormData();
     formData.append('chat_id', TELEGRAM_CHANNEL_ID);
     const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
