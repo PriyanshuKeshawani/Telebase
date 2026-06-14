@@ -19,6 +19,7 @@ interface Project {
   api_key: string;
   channel_id: string;
   storage_type: "TELEGRAM" | "SUPABASE";
+  storage_options?: { compress_files?: boolean; encrypt_files?: boolean; };
   bots: string[];
   created_at: string;
 }
