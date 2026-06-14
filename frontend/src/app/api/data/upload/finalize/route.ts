@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
       file_hash: fileHash,
       size,
       created_at: new Date().toISOString(),
+      is_compressed: project.storage_options?.compress_files ?? true,
+      is_encrypted: project.storage_options?.encrypt_files ?? true,
       chunks: fileChunks
     };
 

@@ -82,8 +82,19 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Upload Chunk API] Processing chunk ${chunkIndex} for file ${fileUuid} (${(chunkBytes.length / 1024).toFixed(2)} KB)...`);
 
-    const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
-    const { iv, authTag, cipherText } = await aesGcmEncryptChunk(projectAESKey, chunkBytes);
+    const encryptFiles = project.storage_options?.encrypt_files ?? true;
+    
+    let iv = new Uint8Array(0);
+    let authTag = new Uint8Array(0);
+    let cipherText = chunkBytes;
+
+    if (encryptFiles) {
+      const projectAESKey = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(project.api_key) as any));
+      const encrypted = await aesGcmEncryptChunk(projectAESKey, chunkBytes);
+      iv = encrypted.iv;
+      authTag = encrypted.authTag;
+      cipherText = encrypted.cipherText;
+    }
 
     const botToken = project.bots.length > 0 ? project.bots[chunkIndex % project.bots.length] : BOT_TOKEN;
     const channelId = formatTelegramChannelId(project.channel_id || TELEGRAM_CHANNEL_ID);
@@ -114,6 +125,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Upload to Telegram
     console.log(`[Upload Chunk API] Uploading chunk ${chunkIndex} to Telegram...`);
+    // If not encrypted, we can upload as .bin or .enc. Telegram doesn't care.
     const fileId = await uploadTelegramWithRetry(botToken, channelId, fileUuid, chunkIndex, cipherText);
     console.log(`[Upload Chunk API] Chunk ${chunkIndex} uploaded successfully. Telegram File ID: ${fileId}`);
 

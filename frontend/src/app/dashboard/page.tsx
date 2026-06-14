@@ -1093,8 +1093,13 @@ export default function Dashboard() {
   const handleFileUpload = async (file: File) => {
     if (!currentProject) return;
 
-    setUploadStatus("compressing");
-    setUploadStatusText("Compressing file payload (client-side gzip)...");
+    if (compressFiles) {
+      setUploadStatus("compressing");
+      setUploadStatusText("Compressing file payload (client-side gzip)...");
+    } else {
+      setUploadStatus("chunking");
+      setUploadStatusText("Preparing file for upload...");
+    }
     setUploadProgress(5);
 
     try {
@@ -1105,41 +1110,47 @@ export default function Dashboard() {
       const fileUuid = crypto.randomUUID();
       const originalSize = file.size;
 
-      // 2. Safely compress using CompressionStream with chunked streaming
-      const cs = new CompressionStream('gzip');
-      const writer = cs.writable.getWriter();
-      const reader = file.stream().getReader();
-      
-      const pump = async () => {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            await writer.close();
-            break;
+      let compressedBytes: Uint8Array;
+      if (compressFiles) {
+        // 2. Safely compress using CompressionStream with chunked streaming
+        const cs = new CompressionStream('gzip');
+        const writer = cs.writable.getWriter();
+        const reader = file.stream().getReader();
+        
+        const pump = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              await writer.close();
+              break;
+            }
+            await writer.write(value);
           }
-          await writer.write(value);
-        }
-      };
-      pump(); // run in background
+        };
+        pump(); // run in background
 
-      const chunksOut = [];
-      const outReader = cs.readable.getReader();
-      while (true) {
-        const { done, value } = await outReader.read();
-        if (done) break;
-        chunksOut.push(value);
-      }
-      
-      const totalLen = chunksOut.reduce((a, c) => a + c.length, 0);
-      const compressedBytes = new Uint8Array(totalLen);
-      let off = 0;
-      for (const c of chunksOut) {
-        compressedBytes.set(c, off);
-        off += c.length;
+        const chunksOut = [];
+        const outReader = cs.readable.getReader();
+        while (true) {
+          const { done, value } = await outReader.read();
+          if (done) break;
+          chunksOut.push(value);
+        }
+        
+        const totalLen = chunksOut.reduce((a, c) => a + c.length, 0);
+        compressedBytes = new Uint8Array(totalLen);
+        let off = 0;
+        for (const c of chunksOut) {
+          compressedBytes.set(c, off);
+          off += c.length;
+        }
+      } else {
+        // If compression is disabled, just use the raw file bytes
+        compressedBytes = new Uint8Array(fileBuffer);
       }
 
       setUploadStatus("chunking");
-      setUploadStatusText("Uploading and encrypting chunks...");
+      setUploadStatusText(encryptFiles ? "Uploading and encrypting chunks..." : "Uploading chunks...");
       setUploadProgress(15);
 
       // 3. Chunk the raw bytes and upload
