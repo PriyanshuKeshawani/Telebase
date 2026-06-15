@@ -124,6 +124,9 @@ export async function GET(
     }
 
     console.log(`[Download] Streaming "${fileRecord.filename}" (${fileRecord.chunk_count} chunks)...`);
+    
+    console.log(`[TEMP LOG DOWNLOAD API]`);
+    console.log(`- stored metadata: is_compressed=${fileRecord.is_compressed}, is_encrypted=${fileRecord.is_encrypted}`);
 
     // Ensure chunks are sorted by index to prevent sequential corruption
     fileRecord.chunks.sort((a, b) => a.chunk_index - b.chunk_index);
@@ -175,9 +178,11 @@ export async function GET(
 
             // 4. Decrypt using AES-256-GCM (if encrypted)
             if (!isEncrypted) {
+              console.log(`[TEMP LOG DOWNLOAD API] - decryption executed? no`);
               return cipherText;
             }
 
+            console.log(`[TEMP LOG DOWNLOAD API] - decryption executed? yes`);
             const iv = hexToBytes(chunk.iv);
             const authTag = hexToBytes(chunk.auth_tag);
             return await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
@@ -214,6 +219,7 @@ export async function GET(
 
     const isCompressed = fileRecord.is_compressed !== false; // Default true
     if ((fileRecord.version === 1 || fileRecord.version === undefined) && isCompressed) {
+      console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? yes`);
       // Buffer and decompress in memory to salvage corrupted gzip tails
       const DS = (globalThis as any).DecompressionStream;
       const ds = new DS('gzip');
@@ -247,6 +253,7 @@ export async function GET(
       });
     }
 
+    console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? no`);
     return new NextResponse(stream, {
       headers: {
         'Content-Type': 'application/octet-stream',

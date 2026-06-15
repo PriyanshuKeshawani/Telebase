@@ -1167,6 +1167,7 @@ export default function Dashboard() {
             "x-file-uuid": fileUuid,
             "x-chunk-index": chunkIndex.toString(),
             "x-is-encrypted": encryptFiles ? "true" : "false",
+            "x-is-compressed": compressFiles ? "true" : "false",
             "Content-Type": "application/octet-stream"
           },
           body: chunkBytes

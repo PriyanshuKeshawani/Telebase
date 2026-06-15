@@ -28,6 +28,14 @@ export async function POST(req: NextRequest) {
       auth_tag: c.auth_tag
     }));
 
+    const finalCompress = is_compressed ?? (project.storage_options?.compress_files ?? true);
+    const finalEncrypt = is_encrypted ?? (project.storage_options?.encrypt_files ?? true);
+
+    console.log(`[TEMP LOG FINALIZE API]`);
+    console.log(`- received frontend flags: is_compressed=${is_compressed}, is_encrypted=${is_encrypted}`);
+    console.log(`- KV values: compress_files=${project.storage_options?.compress_files}, encrypt_files=${project.storage_options?.encrypt_files}`);
+    console.log(`- stored metadata values: is_compressed=${finalCompress}, is_encrypted=${finalEncrypt}`);
+
     // Create the final stored file record
     const newFile: StoredFile = {
       uuid: fileUuid,
@@ -39,8 +47,8 @@ export async function POST(req: NextRequest) {
       file_hash: fileHash,
       size,
       created_at: new Date().toISOString(),
-      is_compressed: is_compressed ?? (project.storage_options?.compress_files ?? true),
-      is_encrypted: is_encrypted ?? (project.storage_options?.encrypt_files ?? true),
+      is_compressed: finalCompress,
+      is_encrypted: finalEncrypt,
       chunks: fileChunks
     };
 

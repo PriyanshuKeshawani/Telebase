@@ -84,7 +84,19 @@ export async function POST(req: NextRequest) {
     console.log(`[Upload Chunk API] Processing chunk ${chunkIndex} for file ${fileUuid} (${(chunkBytes.length / 1024).toFixed(2)} KB)...`);
 
     const headerIsEncrypted = req.headers.get('x-is-encrypted');
-    const encryptFiles = headerIsEncrypted !== null ? headerIsEncrypted === 'true' : (project.storage_options?.encrypt_files ?? true);
+    const headerIsCompressed = req.headers.get('x-is-compressed');
+    const kvEncrypt = project.storage_options?.encrypt_files ?? true;
+    const kvCompress = project.storage_options?.compress_files ?? true;
+    const encryptFiles = headerIsEncrypted !== null ? headerIsEncrypted === 'true' : kvEncrypt;
+    const compressFiles = headerIsCompressed !== null ? headerIsCompressed === 'true' : kvCompress;
+
+    console.log(`[TEMP LOG UPLOAD CHUNK]`);
+    console.log(`- x-is-encrypted header: ${headerIsEncrypted}`);
+    console.log(`- x-is-compressed header: ${headerIsCompressed}`);
+    console.log(`- KV encrypt_files value: ${kvEncrypt}`);
+    console.log(`- KV compress_files value: ${kvCompress}`);
+    console.log(`- Final encrypt decision: ${encryptFiles}`);
+    console.log(`- Final compress decision: ${compressFiles}`);
     
     let iv: any = new Uint8Array(0);
     let authTag: any = new Uint8Array(0);
