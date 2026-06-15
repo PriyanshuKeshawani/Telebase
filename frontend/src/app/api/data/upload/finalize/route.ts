@@ -12,8 +12,7 @@ export async function POST(req: NextRequest) {
     const project = await verifyProjectApiKey(apiKey);
     if (!project) return NextResponse.json({ success: false, error: 'Invalid API key' }, { status: 401 });
 
-    const body = await req.json();
-    const { fileUuid, filename, fileHash, size, chunks, version } = body;
+    const { fileUuid, filename, fileHash, size, chunks, version, is_compressed, is_encrypted } = await req.json();
 
     if (!fileUuid || !filename || !fileHash || typeof size !== 'number' || !Array.isArray(chunks)) {
       return NextResponse.json({ success: false, error: 'Missing or invalid fields in request body' }, { status: 400 });
@@ -40,8 +39,8 @@ export async function POST(req: NextRequest) {
       file_hash: fileHash,
       size,
       created_at: new Date().toISOString(),
-      is_compressed: project.storage_options?.compress_files ?? true,
-      is_encrypted: project.storage_options?.encrypt_files ?? true,
+      is_compressed: is_compressed ?? (project.storage_options?.compress_files ?? true),
+      is_encrypted: is_encrypted ?? (project.storage_options?.encrypt_files ?? true),
       chunks: fileChunks
     };
 

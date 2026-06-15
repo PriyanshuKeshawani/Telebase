@@ -83,7 +83,8 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Upload Chunk API] Processing chunk ${chunkIndex} for file ${fileUuid} (${(chunkBytes.length / 1024).toFixed(2)} KB)...`);
 
-    const encryptFiles = project.storage_options?.encrypt_files ?? true;
+    const headerIsEncrypted = req.headers.get('x-is-encrypted');
+    const encryptFiles = headerIsEncrypted !== null ? headerIsEncrypted === 'true' : (project.storage_options?.encrypt_files ?? true);
     
     let iv: any = new Uint8Array(0);
     let authTag: any = new Uint8Array(0);

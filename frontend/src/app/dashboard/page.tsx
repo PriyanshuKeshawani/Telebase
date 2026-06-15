@@ -1165,7 +1165,9 @@ export default function Dashboard() {
           headers: {
             "x-api-key": currentProject.api_key,
             "x-file-uuid": fileUuid,
-            "x-chunk-index": chunkIndex.toString()
+            "x-chunk-index": chunkIndex.toString(),
+            "x-is-encrypted": encryptFiles ? "true" : "false",
+            "Content-Type": "application/octet-stream"
           },
           body: chunkBytes
         });
@@ -1222,7 +1224,9 @@ export default function Dashboard() {
           fileHash,
           size: originalSize,
           version: 1, // V1 indicates compressed bytes
-          chunks: uploadedChunks
+          chunks: uploadedChunks,
+          is_compressed: compressFiles,
+          is_encrypted: encryptFiles
         })
       });
 
