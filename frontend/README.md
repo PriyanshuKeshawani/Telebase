@@ -73,7 +73,7 @@ TELEGRAM_CHANNEL_ID=your_private_channel_id
 ENCRYPTION_KEY=d83d1c1a2d1f7c006b5394ef3425cf26d2e61a6b0c2df8b1ab2512f45c381d6e
 
 # 👤 Admin Credentials
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://https://telebase.pages.dev/
 NEXTAUTH_SECRET=generate_any_random_32_character_string
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=choose_your_password
@@ -109,7 +109,7 @@ SMTP_PASS=your_16_digit_app_password
    ```bash
    npm run dev
    ```
-4. Open [http://localhost:3000](http://localhost:3000) in your browser! 🎉
+4. Open [http://https://telebase.pages.dev/](http://https://telebase.pages.dev/) in your browser! 🎉
 
 ---
 

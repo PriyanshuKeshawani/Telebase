@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Database, Zap, Lock, HardDrive, Cpu, Radio, Plus, Trash2, 
+import {
+  Database, Zap, Lock, HardDrive, Cpu, Radio, Plus, Trash2,
   Download, RefreshCw, Key, Shield, AlertCircle, CheckCircle2,
-  FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X, 
+  FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X,
   HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
   ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder,
   Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code
@@ -120,7 +120,7 @@ export default function Dashboard() {
   const [gridFilterCol, setGridFilterCol] = useState('all');
   const [gridFilterOp, setGridFilterOp] = useState('contains');
   const [gridFilterVal, setGridFilterVal] = useState('');
-  
+
   // Visual record CRUD states
   const [isAddRecordModalOpen, setIsAddRecordModalOpen] = useState(false);
   const [isEditRecordModalOpen, setIsEditRecordModalOpen] = useState(false);
@@ -263,7 +263,7 @@ export default function Dashboard() {
   // Download/Delete state tracking
   const [downloadingUuid, setDownloadingUuid] = useState<string | null>(null);
   const [deletingUuid, setDeletingUuid] = useState<string | null>(null);
-  
+
   // API key copy state
   const [copiedKey, setCopiedKey] = useState(false);
 
@@ -329,11 +329,11 @@ export default function Dashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update settings');
-      
+
       setCompressFiles(compress);
       setEncryptFiles(encrypt);
       setProjects(prev => prev.map(p => p.id === currentProject.id ? data.project : p));
-      
+
     } catch (err: any) {
       alert(err.message);
       // Revert states
@@ -348,14 +348,14 @@ export default function Dashboard() {
   const loadDatabase = async (forceSync = false) => {
     try {
       if (forceSync) setIsSyncing(true);
-      
+
       const res = await fetch('/api/projects');
       const data = await res.json();
-      
+
       if (data.success) {
         setProjects(data.projects || []);
         setFiles(data.files || []);
-        
+
         if (data.projects && data.projects.length > 0) {
           const selectedId = selectedProjectId || data.projects[0].id;
           setSelectedProjectId(selectedId);
@@ -381,11 +381,11 @@ export default function Dashboard() {
       if (data.success) {
         setDbTables(data.tables || []);
         setWalLogs(data.walLogs || []);
-        
+
         // Auto select first table if none selected
         if (data.tables && data.tables.length > 0) {
-          const newSelect = selectedTableName && data.tables.some((t: any) => t.name === selectedTableName) 
-            ? selectedTableName 
+          const newSelect = selectedTableName && data.tables.some((t: any) => t.name === selectedTableName)
+            ? selectedTableName
             : data.tables[0].name;
           setSelectedTableName(newSelect);
           await fetchTableRecords(newSelect, proj.api_key);
@@ -478,8 +478,8 @@ export default function Dashboard() {
       const res = await fetch(`/api/db`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': proj.api_key },
-        body: JSON.stringify({ 
-          action: 'DELETE', 
+        body: JSON.stringify({
+          action: 'DELETE',
           tableName: '_telebase_users',
           noSqlQuery: { id: { $eq: userId } }
         })
@@ -518,14 +518,14 @@ export default function Dashboard() {
             setDbHash(data.hash);
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
-    
+
     if (status === "authenticated") {
       pollRealtime();
       interval = setInterval(pollRealtime, 3000);
     }
-    
+
     return () => clearInterval(interval);
   }, [status, dbHash]);
 
@@ -561,9 +561,9 @@ export default function Dashboard() {
       const res = await fetch('/api/sync/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          startId: startId ? Number(startId) : undefined, 
-          endId: endId ? Number(endId) : undefined 
+        body: JSON.stringify({
+          startId: startId ? Number(startId) : undefined,
+          endId: endId ? Number(endId) : undefined
         })
       });
       const data = await res.json();
@@ -859,7 +859,7 @@ export default function Dashboard() {
       if (!activeTable) return;
 
       const currentFields = activeTable.schema?.fields || { id: 'string' };
-      
+
       if (currentFields[newColName.trim()]) {
         alert(`Column "${newColName.trim()}" already exists.`);
         return;
@@ -940,7 +940,7 @@ export default function Dashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${selectedTableName}_export_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `${selectedTableName}_export_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -952,7 +952,7 @@ export default function Dashboard() {
     const headers = Object.keys(tableRecords[0]);
     const csvRows = [
       headers.join(','),
-      ...tableRecords.map(row => 
+      ...tableRecords.map(row =>
         headers.map(fieldName => {
           const val = row[fieldName];
           const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
@@ -964,7 +964,7 @@ export default function Dashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${selectedTableName}_export_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `${selectedTableName}_export_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -974,7 +974,7 @@ export default function Dashboard() {
   // Execute DB SQL Query
   const handleExecuteQuery = async (queryOverride?: string) => {
     if (!currentProject || !selectedTableName) return;
-    
+
     setIsQueryRunning(true);
     setQueryResult(null);
     const query = queryOverride || sqlQueryInput;
@@ -1014,7 +1014,7 @@ export default function Dashboard() {
   const handleRunRecovery = async () => {
     if (!currentProject || !selectedTableName) return;
     setRecoveryLogs(['[System Recovery Initiated] Connecting to Master WAL...']);
-    
+
     try {
       const res = await fetch('/api/db', {
         method: 'POST',
@@ -1111,7 +1111,7 @@ export default function Dashboard() {
         const cs = new CompressionStream('gzip');
         const writer = cs.writable.getWriter();
         const reader = file.stream().getReader();
-        
+
         const pump = async () => {
           while (true) {
             const { done, value } = await reader.read();
@@ -1131,7 +1131,7 @@ export default function Dashboard() {
           if (done) break;
           chunksOut.push(value);
         }
-        
+
         const totalLen = chunksOut.reduce((a, c) => a + c.length, 0);
         compressedBytes = new Uint8Array(totalLen);
         let off = 0;
@@ -1152,7 +1152,7 @@ export default function Dashboard() {
       const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
       const totalChunks = Math.ceil(compressedBytes.length / CHUNK_SIZE);
       const uploadedChunks: any[] = [];
-      
+
       const uploadChunk = async (chunkIndex: number, start: number, end: number) => {
         const chunkBytes = compressedBytes.slice(start, end);
         const res = await fetch("/api/data/upload/chunk", {
@@ -1167,15 +1167,15 @@ export default function Dashboard() {
           },
           body: chunkBytes
         });
-        
+
         if (!res.ok) {
-           if (res.status === 413) {
-             throw new Error("Chunk is too large for your hosting provider.");
-           }
-           const errText = await res.text().catch(() => "");
-           throw new Error(errText || `Chunk ${chunkIndex} upload failed with status ${res.status}`);
+          if (res.status === 413) {
+            throw new Error("Chunk is too large for your hosting provider.");
+          }
+          const errText = await res.text().catch(() => "");
+          throw new Error(errText || `Chunk ${chunkIndex} upload failed with status ${res.status}`);
         }
-        
+
         const data = await res.json();
         if (!data.success) throw new Error(data.error || `Chunk ${chunkIndex} upload failed`);
         return data.chunkData;
@@ -1184,19 +1184,19 @@ export default function Dashboard() {
       // Upload chunks concurrently (e.g. 3 at a time)
       const CONCURRENCY = 3;
       const executing = new Set<Promise<void>>();
-      
+
       for (let i = 0; i < totalChunks; i++) {
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, compressedBytes.length);
-        
+
         const p = uploadChunk(i, start, end).then(chunkData => {
-           uploadedChunks.push(chunkData);
-           setUploadProgress(15 + Math.floor((uploadedChunks.length / totalChunks) * 75));
+          uploadedChunks.push(chunkData);
+          setUploadProgress(15 + Math.floor((uploadedChunks.length / totalChunks) * 75));
         });
-        
+
         executing.add(p);
         p.finally(() => executing.delete(p));
-        
+
         if (executing.size >= CONCURRENCY) {
           await Promise.race(executing);
         }
@@ -1230,7 +1230,7 @@ export default function Dashboard() {
         const errText = await finalizeRes.text().catch(() => "");
         throw new Error(errText || `Finalize failed with status ${finalizeRes.status}`);
       }
-      
+
       const finalizeData = await finalizeRes.json();
       if (finalizeData.success) {
         setUploadStatus("success");
@@ -1370,13 +1370,13 @@ export default function Dashboard() {
     const tablesMarkdown = dbTables.length === 0
       ? "No tables have been created in this project yet."
       : dbTables.map(t => {
-          const fieldsStr = t.schema?.fields
-            ? Object.entries(t.schema.fields)
-                .map(([name, type]) => `    - ${name} (${type})`)
-                .join('\n')
-            : "    - (No columns defined)";
-          return `- Table Name: ${t.name}\n  - Size: ${formatBytes(t.sizeBytes)}\n  - Columns/Schema:\n${fieldsStr}`;
-        }).join('\n\n');
+        const fieldsStr = t.schema?.fields
+          ? Object.entries(t.schema.fields)
+            .map(([name, type]) => `    - ${name} (${type})`)
+            .join('\n')
+          : "    - (No columns defined)";
+        return `- Table Name: ${t.name}\n  - Size: ${formatBytes(t.sizeBytes)}\n  - Columns/Schema:\n${fieldsStr}`;
+      }).join('\n\n');
 
     const firstTable = dbTables[0]?.name || "users";
     const sampleFieldsKeys = dbTables[0]?.schema?.fields
@@ -1384,15 +1384,15 @@ export default function Dashboard() {
       : "name, age";
     const sampleFieldsValues = dbTables[0]?.schema?.fields
       ? Object.entries(dbTables[0].schema.fields)
-          .filter(([k]) => k !== 'id')
-          .map(([_, t]) => t === 'number' ? '28' : t === 'boolean' ? 'true' : "'Emma'")
-          .join(', ')
+        .filter(([k]) => k !== 'id')
+        .map(([_, t]) => t === 'number' ? '28' : t === 'boolean' ? 'true' : "'Emma'")
+        .join(', ')
       : "'Emma', 28";
     const sampleFieldsObject = dbTables[0]?.schema?.fields
       ? Object.entries(dbTables[0].schema.fields)
-          .filter(([k]) => k !== 'id')
-          .map(([k, t]) => `      ${k}: ${t === 'number' ? '28' : t === 'boolean' ? 'true' : "'Emma'"}`)
-          .join(',\n')
+        .filter(([k]) => k !== 'id')
+        .map(([k, t]) => `      ${k}: ${t === 'number' ? '28' : t === 'boolean' ? 'true' : "'Emma'"}`)
+        .join(',\n')
       : "      name: 'Emma',\n      age: 28";
 
     const promptText = `<telebase_context>
@@ -1562,7 +1562,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
         <div className="flex-1 overflow-y-auto p-3">
           <div className="flex items-center justify-between px-2 mb-3">
             <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Projects</span>
-            <button 
+            <button
               onClick={() => setIsNewProjectModalOpen(true)}
               className="w-6 h-6 rounded-lg bg-zinc-800/60 hover:bg-blue-500/20 border border-zinc-700/50 hover:border-blue-500/30 flex items-center justify-center text-zinc-400 hover:text-blue-400 transition-all"
             >
@@ -1574,21 +1574,19 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             {projects.map((proj) => (
               <div
                 key={proj.id}
-                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
-                  selectedProjectId === proj.id 
-                    ? "sidebar-active text-white" 
+                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${selectedProjectId === proj.id
+                    ? "sidebar-active text-white"
                     : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200"
-                }`}
+                  }`}
                 onClick={() => {
                   setSelectedProjectId(proj.id);
                   if (isMobile) setIsMobileSidebarOpen(false);
                 }}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  selectedProjectId === proj.id 
-                    ? "bg-blue-500/15 text-blue-400" 
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedProjectId === proj.id
+                    ? "bg-blue-500/15 text-blue-400"
                     : "bg-zinc-800/50 text-zinc-500 group-hover:text-zinc-300"
-                }`}>
+                  }`}>
                   <Folder size={14} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1598,7 +1596,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                     <span className="text-[9px] text-zinc-600">{proj.bots.length} bots</span>
                   </div>
                 </div>
-                
+
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1618,8 +1616,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               <div className="w-12 h-12 rounded-2xl bg-zinc-800/40 border border-zinc-700/30 flex items-center justify-center mx-auto mb-3">
                 <Database className="text-zinc-600 w-5 h-5" />
               </div>
-              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">No projects yet.<br/>Create your first database.</p>
-              <button 
+              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">No projects yet.<br />Create your first database.</p>
+              <button
                 onClick={() => setIsNewProjectModalOpen(true)}
                 className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
               >
@@ -1631,7 +1629,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-zinc-800/50 space-y-2 flex-shrink-0">
-          <button 
+          <button
             onClick={handleForceSync}
             disabled={isSyncing}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-all text-xs font-medium disabled:opacity-50"
@@ -1639,7 +1637,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
             <span>{isSyncing ? "Syncing..." : "Sync Master Index"}</span>
           </button>
-          <button 
+          <button
             onClick={handleDeepTelegramScan}
             disabled={isSyncing}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-all text-xs font-medium disabled:opacity-50"
@@ -1715,11 +1713,11 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
       {/* ════════ MAIN CONTENT ════════ */}
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        
+
         {/* ── Top Bar ── */}
         <header className="h-14 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => setIsMobileSidebarOpen(true)}
               className="p-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800 text-zinc-400 hover:text-white lg:hidden"
             >
@@ -1751,11 +1749,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                  activeTab === tab.id
+                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${activeTab === tab.id
                     ? "bg-zinc-800/60 text-white border border-zinc-700/50"
                     : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20"
-                }`}
+                  }`}
               >
                 <tab.icon size={14} />
                 <span>{tab.label}</span>
@@ -1786,7 +1783,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                 <h2 className="text-lg font-bold text-zinc-300 mb-1.5">Create Your First Database</h2>
                 <p className="text-sm text-zinc-500 max-w-md leading-relaxed">Connect a private Telegram channel and start using it as a serverless database with full CRUD operations.</p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsNewProjectModalOpen(true)}
                 className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
               >
@@ -1796,7 +1793,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             </div>
           ) : (
             <div className="p-6 space-y-6 animate-fade-in-up">
-              
+
               {/* ── Stats Row ── */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 {[
@@ -1827,7 +1824,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   </div>
                   <div className="flex items-center justify-between gap-2 bg-zinc-900/80 px-3 py-1.5 rounded-lg border border-zinc-800/60 w-full sm:w-auto min-w-0">
                     <code className="text-[11px] text-zinc-400 font-mono select-all truncate max-w-full">{currentProject.api_key}</code>
-                    <button 
+                    <button
                       onClick={() => copyToClipboard(currentProject.api_key)}
                       className="text-zinc-500 hover:text-blue-400 transition-colors flex-shrink-0"
                     >
@@ -1846,7 +1843,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               {/* ════════ DATABASE TAB ════════ */}
               {activeTab === "db" && (
                 <div className="grid grid-cols-12 gap-6">
-                  
+
                   {/* Left: Tables List or SQL Editor Queries List */}
                   <div className="col-span-12 lg:col-span-3 space-y-4">
                     {dbSubTab === 'explorer' ? (
@@ -1885,7 +1882,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                           {(() => {
                             const filteredTables = dbTables.filter(t => t.name.toLowerCase().includes(searchTableQuery.toLowerCase()));
-                            
+
                             if (filteredTables.length === 0) {
                               return (
                                 <div className="text-center py-8">
@@ -1904,11 +1901,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                       setSelectedTableName(t.name);
                                       if (currentProject) fetchTableRecords(t.name, currentProject.api_key);
                                     }}
-                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between group ${
-                                      selectedTableName === t.name 
-                                        ? "bg-blue-500/10 text-blue-300 border border-blue-500/20" 
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between group ${selectedTableName === t.name
+                                        ? "bg-blue-500/10 text-blue-300 border border-blue-500/20"
                                         : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200 border border-transparent"
-                                    }`}
+                                      }`}
                                   >
                                     <div className="flex items-center gap-2.5">
                                       <Table2 size={13} className={selectedTableName === t.name ? "text-blue-400" : "text-zinc-600"} />
@@ -2015,11 +2011,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                       <button
                                         key={q.id}
                                         onClick={() => setActiveQueryId(q.id)}
-                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
-                                          activeQueryId === q.id 
-                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${activeQueryId === q.id
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                             : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
-                                        }`}
+                                          }`}
                                       >
                                         <span className="truncate">{q.name}</span>
                                       </button>
@@ -2047,11 +2042,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                       <button
                                         key={q.id}
                                         onClick={() => setActiveQueryId(q.id)}
-                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
-                                          activeQueryId === q.id 
-                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${activeQueryId === q.id
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                             : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
-                                        }`}
+                                          }`}
                                       >
                                         <span className="truncate">{q.name}</span>
                                       </button>
@@ -2079,11 +2073,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                       <button
                                         key={q.id}
                                         onClick={() => setActiveQueryId(q.id)}
-                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
-                                          activeQueryId === q.id 
-                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${activeQueryId === q.id
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                             : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
-                                        }`}
+                                          }`}
                                       >
                                         <span className="truncate">{q.name}</span>
                                         <Heart size={9} className="fill-rose-500 text-rose-500" />
@@ -2112,11 +2105,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                       <button
                                         key={q.id}
                                         onClick={() => setActiveQueryId(q.id)}
-                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${
-                                          activeQueryId === q.id 
-                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between font-mono ${activeQueryId === q.id
+                                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                             : "text-zinc-400 hover:bg-zinc-800/30 hover:text-zinc-200 border border-transparent hover:translate-x-0.5"
-                                        }`}
+                                          }`}
                                       >
                                         <span className="truncate">{q.name}</span>
                                       </button>
@@ -2144,34 +2136,32 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                   {/* Right: Dual Sub-Tabs (Interactive Explorer / Advanced Console) */}
                   <div className="col-span-12 lg:col-span-9 space-y-6">
-                    
+
                     {/* DB Workspace Sub-Tabs Selector */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-1.5 md:p-1 bg-[#0a0a0d] border border-zinc-800/40 rounded-xl">
                       <div className="flex flex-wrap gap-1">
                         <button
                           onClick={() => setDbSubTab('explorer')}
-                          className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
-                            dbSubTab === 'explorer'
+                          className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${dbSubTab === 'explorer'
                               ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
                               : "text-zinc-500 hover:text-zinc-300"
-                          }`}
+                            }`}
                         >
                           <Table2 size={13} />
                           <span>✨ Interactive Explorer</span>
                         </button>
                         <button
                           onClick={() => setDbSubTab('terminal')}
-                          className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
-                            dbSubTab === 'terminal'
+                          className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${dbSubTab === 'terminal'
                               ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
                               : "text-zinc-500 hover:text-zinc-300"
-                          }`}
+                            }`}
                         >
                           <Terminal size={13} />
                           <span>💻 Advanced SQL Console</span>
                         </button>
                       </div>
-                      
+
                       {selectedTableName && (
                         <div className="flex items-center gap-2 pr-3 self-end md:self-auto">
                           <span className="text-[10px] uppercase font-bold text-zinc-600 font-mono">Active Table:</span>
@@ -2401,10 +2391,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
                                     {(() => {
                                       const activeTable = dbTables.find(t => t.name === selectedTableName);
-                                      const fields = activeTable?.schema?.fields 
+                                      const fields = activeTable?.schema?.fields
                                         ? Object.keys(activeTable.schema.fields)
                                         : Object.keys(tableRecords[0]);
-                                      
+
                                       return fields.map((col) => (
                                         <th key={col} className="group/head py-3.5 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider relative font-mono">
                                           <div className="flex items-center justify-between gap-1.5 w-full">
@@ -2435,10 +2425,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 <tbody>
                                   {filteredRecords.map((row, idx) => {
                                     const activeTable = dbTables.find(t => t.name === selectedTableName);
-                                    const fields = activeTable?.schema?.fields 
+                                    const fields = activeTable?.schema?.fields
                                       ? Object.keys(activeTable.schema.fields)
                                       : Object.keys(tableRecords[0]);
-                                    
+
                                     return (
                                       <tr key={`${row.id || 'row'}_${idx}`} className="border-b border-zinc-800/20 table-row-hover transition-colors">
                                         {fields.map((fieldName, valIdx) => {
@@ -2512,13 +2502,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               </span>
                             </div>
                             <div className="flex items-center gap-4">
-                              <button 
-                                onClick={() => alert("Thank you for your feedback! The Telebase console continues to run cleanly.")} 
+                              <button
+                                onClick={() => alert("Thank you for your feedback! The Telebase console continues to run cleanly.")}
                                 className="text-[10px] font-bold text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-wider bg-zinc-900/60 hover:bg-zinc-850 px-2.5 py-1 rounded-md border border-zinc-800"
                               >
                                 Feedback
                               </button>
-                              <button 
+                              <button
                                 onClick={() => alert("Telebase Advanced Console Redesign: This SQL editor is built to replicate the premium look and feel of modern developer suites.")}
                                 className="p-1 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
                               >
@@ -2526,7 +2516,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               </button>
                             </div>
                           </div>
-                          
+
                           {/* Code Editor block with line numbers */}
                           <div className="relative flex border-b border-zinc-850 bg-[#07070a] min-h-[220px] transition-all focus-within:border-zinc-800">
                             {/* Line Numbers Gutter */}
@@ -2573,11 +2563,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => setSqlTerminalTab('results')}
-                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                                  sqlTerminalTab === 'results' 
-                                    ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50" 
+                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${sqlTerminalTab === 'results'
+                                    ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50"
                                     : "text-zinc-500 hover:text-zinc-300 border border-transparent"
-                                }`}
+                                  }`}
                               >
                                 Results
                               </button>
@@ -2589,11 +2578,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   }
                                   setSqlTerminalTab('templates'); // Reuse 'templates' tab state for custom chart!
                                 }}
-                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                                  sqlTerminalTab === 'templates' 
-                                    ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50" 
+                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${sqlTerminalTab === 'templates'
+                                    ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50"
                                     : "text-zinc-500 hover:text-zinc-300 border border-transparent"
-                                }`}
+                                  }`}
                               >
                                 Chart
                               </button>
@@ -2630,11 +2618,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 onClick={() => {
                                   setSqlTerminalTab(sqlTerminalTab === 'history' ? 'results' : 'history');
                                 }}
-                                className={`p-2 rounded-lg border transition-all shadow-sm ${
-                                  sqlTerminalTab === 'history' 
-                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 font-bold" 
+                                className={`p-2 rounded-lg border transition-all shadow-sm ${sqlTerminalTab === 'history'
+                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 font-bold"
                                     : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                                }`}
+                                  }`}
                                 title="Execution History"
                               >
                                 <History size={13} />
@@ -2688,11 +2675,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   initial={{ opacity: 0, y: 8 }}
                                   animate={{ opacity: 1, y: 0 }}
                                   exit={{ opacity: 0, y: -8 }}
-                                  className={`p-5 rounded-xl border ${
-                                    queryResult.success 
-                                      ? "border-zinc-800/40 bg-[#0a0a0d]" 
+                                  className={`p-5 rounded-xl border ${queryResult.success
+                                      ? "border-zinc-800/40 bg-[#0a0a0d]"
                                       : "border-rose-500/20 bg-rose-500/5"
-                                  }`}
+                                    }`}
                                 >
                                   <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -2730,7 +2716,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                           </div>
                                         </div>
                                       )}
-                                      
+
                                       {/* Grid output */}
                                       {queryResult.records && queryResult.records.length > 0 ? (
                                         <div className="border border-zinc-800/40 rounded-xl bg-[#0a0a0d] overflow-hidden">
@@ -2823,10 +2809,9 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                         <div className="text-zinc-500 truncate">
                                           <span className="text-zinc-400">{log.operation}</span> · {log.tableName}:{log.recordId}
                                         </div>
-                                        <span className={`text-[9px] font-bold flex-shrink-0 ml-2 ${
-                                          log.status === 'COMMITTED' ? 'text-emerald-400' : 
-                                          log.status === 'FAILED' ? 'text-rose-400' : 'text-amber-400'
-                                        }`}>
+                                        <span className={`text-[9px] font-bold flex-shrink-0 ml-2 ${log.status === 'COMMITTED' ? 'text-emerald-400' :
+                                            log.status === 'FAILED' ? 'text-rose-400' : 'text-amber-400'
+                                          }`}>
                                           {log.status}
                                         </span>
                                       </div>
@@ -2896,14 +2881,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     </h4>
                                     <span className="text-[10px] text-zinc-500 font-mono bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">Chart View</span>
                                   </div>
-                                  
+
                                   <div className="space-y-3.5 pt-2">
                                     {queryResult.records.map((row: any, idx: number) => {
                                       const labelVal = row[labelCol] || `Row #${idx + 1}`;
                                       const numVal = Number(row[numericCol]) || 0;
                                       const maxVal = Math.max(...queryResult.records.map((r: any) => Number(r[numericCol]) || 1), 1);
                                       const percent = Math.min(100, Math.max(5, (numVal / maxVal) * 100));
-                                      
+
                                       return (
                                         <div key={idx} className="space-y-1">
                                           <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
@@ -2944,7 +2929,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 Reset Logs
                               </button>
                             </div>
-                            
+
                             {sqlQueryHistory.length === 0 ? (
                               <div className="text-center py-8">
                                 <History className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
@@ -3012,7 +2997,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       <Settings size={15} className="text-zinc-400" />
                       Storage Settings
                     </h3>
-                    
+
                     <div className="space-y-4">
                       {/* Compress Toggle */}
                       <div className="flex items-center justify-between">
@@ -3023,15 +3008,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         <button
                           onClick={() => handleUpdateStorageSettings(!compressFiles, encryptFiles)}
                           disabled={isUpdatingStorageSettings}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent focus:outline-none transition-colors ${
-                            compressFiles ? 'bg-blue-600' : 'bg-zinc-700'
-                          } ${isUpdatingStorageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent focus:outline-none transition-colors ${compressFiles ? 'bg-blue-600' : 'bg-zinc-700'
+                            } ${isUpdatingStorageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <span className="sr-only">Toggle Compression</span>
                           <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                              compressFiles ? 'translate-x-4' : 'translate-x-0'
-                            }`}
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${compressFiles ? 'translate-x-4' : 'translate-x-0'
+                              }`}
                           />
                         </button>
                       </div>
@@ -3047,15 +3030,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         <button
                           onClick={() => handleUpdateStorageSettings(compressFiles, !encryptFiles)}
                           disabled={isUpdatingStorageSettings}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent focus:outline-none transition-colors ${
-                            encryptFiles ? 'bg-emerald-600' : 'bg-zinc-700'
-                          } ${isUpdatingStorageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent focus:outline-none transition-colors ${encryptFiles ? 'bg-emerald-600' : 'bg-zinc-700'
+                            } ${isUpdatingStorageSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <span className="sr-only">Toggle Encryption</span>
                           <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                              encryptFiles ? 'translate-x-4' : 'translate-x-0'
-                            }`}
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${encryptFiles ? 'translate-x-4' : 'translate-x-0'
+                              }`}
                           />
                         </button>
                       </div>
@@ -3063,16 +3044,15 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   </div>
 
                   {/* Upload Area */}
-                  <div 
+                  <div
                     onDragEnter={handleDrag}
                     onDragOver={handleDrag}
                     onDragLeave={handleDrag}
                     onDrop={handleDrop}
-                    className={`p-8 border-2 border-dashed rounded-2xl transition-all text-center ${
-                      isDragActive 
-                        ? "border-blue-500/50 bg-blue-500/5" 
+                    className={`p-8 border-2 border-dashed rounded-2xl transition-all text-center ${isDragActive
+                        ? "border-blue-500/50 bg-blue-500/5"
                         : "border-zinc-800/50 bg-[#0a0a0d] hover:border-zinc-700/50"
-                    }`}
+                      }`}
                   >
                     {uploadStatus === "idle" ? (
                       <div className="flex flex-col items-center gap-4">
@@ -3084,7 +3064,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           <p className="text-xs text-zinc-600">JSON, ZIP, PDF, binary backups — up to 100MB</p>
                         </div>
                         <input type="file" ref={fileInputRef} onChange={handleFileSelectChange} className="hidden" />
-                        <button 
+                        <button
                           onClick={() => fileInputRef.current?.click()}
                           className="px-5 py-2 bg-zinc-800/60 hover:bg-zinc-700/60 border border-zinc-700/40 rounded-xl text-xs font-semibold text-zinc-300 transition-all"
                         >
@@ -3098,7 +3078,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           <span className="text-blue-400 font-bold">{uploadProgress}%</span>
                         </div>
                         <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
-                          <motion.div 
+                          <motion.div
                             className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${uploadProgress}%` }}
@@ -3172,14 +3152,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 </td>
                                 <td className="py-3.5 px-5 text-right">
                                   <div className="flex items-center justify-end gap-1.5">
-                                    <button 
+                                    <button
                                       onClick={() => handleDownloadFile(file)}
                                       className="p-2 rounded-lg bg-zinc-800/30 hover:bg-blue-500/10 text-zinc-500 hover:text-blue-400 transition-all"
                                       title="Download"
                                     >
                                       <Download size={13} />
                                     </button>
-                                    <button 
+                                    <button
                                       onClick={() => handleDeleteFile(file.uuid)}
                                       disabled={deletingUuid === file.uuid}
                                       className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-all disabled:opacity-40"
@@ -3198,7 +3178,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   </div>
                 </div>
               )}
-              
+
               {/* ════════ AUTHENTICATION TAB ════════ */}
               {activeTab === "auth" && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -3246,7 +3226,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   <td className="py-3.5 px-5">
                                     <div className="flex items-center gap-2 font-mono text-[10px] text-zinc-400">
                                       <span className="truncate max-w-[150px]" title={user.id}>{user.id}</span>
-                                      <button 
+                                      <button
                                         onClick={() => {
                                           navigator.clipboard.writeText(user.id);
                                         }}
@@ -3259,7 +3239,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   <td className="py-3.5 px-5 text-xs text-zinc-200 font-medium">{user.email}</td>
                                   <td className="py-3.5 px-5 text-[11px] text-zinc-500">{new Date(user.created_at).toLocaleString()}</td>
                                   <td className="py-3.5 px-5 text-right">
-                                    <button 
+                                    <button
                                       onClick={() => handleDeleteAuthUser(user.id)}
                                       className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-all"
                                       title="Delete User"
@@ -3438,7 +3418,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 <div className="text-[9px] text-zinc-600 mt-0.5">Token #{idx + 1}</div>
                               </div>
                             </div>
-                            <button 
+                            <button
                               onClick={() => handleRemoveBot(bot)}
                               className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
                             >
@@ -3516,8 +3496,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               width: isBenchmarking
                                 ? "30%"
                                 : benchmarkResult
-                                ? `${Math.max(5, Math.min(100, (benchmarkResult.kvLatencyMs / (benchmarkResult.telegramLatencyMs || 1000)) * 100))}%`
-                                : "0%"
+                                  ? `${Math.max(5, Math.min(100, (benchmarkResult.kvLatencyMs / (benchmarkResult.telegramLatencyMs || 1000)) * 100))}%`
+                                  : "0%"
                             }}
                             transition={{ duration: 0.8 }}
                           />
@@ -3609,10 +3589,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           <div className="space-y-1.5">
                             <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">API Endpoint Base</span>
                             <div className="bg-[#07070a] border border-zinc-800/50 rounded-xl px-3 py-2 flex items-center justify-between">
-                              <code className="text-xs text-zinc-300 font-mono">http://localhost:3000</code>
-                              <button 
+                              <code className="text-xs text-zinc-300 font-mono">http://https://telebase.pages.dev/</code>
+                              <button
                                 onClick={() => {
-                                  navigator.clipboard.writeText("http://localhost:3000");
+                                  navigator.clipboard.writeText("http://https://telebase.pages.dev/");
                                   alert("Endpoint base URL copied!");
                                 }}
                                 className="text-zinc-500 hover:text-blue-400 transition-colors"
@@ -3643,7 +3623,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 >
                                   {showAPIKeyInAI ? "Hide" : "Show"}
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => {
                                     navigator.clipboard.writeText(currentProject.api_key);
                                     alert("API Key copied!");
@@ -3722,7 +3702,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           onClick={() => {
                             let snippet = "";
                             if (aiSnippetTab === 'js_sql') {
-                              snippet = `fetch('http://localhost:3000/api/db', {
+                              snippet = `fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3734,7 +3714,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
   })
 }).then(r => r.json()).then(data => console.log(data.records));`;
                             } else if (aiSnippetTab === 'js_nosql') {
-                              snippet = `fetch('http://localhost:3000/api/db', {
+                              snippet = `fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3753,7 +3733,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               snippet = `const formData = new FormData();
 formData.append('file', fileInput.files[0]);
 
-fetch('http://localhost:3000/api/data/upload', {
+fetch('http://https://telebase.pages.dev//api/data/upload', {
   method: 'POST',
   headers: {
     'x-api-key': '${currentProject.api_key}'
@@ -3762,7 +3742,7 @@ fetch('http://localhost:3000/api/data/upload', {
 }).then(r => r.json()).then(data => console.log(data.file.uuid));`;
                             } else if (aiSnippetTab === 'retrieve') {
                               snippet = `// Decrypts & streams binary payloads on the fly:
-const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;`;
+const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;`;
                             }
                             navigator.clipboard.writeText(snippet);
                             alert("Snippet copied to clipboard!");
@@ -3785,11 +3765,10 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                           <button
                             key={subTab.id}
                             onClick={() => setAiSnippetTab(subTab.id)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${
-                              aiSnippetTab === subTab.id
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${aiSnippetTab === subTab.id
                                 ? "bg-zinc-800 text-white border-zinc-700/60"
                                 : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
-                            }`}
+                              }`}
                           >
                             {subTab.label}
                           </button>
@@ -3800,8 +3779,8 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                       <div className="flex-1 bg-[#050507] border border-zinc-900 rounded-xl p-4 font-mono text-xs overflow-x-auto text-zinc-300 max-h-[300px] overflow-y-auto leading-relaxed">
                         {aiSnippetTab === "js_sql" && (
                           <pre className="text-blue-300/90 whitespace-pre-wrap select-all">
-{`// 1. Fetch records using standard SQL SELECT query
-const response = await fetch('http://localhost:3000/api/db', {
+                            {`// 1. Fetch records using standard SQL SELECT query
+const response = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3819,8 +3798,8 @@ console.log('Query records:', data.records);`}
 
                         {aiSnippetTab === "js_nosql" && (
                           <pre className="text-violet-300/90 whitespace-pre-wrap select-all">
-{`// 2. Insert records using Mongo-style NoSQL payload
-const response = await fetch('http://localhost:3000/api/db', {
+                            {`// 2. Insert records using Mongo-style NoSQL payload
+const response = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3843,11 +3822,11 @@ console.log('Insert success:', data.success);`}
 
                         {aiSnippetTab === "upload" && (
                           <pre className="text-emerald-300/90 whitespace-pre-wrap select-all">
-{`// 3. Encrypted binary/media uploads (multipart/form-data)
+                            {`// 3. Encrypted binary/media uploads (multipart/form-data)
 const formData = new FormData();
 formData.append('file', fileSelectorInput.files[0]);
 
-const response = await fetch('http://localhost:3000/api/data/upload', {
+const response = await fetch('http://https://telebase.pages.dev//api/data/upload', {
   method: 'POST',
   headers: {
     'x-api-key': '${currentProject.api_key}'
@@ -3861,9 +3840,9 @@ console.log('Decrypted File UUID in DB:', data.file.uuid);`}
 
                         {aiSnippetTab === "retrieve" && (
                           <pre className="text-amber-300/90 whitespace-pre-wrap select-all">
-{`// 4. Retrieve/Stream media link with dynamic decryption
+                            {`// 4. Retrieve/Stream media link with dynamic decryption
 const fileUuid = 'your-file-uuid';
-const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;
+const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;
 
 // Directly use in HTML tags (e.g. <img src={fileUrl} />)`}
                           </pre>
@@ -3889,7 +3868,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
       <AnimatePresence>
         {isNewProjectModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -3915,24 +3894,24 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
               <form onSubmit={handleCreateProject} className="p-6 space-y-5">
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Project Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
-                    value={newProjectName} 
+                    value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="e.g. My Production DB" 
+                    placeholder="e.g. My Production DB"
                     className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Telegram Channel ID</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
-                    value={newChannelId} 
+                    value={newChannelId}
                     onChange={(e) => setNewChannelId(e.target.value)}
-                    placeholder="e.g. -1003959092433" 
+                    placeholder="e.g. -1003959092433"
                     className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                   />
                 </div>
@@ -3940,8 +3919,8 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Bot Tokens</label>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={handleAddBotField}
                       className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold transition-colors"
                     >
@@ -3951,11 +3930,11 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
 
                   <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
                     {newBots.map((token, i) => (
-                      <input 
+                      <input
                         key={i}
-                        type="text" 
+                        type="text"
                         required={i === 0}
-                        value={token} 
+                        value={token}
                         onChange={(e) => handleNewBotChange(i, e.target.value)}
                         placeholder={i === 0 ? "e.g. 8743065502:AAGDjQ2PM..." : `Bot Token #${i + 1}`}
                         className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
@@ -3965,15 +3944,15 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setIsNewProjectModalOpen(false)}
                     className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Create Project
@@ -3989,7 +3968,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
       <AnimatePresence>
         {isNewTableModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -4015,12 +3994,12 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
               <form onSubmit={handleCreateTable} className="p-6 space-y-5">
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Table Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
-                    value={newTableName} 
+                    value={newTableName}
                     onChange={(e) => setNewTableName(e.target.value)}
-                    placeholder="e.g. users" 
+                    placeholder="e.g. users"
                     className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                   />
                 </div>
@@ -4028,8 +4007,8 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Columns</label>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={handleAddSchemaField}
                       className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold transition-colors"
                     >
@@ -4040,13 +4019,13 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                   <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
                     {/* Default ID column */}
                     <div className="flex items-center gap-2">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         disabled
-                        value="id" 
+                        value="id"
                         className="flex-1 bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-2.5 text-xs text-zinc-600 font-mono outline-none cursor-not-allowed"
                       />
-                      <select 
+                      <select
                         disabled
                         className="bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-2.5 text-xs text-zinc-600 outline-none cursor-not-allowed"
                       >
@@ -4057,15 +4036,15 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
 
                     {newTableFields.map((field, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           required
-                          value={field.name} 
+                          value={field.name}
                           onChange={(e) => handleSchemaFieldChange(i, 'name', e.target.value)}
                           placeholder="Column Name"
                           className="flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl p-2.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none placeholder:text-zinc-700"
                         />
-                        <select 
+                        <select
                           value={field.type}
                           onChange={(e) => handleSchemaFieldChange(i, 'type', e.target.value)}
                           className="bg-[#08080a] border border-zinc-800/50 rounded-xl p-2.5 text-xs text-white focus:border-blue-500/50 outline-none"
@@ -4074,7 +4053,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                           <option value="number">number</option>
                           <option value="boolean">boolean</option>
                         </select>
-                        
+
                         <button
                           type="button"
                           onClick={() => handleRemoveSchemaField(i)}
@@ -4088,15 +4067,15 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setIsNewTableModalOpen(false)}
                     className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Create Table
@@ -4112,7 +4091,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
       <AnimatePresence>
         {isAddUserModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -4145,37 +4124,37 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
 
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Email Address</label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     required
-                    value={newUserEmail} 
+                    value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
-                    placeholder="user@example.com" 
+                    placeholder="user@example.com"
                     className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Password</label>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     required
-                    value={newUserPassword} 
+                    value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
-                    placeholder="••••••••" 
+                    placeholder="••••••••"
                     className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
                 <div className="pt-2 flex justify-end gap-3">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setIsAddUserModalOpen(false)}
                     className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-400 hover:text-zinc-300 rounded-xl border border-zinc-800 transition-colors"
                   >
                     Cancel
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     disabled={isAddingUser}
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-blue-500/10"
@@ -4201,9 +4180,9 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
               onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }}
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
             />
-            
+
             {/* Slide-out Drawer */}
-            <motion.div 
+            <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
@@ -4222,8 +4201,8 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                       <p className="text-[11px] text-zinc-500">Insert or update data in table "{selectedTableName}"</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }} 
+                  <button
+                    onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }}
                     className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors"
                   >
                     <X size={16} />
@@ -4236,11 +4215,10 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                 <button
                   type="button"
                   onClick={() => setRecordEditorMode('form')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
-                    recordEditorMode === 'form'
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${recordEditorMode === 'form'
                       ? "bg-zinc-800 text-white border-zinc-700/60"
                       : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
-                  }`}
+                    }`}
                 >
                   Form Builder
                 </button>
@@ -4251,11 +4229,10 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                     setRawJsonInput(JSON.stringify(dataToConvert, null, 2));
                     setRecordEditorMode('json');
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
-                    recordEditorMode === 'json'
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${recordEditorMode === 'json'
                       ? "bg-zinc-800 text-white border-zinc-700/60"
                       : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
-                  }`}
+                    }`}
                 >
                   Raw JSON Editor
                 </button>
@@ -4280,7 +4257,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                     {(() => {
                       const activeTable = dbTables.find(t => t.name === selectedTableName);
                       const fields = activeTable?.schema?.fields || { id: 'string' };
-                      
+
                       return Object.entries(fields).map(([fieldName, fieldType]) => {
                         // Skip ID for adding, but allow viewing/editing for Edit Mode (disabled)
                         if (fieldName === 'id') {
@@ -4299,7 +4276,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                           }
                           return null;
                         }
-                        
+
                         if (fieldName === 'created_at' || fieldName === 'updated_at') {
                           return null; // System managed timestamps
                         }
@@ -4312,7 +4289,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
                                 {fieldType}
                               </span>
                             </div>
-                            
+
                             {fieldType === 'boolean' ? (
                               <select
                                 value={String(modalRecordData[fieldName] ?? 'false')}
@@ -4371,7 +4348,7 @@ const fileUrl = \`http://localhost:3000/api/data/\${fileUuid}?apiKey=${currentPr
       <AnimatePresence>
         {isAddColumnModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}

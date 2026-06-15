@@ -13,13 +13,13 @@ export default function AuthDocs() {
         <p className="text-zinc-300">
           You can create projects inside your Telebase Dashboard. Each project generates a unique API key that scopes data specifically to that project.
         </p>
-        
+
         <h3 className="text-lg font-bold text-white mt-4">Passing the API Key</h3>
         <p className="text-zinc-400 text-sm mb-2">Include the key in the <code>x-api-key</code> header for POST requests, or as an <code>apiKey</code> query parameter for GET downloads.</p>
-        
+
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
           <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-{`const response = await fetch('http://localhost:3000/api/db', {
+            {`const response = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',

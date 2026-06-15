@@ -177,7 +177,7 @@ export async function GET(
       });
       const otpRecord = otpRes.records?.find((r: any) => r.code === token);
 
-      if (!otpRecord)  return new Response("Invalid or expired magic link.", { status: 400 });
+      if (!otpRecord) return new Response("Invalid or expired magic link.", { status: 400 });
       if (otpRecord.is_used) return new Response("This magic link has already been used.", { status: 400 });
       if (otpRecord.expires_at < Date.now()) return new Response("This magic link has expired.", { status: 400 });
 
@@ -320,7 +320,7 @@ export async function POST(
         html = generateProjectOTPEmailHTML(code, project.name);
       } else {
         // Build full magic link URL
-        const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+        const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "https://telebase.pages.dev/";
         const protocol = host.includes("localhost") ? "http" : "https";
         const magicLink = `${protocol}://${host}/api/auth/project/verify?token=${code}&apiKey=${project.api_key}`;
         subject = PROJECT_AUTH_CONFIG.emailSubjectMagicLink;

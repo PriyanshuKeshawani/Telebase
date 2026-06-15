@@ -7,11 +7,11 @@ export interface ProjectAuthConfig {
   // OTP Settings
   otpLength: number;          // Default: 6. Recommended: 4 to 8.
   otpExpiryMinutes: number;   // Default: 10 minutes.
-  
+
   // Auth Modes Enabled
   allowOTP: boolean;          // Enable Email OTP auth
   allowMagicLink: boolean;    // Enable Magic Link auth
-  
+
   // Custom Magic Link URL format
   // E.g. "https://your-frontend-app.com/verify?token={{token}}"
   magicLinkUrlTemplate: string;
@@ -36,9 +36,9 @@ export const PROJECT_AUTH_CONFIG: ProjectAuthConfig = {
   otpExpiryMinutes: 10,
   allowOTP: true,
   allowMagicLink: true,
-  
+
   // For Magic Links, the verification token is appended to this URL
-  magicLinkUrlTemplate: "http://localhost:3000/api/auth/project/verify?token={{token}}",
+  magicLinkUrlTemplate: "http://https://telebase.pages.dev//api/auth/project/verify?token={{token}}",
 
   // Email subjects
   emailSubjectOTP: "🔐 Your Verification Code: {{code}}",

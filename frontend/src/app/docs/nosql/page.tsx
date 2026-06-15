@@ -15,7 +15,7 @@ export default function NoSqlDocs() {
           <p className="text-sm text-zinc-400">Use operators like <code>$eq, $ne, $gt, $gte, $lt, $lte, $regex</code>.</p>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-{`await fetch('http://localhost:3000/api/db', {
+              {`await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({
@@ -36,7 +36,7 @@ export default function NoSqlDocs() {
           <h2 className="text-xl font-bold text-white">INSERT</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-{`await fetch('http://localhost:3000/api/db', {
+              {`await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({

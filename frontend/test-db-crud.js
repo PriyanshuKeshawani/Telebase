@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'http://https://telebase.pages.dev/';
 
 async function runDBCrudTests() {
   console.log('🧪 Starting Telebase Real Database CRUD Pillars Verification Test...\n');
@@ -18,7 +18,7 @@ async function runDBCrudTests() {
         channel_id: "-1003817953908"
       })
     });
-    
+
     const projectData = await projectRes.json();
     if (!projectData.success) {
       throw new Error(`Failed to create project: ${JSON.stringify(projectData)}`);
@@ -37,13 +37,13 @@ async function runDBCrudTests() {
     // -------------------------------------------------------------
     console.log('🛡️ PILLAR 1: Connection & Safety Verification');
     console.log('🔄 Checking API block on missing / invalid API key...');
-    
+
     const badAuthRes = await fetch(`${API_BASE_URL}/api/db`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'SELECT', tableName })
     });
-    
+
     if (badAuthRes.status === 401) {
       console.log('✅ Connection & Safety: Successfully blocked unauthenticated connection!');
     } else {
@@ -56,7 +56,7 @@ async function runDBCrudTests() {
     console.log('\n🔄 Creating structured schema for "users" table...');
     const createTableRes = await fetch(`${API_BASE_URL}/api/db`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey
       },
@@ -86,10 +86,10 @@ async function runDBCrudTests() {
     // PILLAR 2 & 3: Query Processing & Storage (INSERT / SELECT / Indexing / Schema)
     // -------------------------------------------------------------
     console.log('\n📝 PILLAR 2 & 3: Query Processing, Memory Cache & Storage Verification');
-    
+
     // A. Perform Structured SQL INSERT Operations
     console.log('🔄 Executing SQL INSERT statements...');
-    
+
     const usersToInsert = [
       { sql: "INSERT INTO users (name, age, email, is_active) VALUES ('Alice Smith', 30, 'alice@example.com', 'true')" },
       { sql: "INSERT INTO users (name, age, email, is_active) VALUES ('Bob Jones', 22, 'bob@example.com', 'false')" },
@@ -115,9 +115,9 @@ async function runDBCrudTests() {
     const badSchemaRes = await fetch(`${API_BASE_URL}/api/db`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ 
-        action: 'INSERT', 
-        tableName, 
+      body: JSON.stringify({
+        action: 'INSERT',
+        tableName,
         insertData: { name: 'Faulty User', age: 'thirty-five', email: 'faulty@example.com', is_active: true }
       })
     });
@@ -153,7 +153,7 @@ async function runDBCrudTests() {
 
     console.log('\n⚡ Latency Benchmarking (Pillar 3: Memory Caching & Hot RAM Caches):');
     console.log(`   Initial Fetch Latency: ${selectData.latencyMs}ms (Cache Hit: ${selectData.cacheHit})`);
-    
+
     // Make second consecutive SELECT to measure cached latency
     const cacheSelectRes = await fetch(`${API_BASE_URL}/api/db`, {
       method: 'POST',
@@ -162,7 +162,7 @@ async function runDBCrudTests() {
     });
     const cacheSelectData = await cacheSelectRes.json();
     console.log(`   Consecutive Fetch Latency: ${cacheSelectData.latencyMs}ms (Cache Hit: ${cacheSelectData.cacheHit})`);
-    
+
     if (cacheSelectData.cacheHit) {
       console.log('✅ RAM Cache System: Hot database pages are cached perfectly in RAM for sub-millisecond reads!');
     } else {
@@ -219,7 +219,7 @@ async function runDBCrudTests() {
     const verifyDeleteSelectData = await verifyDeleteSelectRes.json();
     console.log('   Current Records in Database:');
     verifyDeleteSelectData.records.forEach(r => console.log(`   - ${r.name} (Age: ${r.age})`));
-    
+
     if (verifyDeleteSelectData.records.some(r => r.name.includes('Bob'))) {
       throw new Error('❌ CRUD Delete Validation failed. Bob Jones still exists!');
     } else {
@@ -235,21 +235,21 @@ async function runDBCrudTests() {
     const crashedWriteRes = await fetch(`${API_BASE_URL}/api/db`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ 
-        action: 'INSERT', 
-        tableName, 
+      body: JSON.stringify({
+        action: 'INSERT',
+        tableName,
         insertData: { name: 'Post-Crash Recovered User', age: 40, email: 'recovered@example.com', is_active: true },
         forceLockCrash: true
       })
     });
     const crashedWriteData = await crashedWriteRes.json();
-    
+
     console.log(`✅ Crash simulated! Server reported write failure. Let's inspect active Write-Ahead Logs (WAL)...`);
-    
+
     // Retrieve WAL Logs
     const metadataRes = await fetch(`${API_BASE_URL}/api/db?apiKey=${apiKey}`);
     const metadataData = await metadataRes.json();
-    
+
     console.log(`   Write-Ahead Log History:`);
     metadataData.walLogs.forEach((log) => {
       console.log(`     - [WAL ID: ${log.id}] Op: ${log.operation} | Table: ${log.tableName} | Status: ${log.status}`);
@@ -273,7 +273,7 @@ async function runDBCrudTests() {
     if (!recoveryData.success) {
       throw new Error(`Recovery replayer failed: ${recoveryData.error}`);
     }
-    
+
     console.log('✅ Recovery replay completed successfully! System Logs:');
     recoveryData.logs.forEach(logLine => console.log(`   ${logLine}`));
 

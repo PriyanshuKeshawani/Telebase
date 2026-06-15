@@ -58,7 +58,7 @@ By sharding data and utilizing Cloudflare's Edge network, Telebase provides deve
    npm install
    npm run dev
    ```
-4. Log into `http://localhost:3000` using your configured admin credentials. Create a Project to get your `x-api-key`.
+4. Log into `http://https://telebase.pages.dev/` using your configured admin credentials. Create a Project to get your `x-api-key`.
 
 ---
 
@@ -81,7 +81,7 @@ Telebase allows interacting with your data using either SQL or NoSQL styles dyna
 
 ### Insert Record
 ```javascript
-await fetch('http://localhost:3000/api/db', {
+await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers,
   body: JSON.stringify({
@@ -94,7 +94,7 @@ await fetch('http://localhost:3000/api/db', {
 
 ### Fetch Records (SQL)
 ```javascript
-const res = await fetch('http://localhost:3000/api/db', {
+const res = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers,
   body: JSON.stringify({
@@ -107,7 +107,7 @@ const { records } = await res.json();
 
 ### Fetch Records (NoSQL)
 ```javascript
-const res = await fetch('http://localhost:3000/api/db', {
+const res = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
   headers,
   body: JSON.stringify({
@@ -129,7 +129,7 @@ Files are automatically chunked into 10MB segments to safely stream through Clou
 const formData = new FormData();
 formData.append('file', document.querySelector('input[type="file"]').files[0]);
 
-const res = await fetch('http://localhost:3000/api/data/upload', {
+const res = await fetch('http://https://telebase.pages.dev//api/data/upload', {
   method: 'POST',
   headers: { 'x-api-key': 'your_project_api_key' },
   body: formData
@@ -142,7 +142,7 @@ console.log('Stored File UUID:', data.file.uuid);
 To download or embed an image directly into an `<img>` tag, simply use the download endpoint. Telebase automatically fetches the chunks, decrypts, and recompresses them on-the-fly.
 
 ```html
-<img src="http://localhost:3000/api/data/YOUR_FILE_UUID?apiKey=your_project_api_key" />
+<img src="http://https://telebase.pages.dev//api/data/YOUR_FILE_UUID?apiKey=your_project_api_key" />
 ```
 
 ---

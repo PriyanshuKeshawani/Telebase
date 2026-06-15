@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'http://https://telebase.pages.dev/';
 
 async function runE2ETests() {
   console.log('🧪 Starting Telebase 100% Database-less E2E Integration Test...\n');
@@ -16,7 +16,7 @@ async function runE2ETests() {
         channel_id: "-1003817953908"
       })
     });
-    
+
     const projectData = await projectRes.json();
     if (!projectData.success) {
       throw new Error(`Failed to create project: ${JSON.stringify(projectData)}`);
@@ -37,7 +37,7 @@ async function runE2ETests() {
         bot_token: "8216712040:AAFwcz0_UGnO4YWJPBuUL7CVac8mpc8Nvu8"
       })
     });
-    
+
     const addBotData = await addBotRes.json();
     if (!addBotData.success) {
       throw new Error(`Failed to add bot token: ${JSON.stringify(addBotData)}`);
@@ -56,7 +56,7 @@ async function runE2ETests() {
 
     // Step 4: Trigger Secure Upload
     console.log('🔄 Step 4: Uploading data payload to Telebase /api/data/upload...');
-    
+
     // Create multipart form data payload using native Blob & FormData
     const formData = new FormData();
     const fileBlob = new Blob([rawPayloadString], { type: 'application/json' });
@@ -84,7 +84,7 @@ async function runE2ETests() {
 
     // Step 5: Download the file and decrypt on-the-fly
     console.log(`🔄 Step 5: Triggering download & decryption stream via /api/data/${file.uuid}...`);
-    
+
     const downloadRes = await fetch(`${API_BASE_URL}/api/data/${file.uuid}`, {
       headers: {
         'x-api-key': project.api_key
@@ -104,7 +104,7 @@ async function runE2ETests() {
     // Step 6: Verify Cryptographic Hash
     console.log('🔄 Step 6: Verifying cryptographic integrity hash (SHA-256)...');
     const downloadedHash = crypto.createHash('sha256').update(downloadedBuffer).digest('hex');
-    
+
     console.log(`   Expected Zip Hash: ${file.hash}`);
     console.log(`   Received Zip Hash: ${downloadedHash}`);
 
