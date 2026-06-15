@@ -1097,8 +1097,8 @@ export default function Dashboard() {
       setUploadStatus("compressing");
       setUploadStatusText("Compressing file payload (client-side gzip)...");
     } else {
-      setUploadStatus("chunking");
-      setUploadStatusText("Preparing file for upload...");
+      setUploadStatus("uploading");
+      setUploadStatusText("Uploading...");
     }
     setUploadProgress(5);
 
@@ -1149,8 +1149,8 @@ export default function Dashboard() {
         compressedBytes = new Uint8Array(fileBuffer);
       }
 
-      setUploadStatus("chunking");
-      setUploadStatusText(encryptFiles ? "Uploading and encrypting chunks..." : "Uploading chunks...");
+      setUploadStatus("uploading");
+      setUploadStatusText("Uploading...");
       setUploadProgress(15);
 
       // 3. Chunk the raw bytes and upload
@@ -1208,8 +1208,8 @@ export default function Dashboard() {
       }
       await Promise.all(executing);
 
-      setUploadStatus("uploading");
-      setUploadStatusText("Finalizing database state...");
+      setUploadStatus("processing");
+      setUploadStatusText("Processing...");
       setUploadProgress(95);
 
       // 4. Finalize the upload
@@ -1239,7 +1239,7 @@ export default function Dashboard() {
       const finalizeData = await finalizeRes.json();
       if (finalizeData.success) {
         setUploadStatus("success");
-        setUploadStatusText(`Successfully saved! Size: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
+        setUploadStatusText("File stored successfully.");
         setUploadProgress(100);
         await loadDatabase();
         setTimeout(() => {
@@ -1362,7 +1362,6 @@ export default function Dashboard() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
   };
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(true);
@@ -1374,14 +1373,14 @@ export default function Dashboard() {
 
     // Get table schemas formatted as Markdown
     const tablesMarkdown = dbTables.length === 0
-      ? "* No tables have been created in this project yet."
+      ? "No tables have been created in this project yet."
       : dbTables.map(t => {
           const fieldsStr = t.schema?.fields
             ? Object.entries(t.schema.fields)
-                .map(([name, type]) => `    - \`${name}\` (${type})`)
+                .map(([name, type]) => `    - ${name} (${type})`)
                 .join('\n')
             : "    - (No columns defined)";
-          return `- **Table Name**: \`${t.name}\`\n  - **Size**: ${formatBytes(t.sizeBytes)}\n  - **Columns/Schema**:\n${fieldsStr}`;
+          return `- Table Name: ${t.name}\n  - Size: ${formatBytes(t.sizeBytes)}\n  - Columns/Schema:\n${fieldsStr}`;
         }).join('\n\n');
 
     const firstTable = dbTables[0]?.name || "users";
@@ -1401,99 +1400,66 @@ export default function Dashboard() {
           .join(',\n')
       : "      name: 'Emma',\n      age: 28";
 
-    const promptText = `# TELEBASE SYSTEM & DATABASE CONNECTION CONTEXT
-
+    const promptText = `<telebase_context>
+<system_instruction>
 You are an AI assistant helping a developer build/integrate an application with Telebase.
 Telebase is a serverless ACID-compliant database and file storage engine that uses Telegram as physical storage media. It exposes a local HTTP REST API for data query, manipulation, and secure media uploads.
+Use this context to write integrations, database models, and CRUD services.
+Do not use direct SQLite or Postgres connections. Always use simple HTTP calls to the Telebase REST endpoints with the x-api-key header.
+Handle responses with robust error checking ('success' property in response JSON).
+Utilize dynamic SQL and NoSQL constructs according to the database tables schema provided.
+</system_instruction>
 
-Here is the connection parameters and active database schema. Use this context to write perfect integrations, database models, and CRUD services.
+<project_info>
+Host Endpoint Base URL: $TELEBASE_HOST_URL
+Active Project ID: ${currentProject.id}
+Active Project Name: ${currentProject.name}
+API Access Key Header: x-api-key
+API Access Key Value: $TELEBASE_API_KEY
+Telegram Channel ID: ${currentProject.channel_id ? 'Configured' : 'Default'}
+Storage Encryption: E2E Encrypted (AES-256-GCM + Zlib compression)
+</project_info>
 
----
-
-## 🔑 CONNECTION CREDENTIALS
-- **Host Endpoint Base URL**: \`http://localhost:3000\`
-- **Active Project ID**: \`${currentProject.id}\`
-- **Active Project Name**: \`${currentProject.name}\`
-- **API Access Key (X-API-KEY Header)**: \`${currentProject.api_key}\`
-- **Telegram Channel ID**: \`${currentProject.channel_id || "Default"}\`
-- **Storage Encryption**: E2E Encrypted (AES-256-GCM + Zlib compression)
-
----
-
-## 📊 ACTIVE DATABASE SCHEMA
-Below is the list of active tables, their current fields/columns, and sizes:
-
+<active_schema>
 ${tablesMarkdown}
+</active_schema>
 
----
+<api_examples>
+<database_operations>
+Execute database queries using POST requests to $TELEBASE_HOST_URL/api/db.
 
-## 🛠️ API ENDPOINTS & INTEGRATION SAMPLES
-
-### 1. 🗄️ Database Operations (\\/api\\/db)
-Execute database queries (both SQL-like query strings and NoSQL body structures) using simple REST POST requests.
-
-#### A. Fetch/Select Records (SQL)
+Example SQL SELECT:
 \`\`\`javascript
-const response = await fetch('http://localhost:3000/api/db', {
+const response = await fetch('$TELEBASE_HOST_URL/api/db', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': '${currentProject.api_key}'
-  },
-  body: JSON.stringify({
-    tableName: '${firstTable}',
-    sqlQuery: 'SELECT * FROM ${firstTable}'
-  })
+  headers: { 'Content-Type': 'application/json', 'x-api-key': '$TELEBASE_API_KEY' },
+  body: JSON.stringify({ tableName: '${firstTable}', sqlQuery: 'SELECT * FROM ${firstTable}' })
 });
-const data = await response.json();
-console.log(data.records);
 \`\`\`
 
-#### B. Fetch/Select Records (NoSQL Mongo-Style Query)
+Example NoSQL SELECT:
 \`\`\`javascript
-const response = await fetch('http://localhost:3000/api/db', {
+const response = await fetch('$TELEBASE_HOST_URL/api/db', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': '${currentProject.api_key}'
-  },
-  body: JSON.stringify({
-    tableName: '${firstTable}',
-    action: 'SELECT',
-    noSqlQuery: {
-      // Find where age >= 18
-      age: { $gte: 18 }
-    }
-  })
+  headers: { 'Content-Type': 'application/json', 'x-api-key': '$TELEBASE_API_KEY' },
+  body: JSON.stringify({ tableName: '${firstTable}', action: 'SELECT', noSqlQuery: { age: { $gte: 18 } } })
 });
-const data = await response.json();
-console.log(data.records);
 \`\`\`
 
-#### C. Insert Record (SQL)
+Example SQL INSERT:
 \`\`\`javascript
-const response = await fetch('http://localhost:3000/api/db', {
+const response = await fetch('$TELEBASE_HOST_URL/api/db', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': '${currentProject.api_key}'
-  },
-  body: JSON.stringify({
-    tableName: '${firstTable}',
-    sqlQuery: "INSERT INTO ${firstTable} (${sampleFieldsKeys}) VALUES (${sampleFieldsValues})"
-  })
+  headers: { 'Content-Type': 'application/json', 'x-api-key': '$TELEBASE_API_KEY' },
+  body: JSON.stringify({ tableName: '${firstTable}', sqlQuery: "INSERT INTO ${firstTable} (${sampleFieldsKeys}) VALUES (${sampleFieldsValues})" })
 });
-const data = await response.json();
 \`\`\`
 
-#### D. Insert Record (NoSQL)
+Example NoSQL INSERT:
 \`\`\`javascript
-const response = await fetch('http://localhost:3000/api/db', {
+const response = await fetch('$TELEBASE_HOST_URL/api/db', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': '${currentProject.api_key}'
-  },
+  headers: { 'Content-Type': 'application/json', 'x-api-key': '$TELEBASE_API_KEY' },
   body: JSON.stringify({
     tableName: '${firstTable}',
     action: 'INSERT',
@@ -1502,79 +1468,42 @@ ${sampleFieldsObject}
     }
   })
 });
-const data = await response.json();
 \`\`\`
 
-#### E. Update Record (SQL)
+Example UPDATE:
 \`\`\`javascript
-const response = await fetch('http://localhost:3000/api/db', {
+const response = await fetch('$TELEBASE_HOST_URL/api/db', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': '${currentProject.api_key}'
-  },
-  body: JSON.stringify({
-    tableName: '${firstTable}',
-    sqlQuery: "UPDATE ${firstTable} SET ${dbTables[0]?.schema?.fields ? Object.keys(dbTables[0].schema.fields).filter(k => k !== 'id')[0] || 'name' : 'name'} = 'Emma' WHERE id = 'some-uuid'"
-  })
+  headers: { 'Content-Type': 'application/json', 'x-api-key': '$TELEBASE_API_KEY' },
+  body: JSON.stringify({ tableName: '${firstTable}', sqlQuery: "UPDATE ${firstTable} SET name = 'Emma' WHERE id = 'some-uuid'" })
 });
-const data = await response.json();
 \`\`\`
+</database_operations>
 
-#### F. Delete Record (SQL)
-\`\`\`javascript
-const response = await fetch('http://localhost:3000/api/db', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': '${currentProject.api_key}'
-  },
-  body: JSON.stringify({
-    tableName: '${firstTable}',
-    sqlQuery: "DELETE FROM ${firstTable} WHERE id = 'some-uuid'"
-  })
-});
-const data = await response.json();
-\`\`\`
-
----
-
-### 2. 📁 Storage Operations
-
-#### A. Upload Media / File / Binary (\\/api\\/data\\/upload)
-Allows streaming chunks to Telegram with on-the-fly encryption and compression.
-Send as \`multipart/form-data\` with \`file\` field.
+<storage_operations>
+Upload Media / File Chunking:
+Allows streaming chunks to Telegram with on-the-fly encryption. Send as multipart/form-data.
 \`\`\`javascript
 const formData = new FormData();
 formData.append('file', fileInput.files[0]);
 
-const response = await fetch('http://localhost:3000/api/data/upload', {
+const response = await fetch('$TELEBASE_HOST_URL/api/data/upload', {
   method: 'POST',
-  headers: {
-    'x-api-key': '${currentProject.api_key}'
-  },
+  headers: { 'x-api-key': '$TELEBASE_API_KEY' },
   body: formData
 });
 const data = await response.json();
 console.log('File UUID:', data.file.uuid);
 \`\`\`
 
-#### B. Retrieve / Stream File Content (\\/api\\/data\\/[uuid])
-Streams, decrypts and decompresses chunks on-the-fly directly to the browser.
+Retrieve / Stream File Content:
+Direct link for downloads or image src tags. Decrypts chunks on-the-fly.
 \`\`\`javascript
-// Direct link for downloads or image src tags:
-const fileUrl = \`http://localhost:3000/api/data/\\\${fileUuid}?apiKey=${currentProject.api_key}\`;
+const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_KEY\`;
 \`\`\`
-
----
-
-## 🎯 INSTRUCTIONS FOR AI IDE DEVELOPER AGENT
-When writing code for the developer:
-1. Always authenticate using the \`x-api-key\` header with \`${currentProject.api_key}\`.
-2. Do not attempt direct sqlite or postgres connection unless specifically asked; instead, use simple http calls to the Telebase REST endpoints listed above.
-3. Handle responses with robust error checking (\`success\` property in response JSON).
-4. Utilize dynamic SQL and NoSQL constructs according to the database tables schema provided in this prompt.
-`;
+</storage_operations>
+</api_examples>
+</telebase_context>`;
 
     navigator.clipboard.writeText(promptText);
     setCopiedAI(true);
