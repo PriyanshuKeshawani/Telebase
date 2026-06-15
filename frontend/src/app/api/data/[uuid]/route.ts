@@ -227,42 +227,93 @@ export async function GET(
 
     const isCompressed = fileRecord.is_compressed !== false; // Default true
     if ((fileRecord.version === 1 || fileRecord.version === undefined) && isCompressed) {
-      console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? yes`);
-      // Buffer and decompress in memory to salvage corrupted gzip tails
-      const DS = (globalThis as any).DecompressionStream;
-      const ds = new DS('gzip');
-      const decompressedStream = stream.pipeThrough(ds);
-      const reader = decompressedStream.getReader();
-      const chunks: Uint8Array[] = [];
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) chunks.push(value as any);
-        }
-      } catch (err: any) {
-        console.warn(`[Download Warning] Salvaged corrupted gzip stream for "${fileRecord.filename}":`, err.message);
-      }
+      // PEEK FIRST CHUNK TO VERIFY GZIP MAGIC BYTES (1F 8B)
+      const reader = stream.getReader();
+      const firstResult = await reader.read();
       
-      const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-      console.log(`[TEMP LOG DOWNLOAD API] - buffer size after decompress=${totalLength}`);
-      
-      const salvagedBuffer = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const chunk of chunks) {
-        salvagedBuffer.set(chunk, offset);
-        offset += chunk.length;
-      }
+      if (!firstResult.done && firstResult.value) {
+        const firstChunk = firstResult.value as Uint8Array;
+        const isGzip = firstChunk.length >= 2 && firstChunk[0] === 0x1F && firstChunk[1] === 0x8B;
+        
+        // Reconstruct the stream so no data is lost
+        const reconstructedStream = new ReadableStream({
+          async start(controller) {
+            controller.enqueue(firstChunk);
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (value) controller.enqueue(value);
+              }
+            } catch (err) {
+              controller.error(err);
+            }
+            controller.close();
+          }
+        });
 
-      console.log(`FINAL_RESPONSE_SIZE=${salvagedBuffer.length}`);
-      return new NextResponse(salvagedBuffer, {
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
-          'Cache-Control': 'no-store, max-age=0',
-          'Content-Length': salvagedBuffer.length.toString()
+        if (!isGzip) {
+          console.warn(`[Metadata Mismatch Warning] File "${fileRecord.filename}" is flagged as compressed=true, but missing gzip magic bytes (1F 8B). Treating as uncompressed.`);
+          // RECOVERY: Bypass decompression entirely and stream the raw file
+          
+          let streamedSize = 0;
+          const trackingStream = new TransformStream({
+            transform(chunk, controller) {
+              streamedSize += chunk.length;
+              controller.enqueue(chunk);
+            },
+            flush() {
+              console.log(`FINAL_RESPONSE_SIZE=${streamedSize}`);
+            }
+          });
+
+          return new NextResponse(reconstructedStream.pipeThrough(trackingStream), {
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
+              'Cache-Control': 'no-store, max-age=0'
+            }
+          });
         }
-      });
+
+        // Proceed with normal decompression using the reconstructed stream
+        console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? yes`);
+        // Buffer and decompress in memory to salvage corrupted gzip tails
+        const DS = (globalThis as any).DecompressionStream;
+        const ds = new DS('gzip');
+        const decompressedStream = reconstructedStream.pipeThrough(ds);
+        const decReader = decompressedStream.getReader();
+        const chunks: Uint8Array[] = [];
+        try {
+          while (true) {
+            const { done, value } = await decReader.read();
+            if (done) break;
+            if (value) chunks.push(value as any);
+          }
+        } catch (err: any) {
+          console.warn(`[Download Warning] Salvaged corrupted gzip stream for "${fileRecord.filename}":`, err.message);
+        }
+        
+        const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
+        console.log(`[TEMP LOG DOWNLOAD API] - buffer size after decompress=${totalLength}`);
+        
+        const salvagedBuffer = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          salvagedBuffer.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        console.log(`FINAL_RESPONSE_SIZE=${salvagedBuffer.length}`);
+        return new NextResponse(salvagedBuffer, {
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
+            'Cache-Control': 'no-store, max-age=0',
+            'Content-Length': salvagedBuffer.length.toString()
+          }
+        });
+      }
     }
 
     console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? no`);
