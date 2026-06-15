@@ -503,6 +503,33 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
   state.last_pinned_message_id = newMessageId;
 }
 
+export async function uploadShardToTelegram(filename: string, payload: string): Promise<number | null> {
+  if (!BOT_TOKEN || !TELEGRAM_CHANNEL_ID) return null;
+  try {
+    const encryptedBytes = await encryptPayload(payload);
+    const formData = new FormData();
+    formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+    
+    const blob = new Blob([encryptedBytes], { type: 'application/octet-stream' });
+    formData.append('document', blob, filename);
+
+    const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const uploadData = await uploadRes.json();
+    if (uploadData.ok) {
+      return uploadData.result.message_id;
+    }
+    console.warn('[TeleStore] Failed to upload shard to Telegram:', JSON.stringify(uploadData));
+    return null;
+  } catch (error: any) {
+    console.error('[TeleStore] Exception uploading shard to Telegram:', error.message);
+    return null;
+  }
+}
+
 function triggerBackgroundTelegramBackup(finalBuffer: Uint8Array, state: DatabaseSchema) {
   if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
     (async () => {

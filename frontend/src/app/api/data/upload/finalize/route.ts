@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, FileChunk, encryptPayload, saveKVValue } from '@/lib/telegramDatabase';
+import { getDatabaseState, saveDatabaseState, verifyProjectApiKey, StoredFile, FileChunk, encryptPayload, saveKVValue, uploadShardToTelegram } from '@/lib/telegramDatabase';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -57,6 +57,16 @@ export async function POST(req: NextRequest) {
       const encryptedMeta = await encryptPayload(JSON.stringify(newFile));
       const ok = await saveKVValue(`file_meta_${fileUuid}`, encryptedMeta);
       if (ok) console.log(`[Upload Finalize API] File metadata backup saved.`);
+      
+      // PHASE 1 SHARDING: Dual-write file_<uuid>.json to KV and Telegram
+      const shardFilename = `file_${fileUuid}.json`;
+      const shardOk = await saveKVValue(`file_${fileUuid}`, encryptedMeta);
+      if (shardOk) console.log(`[Upload Finalize API] Shard saved to KV.`);
+      
+      const shardMessageId = await uploadShardToTelegram(shardFilename, JSON.stringify(newFile));
+      if (shardMessageId) {
+        console.log(`[Upload Finalize API] Shard saved to Telegram. Message ID: ${shardMessageId}`);
+      }
     } catch (e: any) {
       console.error(`[Upload Finalize API] Metadata backup error:`, e.message);
     }
