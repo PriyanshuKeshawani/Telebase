@@ -14,7 +14,7 @@ export default function SqlDocs() {
           <h2 className="text-xl font-bold text-white">SELECT</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-              {`await fetch('http://https://telebase.pages.dev//api/db', {
+              {`await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({
@@ -31,7 +31,7 @@ export default function SqlDocs() {
           <h2 className="text-xl font-bold text-white">INSERT</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-              {`await fetch('http://https://telebase.pages.dev//api/db', {
+              {`await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({
@@ -48,12 +48,29 @@ export default function SqlDocs() {
           <h2 className="text-xl font-bold text-white">UPDATE</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-              {`await fetch('http://https://telebase.pages.dev//api/db', {
+              {`await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({
     tableName: 'users',
     sqlQuery: "UPDATE users SET status = 'inactive' WHERE age > 60"
+  })
+});`}
+            </pre>
+          </div>
+        </div>
+
+        {/* DELETE */}
+        <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-2xl p-6 space-y-4">
+          <h2 className="text-xl font-bold text-white">DELETE</h2>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
+              {`await fetch('https://telebase.pages.dev/api/db', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
+  body: JSON.stringify({
+    tableName: 'users',
+    sqlQuery: "DELETE FROM users WHERE id = 'some-uuid'"
   })
 });`}
             </pre>

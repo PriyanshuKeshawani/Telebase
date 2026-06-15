@@ -19,7 +19,7 @@ export default function AuthDocs() {
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
           <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-            {`const response = await fetch('http://https://telebase.pages.dev//api/db', {
+            {`const response = await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',

@@ -19,13 +19,13 @@ export default function FileDownloadDocs() {
           <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
             {`// Using inside an Image tag
 <img 
-  src="http://https://telebase.pages.dev//api/data/YOUR_FILE_UUID?apiKey=YOUR_KEY" 
+  src="https://telebase.pages.dev/api/data/YOUR_FILE_UUID?apiKey=YOUR_KEY" 
   alt="Encrypted Telegram Media"
 />
 
 // Using for direct download
 <a 
-  href="http://https://telebase.pages.dev//api/data/YOUR_FILE_UUID?apiKey=YOUR_KEY&download=true"
+  href="https://telebase.pages.dev/api/data/YOUR_FILE_UUID?apiKey=YOUR_KEY&download=true"
 >
   Download Secure File
 </a>`}

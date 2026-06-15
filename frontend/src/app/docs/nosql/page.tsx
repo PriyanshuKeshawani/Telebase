@@ -15,7 +15,7 @@ export default function NoSqlDocs() {
           <p className="text-sm text-zinc-400">Use operators like <code>$eq, $ne, $gt, $gte, $lt, $lte, $regex</code>.</p>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-              {`await fetch('http://https://telebase.pages.dev//api/db', {
+              {`await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({
@@ -36,7 +36,7 @@ export default function NoSqlDocs() {
           <h2 className="text-xl font-bold text-white">INSERT</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
-              {`await fetch('http://https://telebase.pages.dev//api/db', {
+              {`await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
   body: JSON.stringify({
@@ -47,6 +47,45 @@ export default function NoSqlDocs() {
       age: 28,
       status: 'active'
     }
+  })
+});`}
+            </pre>
+          </div>
+        </div>
+
+        {/* UPDATE */}
+        <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-2xl p-6 space-y-4">
+          <h2 className="text-xl font-bold text-white">UPDATE</h2>
+          <p className="text-sm text-zinc-400">Match rows with a query, then set new values with <code>updateData</code>.</p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
+              {`await fetch('https://telebase.pages.dev/api/db', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
+  body: JSON.stringify({
+    tableName: 'users',
+    action: 'UPDATE',
+    noSqlQuery: { id: 'some-uuid' },
+    updateData: { status: 'inactive' }
+  })
+});`}
+            </pre>
+          </div>
+        </div>
+
+        {/* DELETE */}
+        <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-2xl p-6 space-y-4">
+          <h2 className="text-xl font-bold text-white">DELETE</h2>
+          <p className="text-sm text-zinc-400">Rows matching the query are permanently removed.</p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
+              {`await fetch('https://telebase.pages.dev/api/db', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'x-api-key': 'YOUR_KEY' },
+  body: JSON.stringify({
+    tableName: 'users',
+    action: 'DELETE',
+    noSqlQuery: { id: 'some-uuid' }
   })
 });`}
             </pre>

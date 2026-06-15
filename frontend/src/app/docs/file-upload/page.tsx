@@ -17,7 +17,7 @@ export default function FileUploadDocs() {
             {`const formData = new FormData();
 formData.append('file', document.querySelector('input[type="file"]').files[0]);
 
-const response = await fetch('http://https://telebase.pages.dev//api/data/upload', {
+const response = await fetch('https://telebase.pages.dev/api/data/upload', {
   method: 'POST',
   headers: {
     'x-api-key': 'YOUR_KEY'
