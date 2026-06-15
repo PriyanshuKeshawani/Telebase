@@ -255,7 +255,7 @@ export default function Dashboard() {
   const [encryptFiles, setEncryptFiles] = useState(true);
   // Drag and Drop Uploader States
   const [isDragActive, setIsDragActive] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "compressing" | "chunking" | "uploading" | "success" | "error">("idle");
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "compressing" | "chunking" | "uploading" | "processing" | "success" | "error">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
