@@ -1093,13 +1093,8 @@ export default function Dashboard() {
   const handleFileUpload = async (file: File) => {
     if (!currentProject) return;
 
-    if (compressFiles) {
-      setUploadStatus("compressing");
-      setUploadStatusText("Compressing file payload (client-side gzip)...");
-    } else {
-      setUploadStatus("uploading");
-      setUploadStatusText("Uploading...");
-    }
+    setUploadStatus("uploading");
+    setUploadStatusText("Uploading...");
     setUploadProgress(5);
 
     try {
@@ -1239,7 +1234,7 @@ export default function Dashboard() {
       const finalizeData = await finalizeRes.json();
       if (finalizeData.success) {
         setUploadStatus("success");
-        setUploadStatusText("File stored successfully.");
+        setUploadStatusText("Success");
         setUploadProgress(100);
         await loadDatabase();
         setTimeout(() => {
@@ -1412,8 +1407,8 @@ Utilize dynamic SQL and NoSQL constructs according to the database tables schema
 
 <project_info>
 Host Endpoint Base URL: $TELEBASE_HOST_URL
-Active Project ID: ${currentProject.id}
-Active Project Name: ${currentProject.name}
+Active Project ID: $PROJECT_ID
+Active Project Name: $PROJECT_NAME
 API Access Key Header: x-api-key
 API Access Key Value: $TELEBASE_API_KEY
 Telegram Channel ID: ${currentProject.channel_id ? 'Configured' : 'Default'}

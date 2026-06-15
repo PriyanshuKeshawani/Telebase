@@ -66,7 +66,7 @@ export default function Home() {
           <Link href="/dashboard" className="px-8 py-4 bg-white text-black rounded-lg font-semibold hover:bg-zinc-200 transition-colors">
             Go to Dashboard
           </Link>
-          <Link href="https://github.com/telebase" className="px-8 py-4 bg-[#18181b] border border-zinc-800 text-white rounded-lg font-semibold hover:bg-zinc-800 transition-colors">
+          <Link href="https://telebase.pages.dev/docs" className="px-8 py-4 bg-[#18181b] border border-zinc-800 text-white rounded-lg font-semibold hover:bg-zinc-800 transition-colors">
             Read Documentation
           </Link>
         </motion.div>
