@@ -126,7 +126,8 @@ export async function GET(
     console.log(`[Download] Streaming "${fileRecord.filename}" (${fileRecord.chunk_count} chunks)...`);
     
     console.log(`[TEMP LOG DOWNLOAD API]`);
-    console.log(`- stored metadata: is_compressed=${fileRecord.is_compressed}, is_encrypted=${fileRecord.is_encrypted}`);
+    console.log(`- stored metadata: total_chunks=${fileRecord.chunk_count}, is_compressed=${fileRecord.is_compressed}, is_encrypted=${fileRecord.is_encrypted}`);
+    console.log(`- chunk ids: ${fileRecord.chunks.map(c => c.chunk_index).join(', ')}`);
 
     // Ensure chunks are sorted by index to prevent sequential corruption
     fileRecord.chunks.sort((a, b) => a.chunk_index - b.chunk_index);
@@ -153,6 +154,8 @@ export async function GET(
 
             // 1. Try Cloudflare KV (fast path)
             cipherText = await fetchChunkFromKV(kvKey, isEncrypted);
+            if (cipherText) console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV? yes, Size=${cipherText.length}`);
+            else console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV? no`);
 
             // 2. Fallback: pending backup - retry KV
             if (!cipherText && chunk.message_id === 'pending_telegram_backup') {
@@ -162,6 +165,7 @@ export async function GET(
                 cipherText = await fetchChunkFromKV(kvKey, isEncrypted);
               }
               if (!cipherText) throw new Error(`Chunk ${chunk.chunk_index} pending backup and not available in KV.`);
+              console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV after retry? yes, Size=${cipherText.length}`);
             }
 
             // 3. Fallback: Download from Telegram
@@ -174,18 +178,22 @@ export async function GET(
               });
               const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
               cipherText = await fetchBinaryWithRetry(downloadUrl);
+              console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in Telegram? yes, Size=${cipherText?.length}`);
             }
 
             // 4. Decrypt using AES-256-GCM (if encrypted)
+            console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Size before decrypt=${cipherText?.length}`);
             if (!isEncrypted) {
-              console.log(`[TEMP LOG DOWNLOAD API] - decryption executed? no`);
+              console.log(`[TEMP LOG DOWNLOAD API] - decryption executed? no, Size after=${cipherText?.length}`);
               return cipherText;
             }
 
             console.log(`[TEMP LOG DOWNLOAD API] - decryption executed? yes`);
             const iv = hexToBytes(chunk.iv);
             const authTag = hexToBytes(chunk.auth_tag);
-            return await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
+            const dec = await aesGcmDecryptChunk(projectAESKey, iv, cipherText, authTag);
+            console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Size after decrypt=${dec.length}`);
+            return dec;
           };
 
           // Kick off initial prefetches
@@ -237,6 +245,8 @@ export async function GET(
       }
       
       const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
+      console.log(`[TEMP LOG DOWNLOAD API] - buffer size after decompress=${totalLength}`);
+      
       const salvagedBuffer = new Uint8Array(totalLength);
       let offset = 0;
       for (const chunk of chunks) {
@@ -244,17 +254,32 @@ export async function GET(
         offset += chunk.length;
       }
 
+      console.log(`FINAL_RESPONSE_SIZE=${salvagedBuffer.length}`);
       return new NextResponse(salvagedBuffer, {
         headers: {
           'Content-Type': 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
-          'Cache-Control': 'no-store, max-age=0'
+          'Cache-Control': 'no-store, max-age=0',
+          'Content-Length': salvagedBuffer.length.toString()
         }
       });
     }
 
     console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? no`);
-    return new NextResponse(stream, {
+    
+    // To measure final response size when not buffering:
+    let streamedSize = 0;
+    const trackingStream = new TransformStream({
+      transform(chunk, controller) {
+        streamedSize += chunk.length;
+        controller.enqueue(chunk);
+      },
+      flush() {
+        console.log(`FINAL_RESPONSE_SIZE=${streamedSize}`);
+      }
+    });
+
+    return new NextResponse(stream.pipeThrough(trackingStream), {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
