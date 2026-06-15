@@ -140,6 +140,7 @@ export async function GET(
         try {
           const PREFETCH_WINDOW = 4;
           const activeFetches = new Map<number, Promise<Uint8Array>>();
+          const stats = { kvHits: 0, telegramHits: 0, total: fileRecord.chunks.length };
 
           const fetchChunkData = async (i: number): Promise<Uint8Array> => {
             const chunk = fileRecord.chunks[i];
@@ -154,8 +155,12 @@ export async function GET(
 
             // 1. Try Cloudflare KV (fast path)
             cipherText = await fetchChunkFromKV(kvKey, isEncrypted);
-            if (cipherText) console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV? yes, Size=${cipherText.length}`);
-            else console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV? no`);
+            if (cipherText) {
+              console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV? yes, Size=${cipherText.length}`);
+              stats.kvHits++;
+            } else {
+              console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in KV? no`);
+            }
 
             // 2. Fallback: pending backup - retry KV
             if (!cipherText && chunk.message_id === 'pending_telegram_backup') {
@@ -178,7 +183,10 @@ export async function GET(
               });
               const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
               cipherText = await fetchBinaryWithRetry(downloadUrl);
-              console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in Telegram? yes, Size=${cipherText?.length}`);
+              if (cipherText) {
+                console.log(`[TEMP LOG DOWNLOAD API] Chunk ${i}: Found in Telegram? yes, Size=${cipherText.length}`);
+                stats.telegramHits++;
+              }
             }
 
             // 4. Decrypt using AES-256-GCM (if encrypted)
@@ -216,7 +224,11 @@ export async function GET(
               activeFetches.set(nextIdx, fetchChunkData(nextIdx));
             }
           }
-          console.log(`[Download] Streaming complete for "${fileRecord.filename}"`);
+          
+          const kvHitRate = stats.total > 0 ? Math.round((stats.kvHits / stats.total) * 100) : 0;
+          const tgHitRate = stats.total > 0 ? Math.round((stats.telegramHits / stats.total) * 100) : 0;
+          console.log(`[Download] Streaming complete for "${fileRecord.filename}". KV Hit Rate: ${kvHitRate}% (${stats.kvHits}/${stats.total}), Telegram Fallback Rate: ${tgHitRate}% (${stats.telegramHits}/${stats.total})`);
+          
           controller.close();
         } catch (err: any) {
           console.error(`[Download Error]`, err.message);

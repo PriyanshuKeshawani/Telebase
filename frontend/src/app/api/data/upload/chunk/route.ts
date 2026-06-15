@@ -126,13 +126,13 @@ export async function POST(req: NextRequest) {
     let kvSaved = false;
     if (isCFWorkerConfigured) {
       try {
-        const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`, { method: 'PUT', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' }, body: encryptedHex });
+        const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}?expiration_ttl=86400`, { method: 'PUT', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' }, body: encryptedHex });
         if (res.ok) kvSaved = true;
       } catch (e: any) { console.error(`[Upload Chunk API] Worker KV error chunk ${chunkIndex}:`, e.message); }
     }
     if (!kvSaved && isKVConfigured) {
       try {
-        const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' }, body: encryptedHex });
+        const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}?expiration_ttl=86400`, { method: 'PUT', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' }, body: encryptedHex });
         if (res.ok) kvSaved = true;
       } catch (e: any) { console.error(`[Upload Chunk API] KV REST error chunk ${chunkIndex}:`, e.message); }
     }
