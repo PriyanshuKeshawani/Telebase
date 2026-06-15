@@ -1,18 +1,9 @@
-/**
- * Storage Integrity Test Suite
- * 
- * This script mathematically proves the correctness of all 4 storage permutations
- * without requiring the Next.js server to be running. It simulates the exact
- * cryptography and compression streams used in Telebase.
- * 
- * Run with: npx tsx scratch/test_integrity.ts
- */
+// Storage Integrity Test Suite
 
 const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB for testing
 const projectAESKeyBytes = globalThis.crypto.getRandomValues(new Uint8Array(32));
 
-async function gzipCompress(buffer: Uint8Array): Promise<Uint8Array> {
-  // Using native compression stream
+async function gzipCompress(buffer) {
   const cs = new CompressionStream('gzip');
   const writer = cs.writable.getWriter();
   writer.write(buffer).then(() => writer.close());
@@ -31,7 +22,7 @@ async function gzipCompress(buffer: Uint8Array): Promise<Uint8Array> {
   return out;
 }
 
-async function gzipDecompress(buffer: Uint8Array): Promise<Uint8Array> {
+async function gzipDecompress(buffer) {
   const ds = new DecompressionStream('gzip');
   const writer = ds.writable.getWriter();
   writer.write(buffer).then(() => writer.close());
@@ -50,14 +41,14 @@ async function gzipDecompress(buffer: Uint8Array): Promise<Uint8Array> {
   return out;
 }
 
-async function aesGcmEncryptChunk(keyBytes: Uint8Array, plaintext: Uint8Array) {
+async function aesGcmEncryptChunk(keyBytes, plaintext) {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
   const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plaintext));
   return { iv, cipherText: encrypted.slice(0, encrypted.length - 16), authTag: encrypted.slice(encrypted.length - 16) };
 }
 
-async function aesGcmDecryptChunk(keyBytes: Uint8Array, iv: Uint8Array, cipherText: Uint8Array, authTag: Uint8Array) {
+async function aesGcmDecryptChunk(keyBytes, iv, cipherText, authTag) {
   const key = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
   const combined = new Uint8Array(cipherText.length + authTag.length);
   combined.set(cipherText);
@@ -65,14 +56,12 @@ async function aesGcmDecryptChunk(keyBytes: Uint8Array, iv: Uint8Array, cipherTe
   return new Uint8Array(await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, combined));
 }
 
-async function getSha256(buffer: Uint8Array): Promise<string> {
+async function getSha256(buffer) {
   const hash = await globalThis.crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// --- Test Pipeline ---
-
-async function runPipeline(name: string, originalData: Uint8Array, compressFiles: boolean, encryptFiles: boolean) {
+async function runPipeline(name, originalData, compressFiles, encryptFiles) {
   console.log(`\n--- Running Test: ${name} ---`);
   const originalHash = await getSha256(originalData);
   console.log(`Original Hash: ${originalHash} (Size: ${originalData.length} bytes)`);
@@ -84,7 +73,6 @@ async function runPipeline(name: string, originalData: Uint8Array, compressFiles
     console.log(`[Upload] Compressed size: ${finalBytes.length} bytes`);
   }
 
-  // Chunking
   const chunksData = [];
   let offset = 0;
   while (offset < finalBytes.length) {
@@ -102,12 +90,11 @@ async function runPipeline(name: string, originalData: Uint8Array, compressFiles
       cipherText = encrypted.cipherText;
     }
 
-    // Simulate KV storage exactly how it works in production
     const finalBuffer = new Uint8Array(iv.length + authTag.length + cipherText.length);
     finalBuffer.set(iv); 
     finalBuffer.set(authTag, iv.length); 
     finalBuffer.set(cipherText, iv.length + authTag.length);
-    const kvHex = Buffer.from(finalBuffer).toString('hex'); // Simulated KV save
+    const kvHex = Buffer.from(finalBuffer).toString('hex');
 
     chunksData.push({ iv, authTag, cipherText, kvHex });
     offset = end;
@@ -120,27 +107,23 @@ async function runPipeline(name: string, originalData: Uint8Array, compressFiles
   for (let i = 0; i < chunksData.length; i++) {
     const chunk = chunksData[i];
     
-    // Simulate fetchChunkFromKV
-    let fetchedCipherText: Uint8Array | null = null;
+    let fetchedCipherText = null;
     const kvBuf = new Uint8Array(Buffer.from(chunk.kvHex, 'hex'));
     
-    // Fixed logic from api/data/[uuid]/route.ts
     if (encryptFiles) {
-      if (kvBuf.length >= 28) fetchedCipherText = kvBuf.slice(28); // Strip 28 bytes
+      if (kvBuf.length >= 28) fetchedCipherText = kvBuf.slice(28);
       else fetchedCipherText = kvBuf;
     } else {
-      fetchedCipherText = kvBuf; // Raw bypass!
+      fetchedCipherText = kvBuf;
     }
 
-    // Decrypt
-    let plaintextChunk = fetchedCipherText!;
+    let plaintextChunk = fetchedCipherText;
     if (encryptFiles) {
-      plaintextChunk = await aesGcmDecryptChunk(projectAESKeyBytes, chunk.iv, fetchedCipherText!, chunk.authTag);
+      plaintextChunk = await aesGcmDecryptChunk(projectAESKeyBytes, chunk.iv, fetchedCipherText, chunk.authTag);
     }
     reconstructedChunks.push(plaintextChunk);
   }
 
-  // Merge chunks
   const totalLength = reconstructedChunks.reduce((a, c) => a + c.length, 0);
   const mergedBuffer = new Uint8Array(totalLength);
   let mergedOff = 0;
@@ -149,7 +132,6 @@ async function runPipeline(name: string, originalData: Uint8Array, compressFiles
     mergedOff += c.length;
   }
 
-  // Decompress
   let finalReconstructed = mergedBuffer;
   if (compressFiles) {
     finalReconstructed = await gzipDecompress(mergedBuffer);
@@ -168,17 +150,14 @@ async function runPipeline(name: string, originalData: Uint8Array, compressFiles
 
 async function executeAll() {
   console.log("Starting Storage Integrity Audit Tests...\n");
-  
-  // Generate random 2.5MB binary payload to test chunk boundaries
   const testPayload = globalThis.crypto.getRandomValues(new Uint8Array(2.5 * 1024 * 1024));
-
   try {
     await runPipeline("1. Compression OFF + Encryption OFF", testPayload, false, false);
     await runPipeline("2. Compression ON  + Encryption OFF", testPayload, true, false);
     await runPipeline("3. Compression OFF + Encryption ON ", testPayload, false, true);
     await runPipeline("4. Compression ON  + Encryption ON ", testPayload, true, true);
     console.log("\n🎉 ALL PIPELINE INTEGRITY TESTS PASSED!");
-  } catch (err: any) {
+  } catch (err) {
     console.error("\n❌ TESTS FAILED:", err.message);
   }
 }

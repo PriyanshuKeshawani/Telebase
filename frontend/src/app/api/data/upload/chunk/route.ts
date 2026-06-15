@@ -38,12 +38,13 @@ async function aesGcmEncryptChunk(keyBytes: Uint8Array, plaintext: Uint8Array): 
   return { iv, cipherText: encrypted.slice(0, encrypted.length - 16), authTag: encrypted.slice(encrypted.length - 16) };
 }
 
-async function uploadTelegramWithRetry(botToken: string, channelId: string, fileUuid: string, chunkIndex: number, chunkBytes: Uint8Array, retries = 5, baseDelayMs = 2000): Promise<string> {
+async function uploadTelegramWithRetry(botToken: string, channelId: string, fileUuid: string, chunkIndex: number, chunkBytes: Uint8Array, isEncrypted: boolean, retries = 5, baseDelayMs = 2000): Promise<string> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const formData = new FormData();
       formData.append('chat_id', channelId);
-      formData.append('document', new Blob([chunkBytes as any], { type: 'application/octet-stream' }), `${fileUuid}_chunk_${chunkIndex}.enc`);
+      const ext = isEncrypted ? 'enc' : 'bin';
+      formData.append('document', new Blob([chunkBytes as any], { type: 'application/octet-stream' }), `${fileUuid}_chunk_${chunkIndex}.${ext}`);
       const res = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.ok) return data.result.document.file_id;
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
     // 2. Upload to Telegram
     console.log(`[Upload Chunk API] Uploading chunk ${chunkIndex} to Telegram...`);
     // If not encrypted, we can upload as .bin or .enc. Telegram doesn't care.
-    const fileId = await uploadTelegramWithRetry(botToken, channelId, fileUuid, chunkIndex, cipherText);
+    const fileId = await uploadTelegramWithRetry(botToken, channelId, fileUuid, chunkIndex, cipherText, encryptFiles);
     console.log(`[Upload Chunk API] Chunk ${chunkIndex} uploaded successfully. Telegram File ID: ${fileId}`);
 
     return NextResponse.json({
