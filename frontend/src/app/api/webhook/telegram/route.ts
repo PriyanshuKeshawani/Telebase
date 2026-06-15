@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       const filePath = fileData.result.file_path;
       const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
 
-      const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
+      const downloadRes = await fetch(downloadUrl);
       const arrayBuffer = await downloadRes.arrayBuffer();
       const buffer = new Uint8Array(arrayBuffer);
       encryptedHex = new TextDecoder().decode(buffer);

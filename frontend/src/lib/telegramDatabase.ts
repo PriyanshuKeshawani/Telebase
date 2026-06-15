@@ -300,7 +300,7 @@ export async function readRawKV(key: string): Promise<string | null> {
   if (isCFWorkerConfigured) {
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
-      const res = await fetch(url, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+      const res = await fetch(url, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
       if (res.status === 404) return null;
       if (res.ok) return await res.text();
     } catch (e) {}
@@ -308,7 +308,7 @@ export async function readRawKV(key: string): Promise<string | null> {
   if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
     try {
       const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
-      const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
       if (res.status === 404) return null;
       if (res.ok) return await res.text();
     } catch (e) {}
@@ -600,7 +600,7 @@ export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSc
         const filePath = fileData.result.file_path;
         const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
 
-        const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
+        const downloadRes = await fetch(downloadUrl);
         const encryptedArrayBuffer = await downloadRes.arrayBuffer();
         const encryptedBuffer = new Uint8Array(encryptedArrayBuffer);
 

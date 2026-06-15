@@ -28,8 +28,7 @@ export async function GET() {
       const res = await fetch(getChatUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID }),
-        cache: 'no-store'
+        body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID })
       });
       const data = await res.json();
       if (data.ok) {
@@ -47,12 +46,11 @@ export async function GET() {
   if (isKVConfigured) {
     try {
       const start = Date.now();
-      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state`;
+      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
       const res = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`
-        },
-        cache: 'no-store'
+          'x-worker-key': CLOUDFLARE_WORKER_KEY
+        }
       });
       
       // We don't care if it's 404 (meaning empty key) or 200, as long as the API responded successfully

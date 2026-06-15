@@ -433,7 +433,7 @@ export async function getTableRecords(
           const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
           const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
           const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
-          const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
+          const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
           if (res.status === 404) return null;
           if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
           return res.text();
@@ -516,7 +516,7 @@ export async function getTableRecords(
     try {
       const workerGetFn = async (key: string): Promise<string | null> => {
         const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
-        const res = await fetch(url, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+        const res = await fetch(url, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
         if (res.status === 404) return null;
         if (!res.ok) throw new Error(`Worker KV GET failed: ${res.status}`);
         return res.text();
@@ -555,7 +555,7 @@ export async function getTableRecords(
         const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
         const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
         const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
-        const res = await fetch(url, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
         if (res.status === 404) return null;
         if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
         return res.text();
@@ -586,7 +586,7 @@ export async function getTableRecords(
       const bucketHash = await sha256Bytes(ENCRYPTION_KEY);
       const bucketId = 'k' + bytesToHex(bucketHash).substring(0, 19);
       const url = `https://kvdb.io/buckets/${bucketId}/keys/table_${project.id}_${tableName}`;
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetch(url);
       if (res.ok) {
         const encryptedHex = await res.text();
         const encryptedBuffer = hexToBytes(encryptedHex);
@@ -628,7 +628,7 @@ export async function getTableRecords(
         if (!fileData.ok) throw new Error(`Telegram getFile failed: ${JSON.stringify(fileData)}`);
 
         const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
-        const downloadRes = await fetch(downloadUrl, { cache: 'no-store' });
+        const downloadRes = await fetch(downloadUrl);
         const encryptedChunk = new Uint8Array(await downloadRes.arrayBuffer());
 
         const iv = hexToBytes(chunk.iv);

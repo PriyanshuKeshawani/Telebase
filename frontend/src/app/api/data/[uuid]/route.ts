@@ -32,7 +32,7 @@ async function aesGcmDecryptChunk(keyBytes: Uint8Array, iv: Uint8Array, cipherTe
 async function fetchTelegramWithRetry(url: string, options?: RequestInit, retries = 5, delayMs = 1500): Promise<any> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, { cache: 'no-store', ...options });
+      const res = await fetch(url, { ...options });
       if (res.status === 429) {
         const wait = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delayMs * Math.pow(2, attempt);
         await new Promise(r => setTimeout(r, wait));
@@ -53,7 +53,7 @@ async function fetchTelegramWithRetry(url: string, options?: RequestInit, retrie
 async function fetchBinaryWithRetry(url: string, options?: RequestInit, retries = 5, delayMs = 1500): Promise<Uint8Array> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, { cache: 'no-store', ...options });
+      const res = await fetch(url, { ...options });
       if (res.status === 429) {
         const wait = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delayMs * Math.pow(2, attempt);
         await new Promise(r => setTimeout(r, wait));
@@ -72,7 +72,7 @@ async function fetchBinaryWithRetry(url: string, options?: RequestInit, retries 
 async function fetchChunkFromKV(kvKey: string, isEncrypted: boolean): Promise<Uint8Array | null> {
   if (isCFWorkerConfigured) {
     try {
-      const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`, { cache: 'no-store', headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+      const res = await fetch(`${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${kvKey}`, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
       if (res.ok) {
         const hex = await res.text();
         if (hex && hex !== 'Not found') {
@@ -88,7 +88,7 @@ async function fetchChunkFromKV(kvKey: string, isEncrypted: boolean): Promise<Ui
   }
   if (isKVConfigured) {
     try {
-      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`, { cache: 'no-store', headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
+      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${kvKey}`, { headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
       if (res.ok) {
         const hex = await res.text();
         if (hex && hex !== 'Not found') {
@@ -256,22 +256,12 @@ export async function GET(
           console.warn(`[Metadata Mismatch Warning] File "${fileRecord.filename}" is flagged as compressed=true, but missing gzip magic bytes (1F 8B). Treating as uncompressed.`);
           // RECOVERY: Bypass decompression entirely and stream the raw file
           
-          let streamedSize = 0;
-          const trackingStream = new TransformStream({
-            transform(chunk, controller) {
-              streamedSize += chunk.length;
-              controller.enqueue(chunk);
-            },
-            flush() {
-              console.log(`FINAL_RESPONSE_SIZE=${streamedSize}`);
-            }
-          });
-
-          return new NextResponse(reconstructedStream.pipeThrough(trackingStream), {
+          return new NextResponse(reconstructedStream, {
             headers: {
               'Content-Type': 'application/octet-stream',
               'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
-              'Cache-Control': 'no-store, max-age=0'
+              'Cache-Control': 'no-store, max-age=0',
+              'Content-Length': fileRecord.size.toString()
             }
           });
         }
@@ -318,23 +308,12 @@ export async function GET(
 
     console.log(`[TEMP LOG DOWNLOAD API] - decompression executed? no`);
     
-    // To measure final response size when not buffering:
-    let streamedSize = 0;
-    const trackingStream = new TransformStream({
-      transform(chunk, controller) {
-        streamedSize += chunk.length;
-        controller.enqueue(chunk);
-      },
-      flush() {
-        console.log(`FINAL_RESPONSE_SIZE=${streamedSize}`);
-      }
-    });
-
-    return new NextResponse(stream.pipeThrough(trackingStream), {
+    return new NextResponse(stream, {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${fileRecord.filename}"`,
-        'Cache-Control': 'no-store, max-age=0'
+        'Cache-Control': 'no-store, max-age=0',
+        'Content-Length': fileRecord.size.toString()
       }
     });
 

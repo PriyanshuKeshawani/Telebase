@@ -507,7 +507,7 @@ export default function Dashboard() {
     let interval: NodeJS.Timeout;
     const pollRealtime = async () => {
       try {
-        const res = await fetch('/api/db/stream', { cache: 'no-store' });
+        const res = await fetch('/api/db/stream');
         if (res.ok) {
           const data = await res.json();
           if (dbHash && data.hash && data.hash !== dbHash) {
