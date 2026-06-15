@@ -46,10 +46,10 @@ export async function GET() {
   if (isKVConfigured) {
     try {
       const start = Date.now();
-      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state`;
+      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/benchmark_test`;
       const res = await fetch(url, {
         headers: {
-          'x-worker-key': CLOUDFLARE_WORKER_KEY
+          'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`
         }
       });
       
