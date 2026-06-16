@@ -1643,6 +1643,17 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-zinc-800/50 space-y-2 flex-shrink-0">
+          <div className="flex items-center gap-3 px-3 py-2 mb-2 bg-zinc-900/30 rounded-xl border border-zinc-800/30">
+            <div className="w-7 h-7 rounded-full bg-blue-500/10 flex items-center justify-center text-xs text-blue-400 border border-blue-500/20 font-medium uppercase">
+              {(session?.user?.username?.[0] || session?.user?.name?.[0] || "T")}
+            </div>
+            <div className="flex flex-col overflow-hidden">
+              <span className="text-[11px] font-medium text-zinc-300 truncate">
+                {session?.user?.username ? `@${session.user.username}` : (session?.user?.name || "Telegram User")}
+              </span>
+              <span className="text-[9px] text-zinc-500 truncate">Active Session</span>
+            </div>
+          </div>
           <button
             onClick={handleForceSync}
             disabled={isSyncing}
