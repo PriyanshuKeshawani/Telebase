@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabaseState, saveDatabaseState } from '@/lib/telegramDatabase';
+import { getSession } from '@/lib/session';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,12 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+
+    const token = await getSession(req);
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { bot_token } = body;
 
@@ -25,12 +32,19 @@ export async function POST(
     }
 
     const project = state.projects[projectIndex];
+    
+    const owner_telegram_id = (token.owner_telegram_id || token.id || token.sub) as string;
+    if (owner_telegram_id !== "1" && project.owner_telegram_id !== owner_telegram_id) {
+      return NextResponse.json({ success: false, error: "Forbidden: You do not own this project" }, { status: 403 });
+    }
+
     if (!project.bots.includes(bot_token)) {
       project.bots.push(bot_token);
       await saveDatabaseState(state);
     }
 
-    return NextResponse.json({ success: true, project });
+    const { api_key, ...safeProject } = project;
+    return NextResponse.json({ success: true, project: safeProject });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
