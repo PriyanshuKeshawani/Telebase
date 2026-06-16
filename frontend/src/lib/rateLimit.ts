@@ -9,7 +9,7 @@ interface RateLimitResult {
   retryAfterSeconds: number;
 }
 
-function getKV(): KVNamespace | null {
+function getKV(): any | null {
   try {
     // @ts-ignore — KV is injected by Cloudflare Pages runtime
     const kv = (process.env as any).KV ?? (globalThis as any).KV ?? null;
