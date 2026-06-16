@@ -80,14 +80,18 @@ export async function POST(req: NextRequest) {
       state.users = [];
     }
 
-    let userExists = state.users.some((u: any) => u.owner_telegram_id === owner_telegram_id);
-    if (!userExists) {
+    let userIndex = state.users.findIndex((u: any) => u.owner_telegram_id === owner_telegram_id);
+    if (userIndex === -1) {
       const newUser: UserRecord = {
         owner_telegram_id,
-        username: message.from.username || message.from.first_name || 'tg_user',
+        name: message.from.first_name || '',
+        username: message.from.username || '',
         created_at: new Date().toISOString()
       };
       state.users.push(newUser);
+    } else {
+      state.users[userIndex].name = message.from.first_name || state.users[userIndex].name || '';
+      state.users[userIndex].username = message.from.username || state.users[userIndex].username || '';
     }
 
     await saveDatabaseState(state, { allowShrink: true });

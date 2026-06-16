@@ -145,9 +145,13 @@ async function handleSignIn(req: Request): Promise<Response> {
       await saveDatabaseState(state, { allowShrink: true });
     } catch {}
 
+    const userRecord = state.users?.find((u: any) => u.owner_telegram_id === request.owner_telegram_id);
+
     const sessionToken = await createSessionToken({
       owner_telegram_id: request.owner_telegram_id,
       sub: request.owner_telegram_id,
+      name: userRecord?.name || '',
+      username: userRecord?.username || '',
     });
 
     return new Response(JSON.stringify({ success: true, ok: true }), {
@@ -198,6 +202,8 @@ async function handleGetSession(req: Request): Promise<Response> {
     user: {
       id: payload.owner_telegram_id,
       owner_telegram_id: payload.owner_telegram_id,
+      name: payload.name || '',
+      username: payload.username || ''
     },
     expires: new Date(payload.exp * 1000).toISOString(),
   });

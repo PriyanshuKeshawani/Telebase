@@ -192,6 +192,7 @@ export interface Project {
 
 export interface UserRecord {
   owner_telegram_id: string;
+  name?: string;
   username?: string;
   created_at: string;
 }
