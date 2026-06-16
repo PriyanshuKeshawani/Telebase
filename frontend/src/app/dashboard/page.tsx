@@ -1649,7 +1649,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-[11px] font-medium text-zinc-300 truncate">
-                {session?.user?.username ? `@${session.user.username}` : (session?.user?.name || "Telegram User")}
+                {session?.user?.name || (session?.user?.username ? `@${session.user.username}` : "Telegram User")}
               </span>
               <span className="text-[9px] text-zinc-500 truncate">Active Session</span>
             </div>
