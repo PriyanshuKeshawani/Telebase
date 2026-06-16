@@ -279,7 +279,7 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }
 
@@ -439,6 +439,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('[API Database Error]', error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }

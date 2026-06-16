@@ -6,6 +6,7 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 import { getDatabaseState, saveDatabaseState, TelebaseStateError } from "@/lib/telegramDatabase";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rateLimit";
 
 const SECRET = process.env['NEXTAUTH_SECRET'] || "telebase_secret_token_2026_super_secure_32b_key";
 const COOKIE_NAME = "tb-session";
@@ -96,6 +97,11 @@ function clearCookieHeader(): string {
 
 // Handle POST /api/auth/[...nextauth] (signin)
 async function handleSignIn(req: Request): Promise<Response> {
+  // Rate limit: 10 requests per 5 minutes per IP
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`rl:signin:${ip}`, 10, 300);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
   try {
     const body = await req.json();
     const code = body?.code?.trim();
@@ -108,7 +114,7 @@ async function handleSignIn(req: Request): Promise<Response> {
       state = await getDatabaseState(true);
     } catch (error: any) {
       if (error instanceof TelebaseStateError && error.code === 'STATE_NOT_FOUND') {
-        return Response.json({ success: false, error: "No database state found" }, { status: 404 });
+        return Response.json({ success: false, error: "Login failed. Please try again." }, { status: 500 });
       }
       throw error;
     }
@@ -116,12 +122,21 @@ async function handleSignIn(req: Request): Promise<Response> {
     const requests = state.loginRequests || [];
     const reqIdx = requests.findIndex((r: any) => r.code === code);
     if (reqIdx === -1) {
-      return Response.json({ success: false, error: "Invalid login code" }, { status: 401 });
+      return Response.json({ success: false, error: "Code not recognised. Please generate a new one." }, { status: 401 });
     }
 
     const request = requests[reqIdx];
-    if (request.isUsed || request.expiresAt < Date.now() || !request.owner_telegram_id) {
-      return Response.json({ success: false, error: "Code expired or not yet verified by Telegram" }, { status: 401 });
+
+    if (request.isInvalidated) {
+      return Response.json({ success: false, error: "Code was cancelled. Please generate a new one." }, { status: 401 });
+    }
+
+    if (request.expiresAt < Date.now()) {
+      return Response.json({ success: false, error: "Your code has expired. Please generate a new one." }, { status: 401 });
+    }
+
+    if (request.isUsed || !request.owner_telegram_id) {
+      return Response.json({ success: false, error: "Code not yet verified. Please send the command to the Telegram bot first." }, { status: 401 });
     }
 
     // Mark as used
@@ -143,7 +158,7 @@ async function handleSignIn(req: Request): Promise<Response> {
       },
     });
   } catch (err: any) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return Response.json({ success: false, error: "Login failed. Please try again." }, { status: 500 });
   }
 }
 
@@ -192,7 +207,7 @@ export async function GET(req: Request) {
   try {
     return await handleGetSession(req);
   } catch (err: any) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return Response.json({ success: false, error: "An error occurred. Please try again." }, { status: 500 });
   }
 }
 
@@ -200,6 +215,6 @@ export async function POST(req: Request) {
   try {
     return await handleSignIn(req);
   } catch (err: any) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return Response.json({ success: false, error: "Login failed. Please try again." }, { status: 500 });
   }
 }

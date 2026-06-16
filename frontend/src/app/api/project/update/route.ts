@@ -40,6 +40,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, project: state.projects[projectIndex] });
   } catch (error: any) {
     console.error('[Project Update Error]', error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }

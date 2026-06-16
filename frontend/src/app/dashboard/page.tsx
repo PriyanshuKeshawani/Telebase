@@ -238,6 +238,20 @@ export default function Dashboard() {
   // Onboarding/Loading states
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem('telebase_onboarding_dismissed')) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const dismissOnboarding = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem('telebase_onboarding_dismissed', 'true');
+    }
+    setShowOnboarding(false);
+  };
 
   // New Project Modal State
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
@@ -4413,6 +4427,73 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════ ONBOARDING MODAL ════════ */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="w-full max-w-lg bg-[#0c0c0f] border border-zinc-800/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <Database size={20} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white tracking-tight">Welcome to TeleBase</h3>
+                    <p className="text-xs text-zinc-500 font-medium">Let's get your first serverless database running</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-4 flex-1">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">1</div>
+                    <span>Create Project</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">2</div>
+                    <span>Add Telegram Channel</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">3</div>
+                    <span>Generate API Key</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">4</div>
+                    <span>Create First Table</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">5</div>
+                    <span>Upload First File</span>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-zinc-800/40 bg-zinc-900/30 flex items-center justify-between gap-3">
+                <button
+                  onClick={dismissOnboarding}
+                  className="text-xs font-semibold text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  Don't Show Again
+                </button>
+                <a
+                  href="https://www.youtube.com/watch?v=setup_video_placeholder"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+                >
+                  <Play size={14} />
+                  Watch Setup Video
+                </a>
+              </div>
             </motion.div>
           </div>
         )}

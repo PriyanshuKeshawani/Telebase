@@ -56,10 +56,8 @@ export async function POST(req: NextRequest) {
 
     const request = state.loginRequests?.find((r: any) => r.code === code);
     if (!request) {
-      const activeCodes = (state.loginRequests || []).map((r: any) => r.code).join(', ') || 'none';
-      const source = isCFWorkerConfigured ? 'Worker KV' : (isKVConfigured ? 'KV REST' : (process.env.BOT_TOKEN ? 'Telegram' : 'Local'));
       console.warn(`[Webhook] Code ${code} not found in active database requests.`);
-      await replyToTelegram(botToken, chatId, `❌ Code ${code} not found in database.\n\n🔍 Debug Info:\n- Active Codes: ${activeCodes}\n- Storage Source: ${source}\n- Total Projects: ${state.projects?.length || 0}`);
+      await replyToTelegram(botToken, chatId, `❌ Code ${code} not found. It may have expired or never existed. Please try generating a new one.`);
       return NextResponse.json({ ok: true });
     }
 
@@ -94,7 +92,7 @@ export async function POST(req: NextRequest) {
 
     await saveDatabaseState(state, { allowShrink: true });
 
-    await replyToTelegram(botToken, chatId, `✅ Login request verified!\n\nYou can now return to the website to access your TeleBase dashboard.`);
+    await replyToTelegram(botToken, chatId, `✅ TeleBase Login Successful\n\nYour browser should automatically continue within a few seconds.\n\nIf it does not:\n• Return to the TeleBase tab\n• Refresh the page\n\nThis code can no longer be reused.`);
     return NextResponse.json({ ok: true });
 
   } catch (error: any) {
@@ -130,7 +128,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: data.ok, result: data });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }
 

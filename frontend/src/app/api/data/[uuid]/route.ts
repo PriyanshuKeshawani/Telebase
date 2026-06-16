@@ -331,7 +331,7 @@ export async function GET(
 
   } catch (error: any) {
     console.error('[Download API Error]', error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }
 
@@ -359,6 +359,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: 'File deleted successfully from index' });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }

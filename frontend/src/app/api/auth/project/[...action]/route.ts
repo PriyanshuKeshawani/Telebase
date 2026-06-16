@@ -7,6 +7,7 @@ import {
   generateProjectMagicLinkEmailHTML
 } from "@/lib/projectAuthConfig";
 import { sendProjectEmail } from "@/lib/projectEmailService";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rateLimit";
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -226,8 +227,7 @@ export async function GET(
     return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
 
   } catch (error: any) {
-    console.error("[Project Auth GET Error]", error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'An error occurred. Please try again.' }, { status: 500 });
   }
 }
 
@@ -255,6 +255,13 @@ export async function POST(
     // ── POST /api/auth/project/register ────────────────────────
     // Registers a new project end-user by email.
     if (action === "register") {
+      // Rate limit: 5 per 5 minutes per IP
+      const ip = getClientIp(req);
+      const rl = await checkRateLimit(`rl:proj-register:${ip}`, 5, 300);
+      if (!rl.allowed) return NextResponse.json(
+        { success: false, error: 'Too many requests. Please wait before trying again.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+      );
       const { email, metadata = {} } = body;
       if (!email || !email.includes("@")) {
         return NextResponse.json({ success: false, error: "Valid email is required" }, { status: 400 });
@@ -286,6 +293,13 @@ export async function POST(
       if (!email || !email.includes("@")) {
         return NextResponse.json({ success: false, error: "Valid email is required" }, { status: 400 });
       }
+      // Rate limit: 3 per 5 minutes per email
+      const emailKey = email.toLowerCase().trim().replace(/[^a-z0-9@.]/g, '_');
+      const rl2 = await checkRateLimit(`rl:send-otp:${emailKey}`, 3, 300);
+      if (!rl2.allowed) return NextResponse.json(
+        { success: false, error: 'Too many OTP requests. Please wait before requesting another.' },
+        { status: 429, headers: { 'Retry-After': String(rl2.retryAfterSeconds) } }
+      );
       if (mode === "otp" && !PROJECT_AUTH_CONFIG.allowOTP) {
         return NextResponse.json({ success: false, error: "OTP mode is disabled in project config" }, { status: 403 });
       }
@@ -340,6 +354,13 @@ export async function POST(
     // Verifies OTP code and returns a signed JWT.
     // Body: { email, code }
     if (action === "verify") {
+      // Rate limit: 5 per 5 minutes per IP
+      const ip = getClientIp(req);
+      const rl3 = await checkRateLimit(`rl:proj-verify:${ip}`, 5, 300);
+      if (!rl3.allowed) return NextResponse.json(
+        { success: false, error: 'Too many verification attempts. Please wait before trying again.' },
+        { status: 429, headers: { 'Retry-After': String(rl3.retryAfterSeconds) } }
+      );
       const { email, code } = body;
       if (!code) return NextResponse.json({ success: false, error: "Code is required" }, { status: 400 });
 
@@ -414,8 +435,7 @@ export async function POST(
     return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
 
   } catch (error: any) {
-    console.error("[Project Auth POST Error]", error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'An error occurred. Please try again.' }, { status: 500 });
   }
 }
 

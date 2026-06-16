@@ -509,6 +509,6 @@ export async function POST() {
 
   } catch (error: any) {
     console.error('[Sync API Error]', error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }

@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabaseState, saveDatabaseState, TelebaseStateError, LoginRequest } from '@/lib/telegramDatabase';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
+const CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export async function POST(req: NextRequest) {
+  // Rate limit: 5 requests per 5 minutes per IP
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`rl:login-code:${ip}`, 5, 300);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
   try {
     // Generate secure random code e.g. TB-XXXXXX
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -30,24 +38,32 @@ export async function POST(req: NextRequest) {
       state.loginRequests = [];
     }
 
-    // Clean up expired login requests
     const now = Date.now();
+
+    // Invalidate all previous active (unexpired, unused, not-invalidated) codes
+    state.loginRequests = state.loginRequests.map((r: any) => {
+      if (!r.isUsed && !r.isInvalidated && r.expiresAt > now) {
+        return { ...r, isInvalidated: true };
+      }
+      return r;
+    });
+
+    // Clean up fully expired / used / invalidated entries older than 10 minutes
     state.loginRequests = state.loginRequests.filter(
-      (r: any) => r.expiresAt > now && !r.isUsed
+      (r: any) => r.expiresAt > now - 5 * 60 * 1000
     );
+
+    const expiresAt = now + CODE_TTL_MS;
 
     const newRequest: LoginRequest = {
       code,
-      expiresAt: now + 5 * 60 * 1000, // 5 minutes
+      expiresAt,
       isUsed: false,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     };
 
-    console.log(`[LoginCode] Generated code: ${code}`);
-    console.log(`[LoginCode] Active login requests in database:`, JSON.stringify(state.loginRequests));
     state.loginRequests.push(newRequest);
     await saveDatabaseState(state, { allowShrink: true });
-    console.log(`[LoginCode] Successfully saved state with request:`, code);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
     let botUsername = 'TelebaseBot';
@@ -61,8 +77,11 @@ export async function POST(req: NextRequest) {
       } catch (e) {}
     }
 
-    return NextResponse.json({ success: true, code, botUsername });
+    return NextResponse.json({ success: true, code, botUsername, expiresAt });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to generate login code. Please try again.' },
+      { status: 500 }
+    );
   }
 }

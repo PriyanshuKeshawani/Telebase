@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getDatabaseState, saveDatabaseState, Project, formatTelegramChannelId, TelebaseStateError } from '@/lib/telegramDatabase';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rateLimit';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -45,11 +46,21 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, projects: userProjects, files: userFiles });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 5 project creations per 10 minutes per IP
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`rl:create-project:${ip}`, 5, 600);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many project creation attempts. Please wait a few minutes.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+    );
+  }
+
   try {
     const token = await getSession(req);
     if (!token) {
@@ -113,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, project: newProject });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'An error occurred. Please try again.' }, { status: 500 });
   }
 }
 

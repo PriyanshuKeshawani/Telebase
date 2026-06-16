@@ -155,6 +155,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error(`[Upload Chunk API Error]`, error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "An internal error occurred" }, { status: 500 });
   }
 }
