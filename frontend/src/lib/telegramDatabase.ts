@@ -231,6 +231,7 @@ export interface LoginRequest {
   owner_telegram_id?: string;
   expiresAt: number;
   isUsed: boolean;
+  isInvalidated?: boolean;
   created_at: string;
 }
 
