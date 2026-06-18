@@ -243,6 +243,7 @@ export interface DatabaseSchema {
   pendingUsers?: PendingUser[];
   loginRequests?: LoginRequest[];
   schemas?: Record<string, any>;
+  walLogs?: any[];
   last_pinned_message_id?: number;
   
   // State Versioning & Verification Metadata
@@ -749,6 +750,7 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
   // Save as plaintext JSON (hex-encoded for KV/Telegram storage)
   const finalBuffer = payload;
   const encryptedHex = bytesToHex(finalBuffer);
+  const durabilityErrors: string[] = [];
 
   // Always write to local backup file first to guarantee durability & prevent data loss!
   if (fs && LOCAL_STATE_FILE) {
@@ -766,19 +768,30 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
     try {
       console.log('[TeleStore] Shifting snapshot backup rings in Cloudflare KV...');
       const backup2 = await readRawKV('telebase_state_backup_2');
-      if (backup2) await writeRawKV('telebase_state_backup_3', backup2);
+      if (backup2) {
+        const ok = await writeRawKV('telebase_state_backup_3', backup2);
+        if (!ok) throw new Error('KV write failed for telebase_state_backup_3');
+      }
       
       const backup1 = await readRawKV('telebase_state_backup_1');
-      if (backup1) await writeRawKV('telebase_state_backup_2', backup1);
+      if (backup1) {
+        const ok = await writeRawKV('telebase_state_backup_2', backup1);
+        if (!ok) throw new Error('KV write failed for telebase_state_backup_2');
+      }
       
       const current = await readRawKV('telebase_state_current');
-      if (current) await writeRawKV('telebase_state_backup_1', current);
+      if (current) {
+        const ok = await writeRawKV('telebase_state_backup_1', current);
+        if (!ok) throw new Error('KV write failed for telebase_state_backup_1');
+      }
 
       // Save the updated state to telebase_state_current
-      await writeRawKV('telebase_state_current', encryptedHex);
+      const currentOk = await writeRawKV('telebase_state_current', encryptedHex);
+      if (!currentOk) throw new Error('KV write failed for telebase_state_current');
       console.log('[TeleStore] Successfully saved current state to Cloudflare KV.');
     } catch (rotErr: any) {
       console.warn('[TeleStore] KV Backup rotation failed (continuing state save):', rotErr.message);
+      durabilityErrors.push(`KV: ${rotErr?.message || String(rotErr)}`);
     }
   }
 
@@ -788,12 +801,12 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
       await uploadStateToTelegram(finalBuffer, state);
     } catch (error: any) {
       console.error('[TeleStore] Telegram upload failed:', error.message);
-      // In serverless / edge environments where local FS is transient/null,
-      // a Telegram upload failure is fatal to state durability.
-      if (!fs) {
-        throw new Error(`Failed to save database state to Telegram: ${error.message}`);
-      }
+      durabilityErrors.push(`Telegram: ${error?.message || String(error)}`);
     }
+  }
+
+  if (durabilityErrors.length > 0) {
+    throw new Error(`Failed to save database state durably: ${durabilityErrors.join('; ')}`);
   }
 }
 

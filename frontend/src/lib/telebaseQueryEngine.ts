@@ -201,6 +201,47 @@ export interface WALEntry {
 
 // Memory WAL Registry
 let writeAheadLogs: WALEntry[] = [];
+let writeAheadLogsHydrated = false;
+
+async function hydrateWriteAheadLogs(forceReload = false): Promise<void> {
+  if (writeAheadLogsHydrated && !forceReload) return;
+  const state = await getDatabaseState(true);
+  const persistedLogs = (state as DatabaseSchema & { walLogs?: WALEntry[] }).walLogs;
+  writeAheadLogs = Array.isArray(persistedLogs)
+    ? persistedLogs.map((entry) => ({ ...entry }))
+    : [];
+  writeAheadLogsHydrated = true;
+}
+
+async function persistWriteAheadLogs(): Promise<void> {
+  const state = await getDatabaseState(true);
+  (state as DatabaseSchema & { walLogs?: WALEntry[] }).walLogs = writeAheadLogs.map((entry) => ({ ...entry }));
+  await saveDatabaseState(state, { allowShrink: true });
+}
+
+function isWalEntryApplied(entry: WALEntry, records: any[]): boolean {
+  if (entry.operation === 'INSERT' && entry.newData) {
+    return records.some((row) => {
+      if (entry.newData.id !== undefined && row.id !== entry.newData.id) {
+        return false;
+      }
+      return Object.entries(entry.newData).every(([key, value]) => row[key] === value);
+    });
+  }
+
+  if (entry.operation === 'UPDATE' && entry.newData) {
+    return records.some((row) => {
+      if (row.id !== entry.recordId) return false;
+      return Object.entries(entry.newData).every(([key, value]) => row[key] === value);
+    });
+  }
+
+  if (entry.operation === 'DELETE') {
+    return !records.some((row) => row.id === entry.recordId);
+  }
+
+  return false;
+}
 
 // Database Schema interface for structured tables
 export interface TableSchema {
@@ -250,22 +291,629 @@ export interface QueryResult {
 export function matchRow(row: any, filter: any): boolean {
   if (!filter || Object.keys(filter).length === 0) return true;
   return Object.entries(filter).every(([key, filterVal]: [string, any]) => {
+    const rowVal = resolveSqlValue(row, key);
     if (filterVal && typeof filterVal === 'object' && !Array.isArray(filterVal)) {
       // Operator support
       return Object.entries(filterVal).every(([op, val]) => {
-        if (op === '$eq') return row[key] === val;
-        if (op === '$ne') return row[key] !== val;
-        if (op === '$gt') return row[key] > (val as any);
-        if (op === '$gte') return row[key] >= (val as any);
-        if (op === '$lt') return row[key] < (val as any);
-        if (op === '$lte') return row[key] <= (val as any);
-        if (op === '$regex') return new RegExp(val as string, 'i').test(row[key]);
+        if (op === '$eq') return rowVal === val;
+        if (op === '$ne') return rowVal !== val;
+        if (op === '$gt') return rowVal > (val as any);
+        if (op === '$gte') return rowVal >= (val as any);
+        if (op === '$lt') return rowVal < (val as any);
+        if (op === '$lte') return rowVal <= (val as any);
+        if (op === '$regex') return new RegExp(val as string, 'i').test(String(rowVal ?? ''));
         return false;
       });
     }
     // Exact match
-    return row[key] === filterVal;
+    return rowVal === filterVal;
   });
+}
+
+const SQL_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function isSqlIdentifier(value: string): boolean {
+  return SQL_IDENTIFIER_RE.test(value.trim());
+}
+
+function splitSqlList(input: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quote: "'" | '"' | null = null;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (quote) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === '(') {
+      depth++;
+      current += char;
+      continue;
+    }
+    if (char === ')') {
+      depth = Math.max(0, depth - 1);
+      current += char;
+      continue;
+    }
+    if (char === ',' && depth === 0) {
+      if (current.trim()) parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function parseSqlLiteral(rawVal: string): any {
+  const trimmed = rawVal.trim();
+  const quoted = (trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'));
+  const cleaned = quoted ? trimmed.slice(1, -1) : trimmed;
+  if (quoted) {
+    return cleaned === 'true' ? true : cleaned === 'false' ? false : cleaned;
+  }
+  if (cleaned.toLowerCase() === 'null') return null;
+  if (cleaned.toLowerCase() === 'true') return true;
+  if (cleaned.toLowerCase() === 'false') return false;
+  if (cleaned !== '' && !isNaN(Number(cleaned))) return Number(cleaned);
+  return cleaned;
+}
+
+function resolveSqlValue(row: any, ref: string): any {
+  if (!row || !ref) return undefined;
+  const key = ref.trim();
+  if (Object.prototype.hasOwnProperty.call(row, key)) {
+    return row[key];
+  }
+
+  const meta = row.__telebaseRows;
+  if (meta && typeof meta === 'object') {
+    if (key.includes('.')) {
+      const [tableName, ...rest] = key.split('.');
+      const columnName = rest.join('.');
+      const sourceRow = meta[tableName];
+      if (sourceRow && Object.prototype.hasOwnProperty.call(sourceRow, columnName)) {
+        return sourceRow[columnName];
+      }
+    } else {
+      const sourceTables = Object.keys(meta);
+      for (const sourceTable of sourceTables) {
+        const sourceRow = meta[sourceTable];
+        if (sourceRow && Object.prototype.hasOwnProperty.call(sourceRow, key)) {
+          return sourceRow[key];
+        }
+      }
+    }
+  }
+
+  if (key.includes('.')) {
+    const [tableName, ...rest] = key.split('.');
+    const columnName = rest.join('.');
+    if (row[tableName] && typeof row[tableName] === 'object' && columnName in row[tableName]) {
+      return row[tableName][columnName];
+    }
+  }
+
+  return row[key];
+}
+
+function stripInternalRowKeys(row: any): any {
+  if (!row || typeof row !== 'object') return row;
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (key.startsWith('__telebase')) continue;
+    clean[key] = value;
+  }
+  return clean;
+}
+
+function buildJoinedRow(leftRow: any, rightRow: any, leftTableName: string, rightTableName: string): any {
+  const merged: Record<string, any> = {
+    ...leftRow,
+    __telebaseRows: {
+      [leftTableName]: leftRow,
+      [rightTableName]: rightRow
+    }
+  };
+
+  for (const [key, value] of Object.entries(rightRow)) {
+    if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+      merged[key] = value;
+    }
+    merged[`${rightTableName}.${key}`] = value;
+  }
+
+  return merged;
+}
+
+function parseSelectColumns(selectClause: string): string[] {
+  const items = splitSqlList(selectClause);
+  if (items.length === 0) {
+    throw new Error('SELECT clause cannot be empty.');
+  }
+  return items;
+}
+
+function parseOrderByColumns(orderByClause?: string): { expression: string; direction: 'ASC' | 'DESC' }[] {
+  if (!orderByClause) return [];
+  return splitSqlList(orderByClause).map((part) => {
+    const match = part.match(/^(.+?)(?:\s+(ASC|DESC))?$/i);
+    if (!match) {
+      throw new Error(`Invalid ORDER BY expression: "${part}"`);
+    }
+    return {
+      expression: match[1].trim(),
+      direction: (match[2] ? match[2].toUpperCase() : 'ASC') as 'ASC' | 'DESC'
+    };
+  });
+}
+
+function stripSqlAlias(expression: string): string {
+  return expression.replace(/\s+AS\s+[A-Za-z_][A-Za-z0-9_]*$/i, '').trim();
+}
+
+function parseSqlReference(ref: string): { tableName?: string; columnName: string } | null {
+  const trimmed = stripSqlAlias(ref).trim();
+  if (!trimmed || trimmed === '*' || trimmed.endsWith('.*')) return null;
+  if (!trimmed.includes('.')) {
+    return { columnName: trimmed };
+  }
+
+  const [tableName, ...rest] = trimmed.split('.');
+  const columnName = rest.join('.');
+  if (!tableName || !columnName) return null;
+  return { tableName, columnName };
+}
+
+function isSelectedColumnCoveredByGroupBy(selectExpression: string, groupByColumns: string[]): boolean {
+  const selectRef = parseSqlReference(selectExpression);
+  if (!selectRef) return false;
+
+  for (const groupByColumn of groupByColumns) {
+    const groupRef = parseSqlReference(groupByColumn);
+    if (!groupRef) continue;
+
+    if (selectRef.tableName) {
+      if (groupRef.tableName && selectRef.tableName === groupRef.tableName && selectRef.columnName === groupRef.columnName) {
+        return true;
+      }
+      if (!groupRef.tableName && selectRef.columnName === groupRef.columnName) {
+        return true;
+      }
+      continue;
+    }
+
+    if (selectRef.columnName === groupRef.columnName) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function validateGroupedSelectColumns(selectColumns: string[], groupByColumns: string[]) {
+  if (groupByColumns.length === 0) return;
+
+  for (const column of selectColumns) {
+    validateGroupedExpression(stripSqlAlias(column).trim(), groupByColumns);
+  }
+}
+
+function validateGroupedExpression(expression: string, groupByColumns: string[], countAlias?: string) {
+  const trimmed = stripSqlAlias(expression).trim();
+  if (!trimmed) {
+    throw new Error('SQL Error: Expression cannot be empty.');
+  }
+  if (/^COUNT\s*\(/i.test(trimmed)) {
+    return;
+  }
+  if (countAlias && trimmed.toLowerCase() === countAlias.toLowerCase()) {
+    return;
+  }
+  if (!isSelectedColumnCoveredByGroupBy(trimmed, groupByColumns)) {
+    throw new Error(`SQL Error: Column "${trimmed}" must appear in the GROUP BY clause or be used in an aggregate function.`);
+  }
+}
+
+function validateGroupedClauseExpressions(clause: string | undefined, groupByColumns: string[], countAlias?: string) {
+  if (!clause || groupByColumns.length === 0) return;
+
+  for (const part of clause.split(/\s+AND\s+/i)) {
+    const match = part.match(/(.*?)(>=|<=|!=|<>|=|>|<|\s+LIKE\s+)(.*)/i);
+    if (!match) {
+      throw new Error(`SQL Error: Invalid grouped clause expression "${part.trim()}".`);
+    }
+    validateGroupedExpression(match[1].trim(), groupByColumns, countAlias);
+  }
+}
+
+function evaluateSqlClause(row: any, clause?: string): boolean {
+  if (!clause || !clause.trim()) return true;
+  const parts = clause.split(/\s+AND\s+/i);
+  return parts.every((part) => {
+    const match = part.match(/(.*?)(>=|<=|!=|<>|=|>|<|\s+LIKE\s+)(.*)/i);
+    if (!match) return false;
+    const left = match[1].trim();
+    const operator = match[2].trim().toUpperCase();
+    const right = parseSqlLiteral(match[3].trim());
+    const leftValue = resolveSqlValue(row, left);
+
+    if (operator === '=') return leftValue === right;
+    if (operator === '!=' || operator === '<>') return leftValue !== right;
+    if (operator === '>') return leftValue > right;
+    if (operator === '>=') return leftValue >= right;
+    if (operator === '<') return leftValue < right;
+    if (operator === '<=') return leftValue <= right;
+    if (operator === 'LIKE') {
+      const pattern = String(right)
+        .replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+        .replace(/%/g, '.*')
+        .replace(/_/g, '.');
+      const anchored = String(match[3].trim()).startsWith('%') ? pattern : `^${pattern}`;
+      const finalPattern = String(match[3].trim()).endsWith('%') ? anchored : `${anchored}$`;
+      return new RegExp(finalPattern, 'i').test(String(leftValue ?? ''));
+    }
+    return false;
+  });
+}
+
+function parseJoinCondition(condition?: string): { left: string; right: string } {
+  if (!condition) {
+    throw new Error('INNER JOIN requires an ON clause.');
+  }
+  const match = condition.match(/^(.+?)\s*=\s*(.+)$/);
+  if (!match) {
+    throw new Error(`Unsupported JOIN condition: "${condition}". Only equality joins are supported.`);
+  }
+  return { left: match[1].trim(), right: match[2].trim() };
+}
+
+function isQualifiedSqlReference(ref: string): boolean {
+  return ref.includes('.');
+}
+
+function isAmbiguousJoinReference(ref: string, duplicateColumns: Set<string>, baseTableName: string, joinTableName: string): boolean {
+  const trimmed = ref.trim();
+  if (!trimmed || trimmed === '*' || /^COUNT\s*\(/i.test(trimmed)) return false;
+  if (trimmed.includes(' AS ')) {
+    const [expr] = trimmed.split(/\s+AS\s+/i);
+    return isAmbiguousJoinReference(expr.trim(), duplicateColumns, baseTableName, joinTableName);
+  }
+  if (trimmed.endsWith('.*')) return false;
+  if (isQualifiedSqlReference(trimmed)) return false;
+  return duplicateColumns.has(trimmed) && duplicateColumns.size > 0 && !!baseTableName && !!joinTableName;
+}
+
+function applySqlProjection(row: any, columns: string[], groupContext?: { countValue?: number; countAlias?: string }): any {
+  const hasStar = columns.some((column) => column === '*');
+  const projected: Record<string, any> = {};
+
+  if (hasStar) {
+    Object.assign(projected, stripInternalRowKeys(row));
+  }
+
+  for (const column of columns) {
+    if (column === '*') continue;
+
+    const countMatch = column.match(/^COUNT\s*\(\s*(\*|[A-Za-z_][A-Za-z0-9_\.]*)\s*\)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i);
+    if (countMatch) {
+      const alias = countMatch[2] || 'count';
+      projected[alias] = groupContext?.countValue ?? 0;
+      continue;
+    }
+
+    const starMatch = column.match(/^([A-Za-z_][A-Za-z0-9_]*)\.\*$/);
+    if (starMatch) {
+      const tableName = starMatch[1];
+      const source = row.__telebaseRows?.[tableName];
+      if (source && typeof source === 'object') {
+        Object.assign(projected, source);
+      }
+      continue;
+    }
+
+    const aliasMatch = column.match(/^(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)$/i);
+    const expression = aliasMatch ? aliasMatch[1].trim() : column;
+    const alias = aliasMatch ? aliasMatch[2].trim() : expression;
+    projected[alias] = resolveSqlValue(row, expression);
+  }
+
+  return projected;
+}
+
+async function executeStructuredSelect(
+  project: Project,
+  baseTableName: string,
+  baseRecords: any[],
+  action: {
+    sqlSelect?: {
+      selectClause: string;
+      joinTable?: string;
+      joinCondition?: string;
+      whereClause?: string;
+      groupByClause?: string;
+      havingClause?: string;
+      orderByClause?: string;
+      limit?: number;
+    };
+    noSqlQuery?: any;
+  },
+  plan: PlanStep[]
+): Promise<{ records: any[]; scannedRecords: number; indexUsed: string | null; strategy: 'INDEX_SCAN' | 'FULL_TABLE_SCAN' }> {
+  const sqlSelect = action.sqlSelect;
+  if (!sqlSelect) {
+    return { records: baseRecords, scannedRecords: baseRecords.length, indexUsed: null, strategy: 'FULL_TABLE_SCAN' };
+  }
+
+  const state = await getDatabaseState(true);
+  const baseSchema = state.schemas?.[`${project.id}_${baseTableName}`] || null;
+  const selectColumns = parseSelectColumns(sqlSelect.selectClause);
+  const orderByColumns = parseOrderByColumns(sqlSelect.orderByClause);
+  const groupByColumns = sqlSelect.groupByClause ? splitSqlList(sqlSelect.groupByClause) : [];
+  const hasCount = selectColumns.some((item) => /^COUNT\s*\(/i.test(item));
+  const countMatch = selectColumns.find((item) => /^COUNT\s*\(/i.test(item));
+  const countAlias = countMatch?.match(/AS\s+([A-Za-z_][A-Za-z0-9_]*)$/i)?.[1] || 'count';
+  const joinTable = sqlSelect.joinTable?.trim();
+  const joinCondition = sqlSelect.joinCondition?.trim();
+
+  const resolvedJoinTable = joinTable || undefined;
+  let scanRows = baseRecords;
+  let scannedRecords = baseRecords.length;
+  let indexUsed: string | null = null;
+  let strategy: 'INDEX_SCAN' | 'FULL_TABLE_SCAN' = 'FULL_TABLE_SCAN';
+
+  if (resolvedJoinTable) {
+    if (!isSqlIdentifier(resolvedJoinTable)) {
+      throw new Error(`Invalid join table name: "${resolvedJoinTable}".`);
+    }
+    if (resolvedJoinTable === baseTableName) {
+      throw new Error('INNER JOIN on the same table requires aliases and is not supported.');
+    }
+
+    const joinSchema = state.schemas?.[`${project.id}_${resolvedJoinTable}`] || null;
+    const duplicateColumns = new Set(
+      Object.keys(baseSchema?.fields || {}).filter((column) => !!joinSchema?.fields?.[column])
+    );
+
+    const joinRecordsResult = await getTableRecords(project, resolvedJoinTable, true);
+    const joinRecords = joinRecordsResult.records;
+    scannedRecords += joinRecords.length;
+
+    const joinColumns = selectColumns.slice();
+    const { left: leftExpr, right: rightExpr } = parseJoinCondition(joinCondition);
+
+    const validateReference = (ref: string) => {
+      const trimmed = ref.trim();
+      if (!trimmed) throw new Error('Column reference cannot be empty.');
+      if (trimmed === '*') return;
+      if (/^COUNT\s*\(/i.test(trimmed)) return;
+      if (trimmed.includes(' AS ')) {
+        const [expr] = trimmed.split(/\s+AS\s+/i);
+        validateReference(expr.trim());
+        return;
+      }
+
+      if (trimmed.endsWith('.*')) {
+        const tableName = trimmed.slice(0, -2);
+        if (tableName !== baseTableName && tableName !== resolvedJoinTable) {
+          throw new Error(`Table "${tableName}" is not part of this query.`);
+        }
+        return;
+      }
+
+      const candidate = trimmed;
+      if (candidate.includes('.')) {
+        const [tableName, ...rest] = candidate.split('.');
+        const columnName = rest.join('.');
+        if (!isSqlIdentifier(tableName) || !isSqlIdentifier(columnName)) {
+          throw new Error(`Invalid column reference: "${ref}".`);
+        }
+        if (tableName === baseTableName) {
+          if (baseSchema?.fields && !baseSchema.fields[columnName]) throw new Error(`Column "${columnName}" does not exist on table "${baseTableName}".`);
+        } else if (tableName === resolvedJoinTable) {
+          if (joinSchema?.fields && !joinSchema.fields[columnName]) throw new Error(`Column "${columnName}" does not exist on table "${resolvedJoinTable}".`);
+        } else {
+          throw new Error(`Table "${tableName}" is not part of this query.`);
+        }
+        return;
+      }
+
+      if (!isSqlIdentifier(candidate)) {
+        throw new Error(`Invalid column reference: "${ref}".`);
+      }
+      if (duplicateColumns.has(candidate)) {
+        throw new Error(`SQL Error: Ambiguous column reference "${candidate}". Use a fully qualified reference such as "${baseTableName}.${candidate}" or "${resolvedJoinTable}.${candidate}".`);
+      }
+      const baseHas = baseSchema?.fields ? !!baseSchema.fields[candidate] : true;
+      const joinHas = joinSchema?.fields ? !!joinSchema.fields[candidate] : false;
+      if (!baseHas && !joinHas) {
+        throw new Error(`Column "${candidate}" does not exist in the query scope.`);
+      }
+    };
+
+    validateReference(leftExpr);
+    validateReference(rightExpr);
+    for (const column of joinColumns) {
+      validateReference(column);
+    }
+    for (const column of groupByColumns) {
+      validateReference(column);
+    }
+    for (const column of orderByColumns) {
+      validateReference(column.expression);
+    }
+    validateGroupedSelectColumns(selectColumns, groupByColumns);
+    validateGroupedClauseExpressions(sqlSelect.havingClause, groupByColumns, countAlias);
+    for (const column of orderByColumns) {
+      validateGroupedExpression(column.expression, groupByColumns, countAlias);
+    }
+
+    const joined: any[] = [];
+    for (const leftRow of baseRecords) {
+      for (const rightRow of joinRecords) {
+        const candidate = buildJoinedRow(leftRow, rightRow, baseTableName, resolvedJoinTable);
+        if (resolveSqlValue(candidate, leftExpr) === resolveSqlValue(candidate, rightExpr)) {
+          joined.push(candidate);
+        }
+      }
+    }
+    scanRows = joined;
+    strategy = 'FULL_TABLE_SCAN';
+  } else {
+    const referencedColumns = new Set<string>();
+    for (const column of selectColumns) {
+      if (/^COUNT\s*\(/i.test(column) || column === '*') continue;
+      const clean = column.replace(/\s+AS\s+.+$/i, '').trim();
+      if (clean.endsWith('.*')) continue;
+      referencedColumns.add(clean);
+    }
+    for (const column of groupByColumns) {
+      referencedColumns.add(column);
+    }
+    for (const column of orderByColumns) {
+      referencedColumns.add(column.expression);
+    }
+
+    const validateReference = (ref: string) => {
+      const trimmed = ref.trim();
+      if (!trimmed || trimmed === '*') return;
+      if (/^COUNT\s*\(/i.test(trimmed)) return;
+      if (trimmed.endsWith('.*')) {
+        const tableName = trimmed.slice(0, -2);
+        if (tableName !== baseTableName) {
+          throw new Error(`Table "${tableName}" is not part of this query.`);
+        }
+        return;
+      }
+      const candidate = trimmed;
+      if (candidate.includes('.')) {
+        const [tableName, ...rest] = candidate.split('.');
+        const columnName = rest.join('.');
+      if (tableName !== baseTableName) {
+        throw new Error(`Table "${tableName}" is not part of this query.`);
+      }
+      if (baseSchema?.fields && !baseSchema.fields[columnName]) {
+        throw new Error(`Column "${columnName}" does not exist on table "${baseTableName}".`);
+      }
+      return;
+    }
+      if (!isSqlIdentifier(candidate)) {
+        throw new Error(`Invalid column reference: "${ref}".`);
+      }
+      if (!baseSchema?.fields || baseSchema.fields[candidate]) return;
+      throw new Error(`Column "${candidate}" does not exist on table "${baseTableName}".`);
+    };
+
+    for (const ref of referencedColumns) {
+      validateReference(ref);
+    }
+    validateGroupedSelectColumns(selectColumns, groupByColumns);
+    validateGroupedClauseExpressions(sqlSelect.havingClause, groupByColumns, countAlias);
+    for (const column of orderByColumns) {
+      validateGroupedExpression(column.expression, groupByColumns, countAlias);
+    }
+
+    if (baseSchema?.indexes?.length) {
+      const whereKeys = action.noSqlQuery ? Object.keys(action.noSqlQuery) : [];
+      if (whereKeys.includes('id') || whereKeys.includes(`${baseTableName}.id`)) {
+        indexUsed = 'PRIMARY_KEY_INDEX (id)';
+        strategy = 'INDEX_SCAN';
+        scannedRecords = Math.min(1, baseRecords.length);
+      }
+    }
+  }
+
+  let workingRows = scanRows.slice();
+  if (action.noSqlQuery && Object.keys(action.noSqlQuery).length > 0) {
+    workingRows = workingRows.filter((row) => matchRow(row, action.noSqlQuery));
+  }
+
+  let outputRows: any[] = [];
+  const isAggregate = hasCount || groupByColumns.length > 0;
+
+  if (isAggregate) {
+    const groups = new Map<string, any[]>();
+    if (groupByColumns.length === 0) {
+      groups.set('__all__', workingRows);
+    } else {
+      for (const row of workingRows) {
+        const key = JSON.stringify(groupByColumns.map((column) => resolveSqlValue(row, column)));
+        const existing = groups.get(key);
+        if (existing) existing.push(row);
+        else groups.set(key, [row]);
+      }
+    }
+
+    for (const groupRows of groups.values()) {
+      if (groupRows.length === 0) continue;
+      const representative = groupRows[0];
+      const countColumn = countMatch?.match(/^COUNT\s*\(\s*(\*|[A-Za-z_][A-Za-z0-9_\.]*)\s*\)/i)?.[1] || '*';
+      const countValue = countColumn === '*'
+        ? groupRows.length
+        : groupRows.filter((row) => resolveSqlValue(row, countColumn) !== null && resolveSqlValue(row, countColumn) !== undefined).length;
+      const projected = applySqlProjection(representative, selectColumns, { countValue, countAlias });
+
+      if (sqlSelect.havingClause) {
+        const normalizedHaving = sqlSelect.havingClause
+          .replace(/COUNT\s*\(\s*\*\s*\)/ig, countAlias)
+          .replace(/COUNT\s*\(\s*[A-Za-z_][A-Za-z0-9_\.]*\s*\)/ig, countAlias);
+        if (!evaluateSqlClause(projected, normalizedHaving)) {
+          continue;
+        }
+      }
+
+      outputRows.push(projected);
+    }
+
+    if (orderByColumns.length > 0) {
+      outputRows.sort((left, right) => {
+        for (const order of orderByColumns) {
+          const normalizedExpression = order.expression
+            .replace(/COUNT\s*\(\s*\*\s*\)/ig, countAlias)
+            .replace(/COUNT\s*\(\s*[A-Za-z_][A-Za-z0-9_\.]*\s*\)/ig, countAlias);
+          const leftValue = resolveSqlValue(left, normalizedExpression);
+          const rightValue = resolveSqlValue(right, normalizedExpression);
+          if (leftValue === rightValue) continue;
+          const direction = order.direction === 'DESC' ? -1 : 1;
+          return leftValue > rightValue ? direction : -direction;
+        }
+        return 0;
+      });
+    }
+  } else {
+    if (orderByColumns.length > 0) {
+      workingRows.sort((left, right) => {
+        for (const order of orderByColumns) {
+          const leftValue = resolveSqlValue(left, order.expression);
+          const rightValue = resolveSqlValue(right, order.expression);
+          if (leftValue === rightValue) continue;
+          const direction = order.direction === 'DESC' ? -1 : 1;
+          return leftValue > rightValue ? direction : -direction;
+        }
+        return 0;
+      });
+    }
+
+    outputRows = workingRows.map((row) => applySqlProjection(row, selectColumns));
+  }
+
+  if (sqlSelect.limit !== undefined) {
+    outputRows = outputRows.slice(0, sqlSelect.limit);
+  }
+
+  outputRows = outputRows.map((row) => stripInternalRowKeys(row));
+  return { records: outputRows, scannedRecords, indexUsed, strategy };
 }
 
 /**
@@ -333,6 +981,25 @@ function saveLocalTableRecords(projectId: string, tableName: string, records: an
     fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
   } catch (e) {
     console.error('[Local fallback write error]', e);
+  }
+}
+
+function deleteLocalTableArtifacts(projectId: string, tableName: string) {
+  if (!fs || !LOCAL_STORE_FILE) return;
+  ensureLocalStore();
+  try {
+    const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');
+    const store = JSON.parse(raw);
+    const key = `${projectId}_${tableName}`;
+    if (store.tables) {
+      delete store.tables[key];
+    }
+    if (store.metadata) {
+      delete store.metadata[key];
+    }
+    fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[Local fallback delete error]', e);
   }
 }
 
@@ -975,11 +1642,36 @@ export class TelebaseQueryEngine {
     return writeAheadLogs.filter(log => log.projectId === projectId);
   }
 
+  static clearTableCache(projectId: string, tableName: string) {
+    delete tableCache[`${projectId}_${tableName}`];
+  }
+
+  static clearTableArtifacts(projectId: string, tableName: string) {
+    TelebaseQueryEngine.clearTableCache(projectId, tableName);
+    deleteLocalTableArtifacts(projectId, tableName);
+  }
+
+  static async getTableRecords(project: Project, tableName: string, forceRefresh = false) {
+    return getTableRecords(project, tableName, forceRefresh);
+  }
+
+  static async saveTableRecords(project: Project, tableName: string, records: any[]) {
+    return saveTableRecords(project, tableName, records);
+  }
+
   /**
    * Clears WAL log history.
    */
-  static clearWALLogs(projectId: string) {
+  static async clearWALLogs(projectId: string) {
+    await hydrateWriteAheadLogs();
     writeAheadLogs = writeAheadLogs.filter(log => log.projectId !== projectId);
+    await persistWriteAheadLogs();
+  }
+
+  static async clearWALLogsForTable(projectId: string, tableName: string) {
+    await hydrateWriteAheadLogs();
+    writeAheadLogs = writeAheadLogs.filter(log => !(log.projectId === projectId && log.tableName === tableName));
+    await persistWriteAheadLogs();
   }
 
   /**
@@ -993,6 +1685,16 @@ export class TelebaseQueryEngine {
       schema?: TableSchema;
       sqlQuery?: string;
       noSqlQuery?: any;
+      sqlSelect?: {
+        selectClause: string;
+        joinTable?: string;
+        joinCondition?: string;
+        whereClause?: string;
+        groupByClause?: string;
+        havingClause?: string;
+        orderByClause?: string;
+        limit?: number;
+      };
       insertData?: any;
       updateSet?: any;
       whereCondition?: (row: any) => boolean;
@@ -1061,6 +1763,7 @@ export class TelebaseQueryEngine {
       let walEntry: WALEntry | undefined;
 
       if (action.type !== 'SELECT') {
+        await hydrateWriteAheadLogs();
         // Lock row/table
         activeRowLocks[lockKey] = { lockedAt: Date.now(), taskId: globalThis.crypto.randomUUID() };
         
@@ -1085,6 +1788,7 @@ export class TelebaseQueryEngine {
           status: 'PENDING'
         };
         writeAheadLogs.push(walEntry);
+        await persistWriteAheadLogs();
 
         plan.push({
           operation: 'WRITE_AHEAD_LOG_COMMIT',
@@ -1103,15 +1807,24 @@ export class TelebaseQueryEngine {
       // CRUD Execution
       const crudStart = Date.now();
       if (action.type === 'SELECT') {
-        if (action.noSqlQuery) {
+        if (action.sqlSelect) {
+          const structured = await executeStructuredSelect(project, tableName, records, action, plan);
+          resultRecords = structured.records;
+          affectedRows = resultRecords.length;
+          indexUsed = structured.indexUsed;
+          strategy = structured.strategy;
+          scannedRecords = structured.scannedRecords;
+        } else if (action.noSqlQuery) {
           // MongoDB-style NoSQL query interpreter
           resultRecords = records.filter((row) => matchRow(row, action.noSqlQuery));
+          affectedRows = resultRecords.length;
         } else if (action.whereCondition) {
           resultRecords = records.filter(action.whereCondition);
+          affectedRows = resultRecords.length;
         } else {
           resultRecords = records;
+          affectedRows = resultRecords.length;
         }
-        affectedRows = resultRecords.length;
       } 
       
       else if (action.type === 'INSERT') {
@@ -1237,6 +1950,7 @@ export class TelebaseQueryEngine {
     }
 
     logs.push(`[Recovery Started] Replaying Write-Ahead Logs (WAL) for project "${project.name}"...`);
+    await hydrateWriteAheadLogs(true);
     
     // Find failed/pending entries in the write-ahead log
     const projectLogs = writeAheadLogs.filter(
@@ -1254,6 +1968,12 @@ export class TelebaseQueryEngine {
 
     for (const entry of projectLogs) {
       logs.push(`[WAL Replay] Replaying ${entry.operation} entry ${entry.id} (status was: ${entry.status}).`);
+
+      if (isWalEntryApplied(entry, consistentRecords)) {
+        logs.push(`[WAL Replay] Entry ${entry.id} already reflected in table state. Skipping re-application.`);
+        entry.status = 'COMMITTED';
+        continue;
+      }
 
       if (entry.operation === 'INSERT' && entry.newData) {
         const recordToRestore = {
