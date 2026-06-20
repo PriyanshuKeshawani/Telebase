@@ -8,6 +8,27 @@ export default function NoSqlDocs() {
         </p>
       </div>
 
+      {/* Currently Supported Features alert */}
+      <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-5 space-y-3">
+        <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">Currently Supported NoSQL Filters</h3>
+        <p className="text-xs text-zinc-300 leading-relaxed">
+          Telebase's NoSQL query engine currently supports the following operators and structures:
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-zinc-400 font-mono">
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$eq (Equal to)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$ne (Not equal to)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$gt (Greater than)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$gte (Greater than/equal)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$lt (Less than)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$lte (Less than/equal)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"$regex (Regular expression)"}</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">{"Exact Match Key-Values"}</div>
+        </div>
+        <p className="text-[11px] text-zinc-500 italic mt-1">
+          * Note: Future updates will bring compatibility for 100% of standard NoSQL query selectors, combinators, and nested document fields.
+        </p>
+      </div>
+
       <div className="space-y-8">
         {/* SELECT */}
         <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-2xl p-6 space-y-4">

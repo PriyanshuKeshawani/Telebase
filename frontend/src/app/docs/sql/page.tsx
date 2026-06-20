@@ -8,6 +8,31 @@ export default function SqlDocs() {
         </p>
       </div>
 
+      {/* Currently Supported Features alert */}
+      <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-5 space-y-3">
+        <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">Currently Supported SQL Syntax</h3>
+        <p className="text-xs text-zinc-300 leading-relaxed">
+          Telebase's custom query parser fully supports the following keywords and operations:
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-zinc-400 font-mono">
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">SELECT ... FROM</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">INNER JOIN ... ON</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">WHERE (AND, =, !=, &gt;, &lt;, LIKE)</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">GROUP BY / HAVING</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">ORDER BY (ASC / DESC)</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">LIMIT / COUNT(*)</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">INSERT INTO ... VALUES</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">UPDATE ... SET</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">DELETE FROM</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">CREATE / DROP TABLE</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">ALTER TABLE (ADD / DROP)</div>
+          <div className="bg-black/30 px-3 py-1.5 rounded-lg border border-zinc-800/40">CREATE / DROP INDEX</div>
+        </div>
+        <p className="text-[11px] text-zinc-500 italic mt-1">
+          * Note: Future updates will bring compatibility for 100% of standard SQL query structures and procedures.
+        </p>
+      </div>
+
       <div className="space-y-8">
         
         {/* SELECT */}
