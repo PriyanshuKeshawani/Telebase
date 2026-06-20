@@ -56,7 +56,7 @@ export default function NoSqlDocs() {
         {/* UPDATE */}
         <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-2xl p-6 space-y-4">
           <h2 className="text-xl font-bold text-white">UPDATE</h2>
-          <p className="text-sm text-zinc-400">Match rows with a query, then set new values with <code>updateData</code>.</p>
+          <p className="text-sm text-zinc-400">Match rows with a query, then set new values with <code>updateSet</code>.</p>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <pre className="p-4 text-sm font-mono text-zinc-300 overflow-x-auto">
               {`await fetch('https://telebase.pages.dev/api/db', {
@@ -66,7 +66,7 @@ export default function NoSqlDocs() {
     tableName: 'users',
     action: 'UPDATE',
     noSqlQuery: { id: 'some-uuid' },
-    updateData: { status: 'inactive' }
+    updateSet: { status: 'inactive' }
   })
 });`}
             </pre>
@@ -92,6 +92,20 @@ export default function NoSqlDocs() {
           </div>
         </div>
 
+      </div>
+
+      {/* Roadmap Note */}
+      <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-6 space-y-2 mt-8">
+        <h4 className="font-bold text-white text-base">Roadmap: Expanded NoSQL Support</h4>
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Telebase is expanding its document query engine to support complete NoSQL operations. Future releases will support all query formats and filters including:
+        </p>
+        <ul className="list-disc pl-5 text-zinc-400 text-xs space-y-1 mt-2">
+          <li>Nested object and subdocument queries (e.g. <code>{"profile.age": { $gte: 18 }}</code>)</li>
+          <li>Array filters and manipulation operators (e.g. <code>$in, $all, $size, $elemMatch</code>)</li>
+          <li>Logical combinators for complex structures (e.g. <code>$or, $and, $not, $nor</code>)</li>
+          <li>Field projection masks, advanced sorting limits, and multi-stage aggregation aggregation pipelines</li>
+        </ul>
       </div>
     </div>
   );
