@@ -1670,13 +1670,23 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             <AlertCircle size={14} className={isSyncing ? "animate-pulse text-amber-500" : "text-amber-500/80"} />
             <span>Deep Scan Channel</span>
           </button>
-          <button
-            onClick={() => handleSignOut()}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-xs font-medium"
-          >
-            <LogOut size={14} />
-            <span>Sign Out</span>
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              href="/docs"
+              target="_blank"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-zinc-400 hover:text-blue-400 hover:bg-blue-500/5 transition-all text-xs font-medium border border-zinc-800/30 bg-zinc-900/10"
+            >
+              <BookOpen size={14} />
+              <span>Docs</span>
+            </Link>
+            <button
+              onClick={() => handleSignOut()}
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-xs font-medium border border-zinc-800/30 bg-zinc-900/10"
+            >
+              <LogOut size={14} />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </>
     );

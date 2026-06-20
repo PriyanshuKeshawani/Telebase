@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Database, Shield, Zap, HardDrive, FileUp, FileDown, Layers, Terminal, Menu, X } from "lucide-react";
+import { Database, Shield, Zap, HardDrive, FileUp, FileDown, Layers, Terminal, Menu, X, Compass } from "lucide-react";
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const links = [
     { href: "/docs", label: "Getting Started", icon: Zap },
+    { href: "/docs/onboarding", label: "Onboarding & Setup", icon: Compass },
     { href: "/docs/architecture", label: "Architecture", icon: Layers },
     { href: "/docs/authentication", label: "Authentication", icon: Shield },
     { href: "/docs/crud", label: "CRUD Operations", icon: Database },
