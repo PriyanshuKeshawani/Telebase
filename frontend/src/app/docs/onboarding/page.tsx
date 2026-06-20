@@ -43,7 +43,6 @@ export default function OnboardingDocs() {
               <ul className="list-disc pl-5 text-zinc-400 text-xs space-y-1.5 leading-relaxed">
                 <li>Click the <strong className="text-white">+ New Project</strong> button inside the sidebar or dashboard.</li>
                 <li>Give your project a descriptive name (e.g. <code>my-prod-db</code>).</li>
-                <li>Choose a storage provider: <span className="text-blue-400 font-medium">TELEGRAM</span> (infinite storage) or <span className="text-zinc-400 font-medium">SUPABASE</span>.</li>
               </ul>
             </div>
           </div>
@@ -108,14 +107,14 @@ export default function OnboardingDocs() {
             </div>
             <div className="space-y-3 flex-1">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                Generate your API Key
+                Obtain your API Key
               </h2>
               <p className="text-zinc-400 text-sm leading-relaxed">
                 All requests to the Telebase engine require verification via an API Key.
               </p>
               <div className="space-y-2">
                 <p className="text-zinc-400 text-xs">
-                  In your Project overview panel, locate the **API Key** section. Click the <strong className="text-white">Generate API Key</strong> button, and securely copy it. Add this to your header variables in every client request:
+                  A unique API key is automatically generated when your project is created. In your Project overview panel, locate the <strong className="text-white">API Key</strong> section and securely copy it. Add this to your header variables in every client request:
                 </p>
                 <div className="bg-zinc-900 border border-zinc-800/50 rounded-xl overflow-hidden">
                   <div className="bg-zinc-900/50 px-4 py-2 border-b border-zinc-800/50 text-[10px] font-mono text-zinc-500">Headers</div>
