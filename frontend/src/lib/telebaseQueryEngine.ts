@@ -1713,16 +1713,34 @@ export class TelebaseQueryEngine {
       durationMs: Date.now() - startTime
     });
 
-    const activeLock = activeRowLocks[lockKey];
-    if (activeLock) {
-      const elapsed = Date.now() - activeLock.lockedAt;
-      if (elapsed > 5000) {
-        console.warn(`[Lock System] Lock on table "${tableName}" by transaction ${activeLock.taskId} has expired (held for ${elapsed}ms). Auto-releasing.`);
-        delete activeRowLocks[lockKey];
-      } else {
-        throw new Error(`Concurrency Lock Violation: Table "${tableName}" is currently locked by write transaction ${activeLock.taskId}.`);
+    if (action.type !== 'SELECT') {
+      const activeLock = activeRowLocks[lockKey];
+      if (activeLock) {
+        const elapsed = Date.now() - activeLock.lockedAt;
+        if (elapsed > 5000) {
+          console.warn(`[Lock System] Lock on table "${tableName}" by transaction ${activeLock.taskId} has expired (held for ${elapsed}ms). Auto-releasing.`);
+          delete activeRowLocks[lockKey];
+        } else {
+          throw new Error(`Concurrency Lock Violation: Table "${tableName}" is currently locked by write transaction ${activeLock.taskId}.`);
+        }
+      }
+
+      // Check distributed lock using WAL entries on KV/Telegram
+      await hydrateWriteAheadLogs(true);
+      const activeWalLock = writeAheadLogs.find(
+        (log) =>
+          log.projectId === project.id &&
+          log.tableName === tableName &&
+          log.status === 'PENDING' &&
+          log.timestamp &&
+          Date.now() - new Date(log.timestamp).getTime() < 5000
+      );
+      if (activeWalLock) {
+        throw new Error(`Concurrency Lock Violation: Table "${tableName}" is currently locked by active write transaction ${activeWalLock.id}.`);
       }
     }
+
+    let walEntry: WALEntry | undefined;
 
     try {
       // 2. Query Processing: Schema and Syntax Parsing
@@ -1760,10 +1778,20 @@ export class TelebaseQueryEngine {
       // 4. Transaction Control: Write-Ahead Logging & row lock engagement
       let affectedRows = 0;
       let resultRecords: any[] = [];
-      let walEntry: WALEntry | undefined;
+
+      await hydrateWriteAheadLogs();
+      
+      // Auto-Recovery: check if there are pending logs for this table and run crash recovery
+      const pendingWal = writeAheadLogs.filter(log => log.projectId === project.id && log.tableName === tableName && log.status !== 'COMMITTED');
+      if (pendingWal.length > 0) {
+        console.log(`[Auto-Recovery] Found ${pendingWal.length} pending WAL entries for ${tableName}. Initiating auto-recovery...`);
+        await TelebaseQueryEngine.runCrashRecovery(project, tableName);
+        // Refresh records after recovery
+        const recordsObj = await getTableRecords(project, tableName);
+        records = [...recordsObj.records];
+      }
 
       if (action.type !== 'SELECT') {
-        await hydrateWriteAheadLogs();
         // Lock row/table
         activeRowLocks[lockKey] = { lockedAt: Date.now(), taskId: globalThis.crypto.randomUUID() };
         
@@ -1799,6 +1827,7 @@ export class TelebaseQueryEngine {
         // Trigger purposeful crash to demonstrate recovery
         if (action.forceLockCrash) {
           walEntry.status = 'FAILED';
+          await persistWriteAheadLogs();
           delete activeRowLocks[lockKey];
           throw new Error(`Simulated Transaction Crash: Server shut down abruptly during the critical atomic page commit.`);
         }
@@ -1895,6 +1924,7 @@ export class TelebaseQueryEngine {
       // Commit WAL and release locks
       if (walEntry) {
         walEntry.status = 'COMMITTED';
+        await persistWriteAheadLogs();
         delete activeRowLocks[lockKey];
       }
 
@@ -1919,7 +1949,12 @@ export class TelebaseQueryEngine {
     } catch (err: any) {
       // Release lock on failure
       delete activeRowLocks[lockKey];
-      
+
+      if (walEntry) {
+        walEntry.status = 'FAILED';
+        await persistWriteAheadLogs();
+      }
+
       return {
         success: false,
         error: err.message,
@@ -2002,6 +2037,9 @@ export class TelebaseQueryEngine {
 
     // Save recovered state back to storage
     await saveTableRecords(project, tableName, consistentRecords);
+    
+    // Persist the updated WAL status to prevent duplicate recovery
+    await persistWriteAheadLogs();
     
     logs.push(`[Recovery Completed] Successfully restored consistency. Re-applied ${restoredCount} transaction records!`);
     return { restoredCount, logs };

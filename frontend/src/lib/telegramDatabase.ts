@@ -435,6 +435,46 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
     }
 
     state.last_pinned_message_id = newMessageId;
+
+    // Persist updated state with the new pinned message ID to Telegram, KV, and Local Storage
+    try {
+      const updatedHex = await encryptStateAsync(state);
+      const updatedBuffer = hexToBytes(updatedHex);
+
+      const editFormData = new FormData();
+      editFormData.append('chat_id', TELEGRAM_CHANNEL_ID);
+      editFormData.append('message_id', newMessageId.toString());
+      const media = {
+        type: 'document',
+        media: 'attach://document'
+      };
+      editFormData.append('media', JSON.stringify(media));
+      const updatedFileBlob = new Blob([updatedBuffer as any], { type: 'application/octet-stream' });
+      editFormData.append('document', updatedFileBlob, 'telebase_db.json');
+
+      const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageMedia`, {
+        method: 'POST',
+        body: editFormData
+      });
+      const editData = await editRes.json();
+      if (!editData.ok) {
+        console.warn('[TeleStore] Telegram editMessageMedia failed during uploadStateToTelegram:', JSON.stringify(editData));
+      }
+      
+      // Save updated state to Cloudflare KV
+      if (isCFWorkerConfigured || isKVConfigured) {
+        await writeRawKV('telebase_state_current', updatedHex);
+      }
+      
+      // Save updated state to local backup file
+      if (fs && LOCAL_STATE_FILE) {
+        ensureLocalStateDir();
+        fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+      }
+    } catch (e: any) {
+      console.warn('[TeleStore] Failed to persist finalized state in document path:', e.message);
+    }
+
     return;
   }
 
@@ -504,6 +544,152 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
   }
 
   state.last_pinned_message_id = newMessageId;
+
+  // Persist updated state with the new pinned message ID to Telegram, KV, and Local Storage
+  try {
+    const updatedHex = await encryptStateAsync(state);
+    const updatedBuffer = hexToBytes(updatedHex);
+    const updatedStateText = new TextDecoder().decode(updatedBuffer);
+
+    const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHANNEL_ID,
+        message_id: newMessageId,
+        text: updatedStateText
+      })
+    });
+    const editData = await editRes.json();
+    if (!editData.ok) {
+      console.warn('[TeleStore] Telegram editMessageText failed during uploadStateToTelegram:', JSON.stringify(editData));
+    }
+    
+    // Save updated state to Cloudflare KV
+    if (isCFWorkerConfigured || isKVConfigured) {
+      await writeRawKV('telebase_state_current', updatedHex);
+    }
+    
+    // Save updated state to local backup file
+    if (fs && LOCAL_STATE_FILE) {
+      ensureLocalStateDir();
+      fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+    }
+  } catch (e: any) {
+    console.warn('[TeleStore] Failed to persist finalized state in text path:', e.message);
+  }
+}
+
+export async function getDatabaseState(forceRefresh?: boolean): Promise<DatabaseSchema> {
+  if (!forceRefresh && stateCache && (Date.now() - lastCacheFetchTime < CACHE_TTL_MS)) {
+    return stateCache;
+  }
+
+  if (!BOT_TOKEN || !TELEGRAM_CHANNEL_ID) {
+    const local = loadLocalState();
+    if (local) {
+      stateCache = local;
+      lastCacheFetchTime = Date.now();
+      return local;
+    }
+    const emptySchema: DatabaseSchema = { projects: [], files: [], version: 1 };
+    stateCache = emptySchema;
+    lastCacheFetchTime = Date.now();
+    return emptySchema;
+  }
+
+  let tgMessageId: number | null = null;
+  let pinned: any = null;
+  try {
+    const getChatRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID })
+    });
+    const chatData = await getChatRes.json();
+    if (chatData.ok && chatData.result && chatData.result.pinned_message) {
+      pinned = chatData.result.pinned_message;
+      tgMessageId = pinned.message_id;
+    }
+  } catch (err: any) {
+    console.warn('[TeleStore] Failed to fetch pinned message from Telegram:', err.message);
+  }
+
+  if (!tgMessageId) {
+    const local = loadLocalState();
+    if (local) {
+      stateCache = local;
+      lastCacheFetchTime = Date.now();
+      return local;
+    }
+    const emptySchema: DatabaseSchema = { projects: [], files: [], version: 1 };
+    stateCache = emptySchema;
+    lastCacheFetchTime = Date.now();
+    return emptySchema;
+  }
+
+  if (isCFWorkerConfigured || isKVConfigured) {
+    try {
+      const rawHex = await readRawKV('telebase_state_current');
+      if (rawHex) {
+        const decrypted = await decryptStatePayload(hexToBytes(rawHex));
+        const parsed = JSON.parse(decrypted) as DatabaseSchema;
+        if (parsed && parsed.last_pinned_message_id === tgMessageId) {
+          stateCache = parsed;
+          lastCacheFetchTime = Date.now();
+          return parsed;
+        }
+        console.log('[TeleStore] KV state is stale or message ID mismatch. Reloading from Telegram source of truth...');
+      }
+    } catch (e: any) {
+      console.warn('[TeleStore] KV fetch/decryption failed:', e.message);
+    }
+  }
+
+  try {
+    let decryptedText = '';
+    if (pinned.document) {
+      const fileId = pinned.document.file_id;
+      const getFileRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_id: fileId })
+      });
+      const fileData = await getFileRes.json();
+      if (!fileData.ok) throw new Error('getFile failed');
+      const filePath = fileData.result.file_path;
+      const downloadRes = await fetch(`https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`);
+      const encryptedBuffer = new Uint8Array(await downloadRes.arrayBuffer());
+      decryptedText = await decryptStatePayload(encryptedBuffer);
+    } else if (pinned.text) {
+      decryptedText = await decryptStatePayload(new TextEncoder().encode(pinned.text));
+    } else {
+      throw new Error('Pinned message is not a document or text');
+    }
+
+    const state = JSON.parse(decryptedText) as DatabaseSchema;
+    state.last_pinned_message_id = tgMessageId;
+
+    stateCache = state;
+    lastCacheFetchTime = Date.now();
+
+    if (isCFWorkerConfigured || isKVConfigured) {
+      try {
+        const encryptedHex = await encryptStateAsync(state);
+        await writeRawKV('telebase_state_current', encryptedHex);
+      } catch (kvErr) {}
+    }
+    if (fs && LOCAL_STATE_FILE) {
+      try {
+        ensureLocalStateDir();
+        fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+      } catch (e) {}
+    }
+
+    return state;
+  } catch (err: any) {
+    throw new TelebaseStateError('CORRUPTION_DETECTED', `Failed to load database state from Telegram source of truth: ${err.message}`);
+  }
 }
 
 export async function uploadShardToTelegram(filename: string, payload: string): Promise<number | null> {
@@ -533,162 +719,11 @@ export async function uploadShardToTelegram(filename: string, payload: string): 
   }
 }
 
-function triggerBackgroundTelegramBackup(finalBuffer: Uint8Array, state: DatabaseSchema) {
-  if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
-    (async () => {
-      try {
-        console.log('[TeleStore BG] Triggering background Telegram backup to keep Telegram in-sync...');
-        await uploadStateToTelegram(finalBuffer, state);
-        
-        if (fs && LOCAL_STATE_FILE) {
-          fs.writeFileSync(LOCAL_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
-        }
-        const updatedHex = await encryptStateAsync(state);
-        await writeRawKV('telebase_state_current', updatedHex);
-        console.log(`[TeleStore BG] Background Telegram backup completed successfully!`);
-      } catch (err: any) {
-        console.error('[TeleStore BG] Background Telegram backup failed:', err.message);
-      }
-    })();
-  }
-}
-
-/**
- * Downloads the encrypted state from Telegram, decrypts and parses it.
- */
-export async function getDatabaseState(forceRefresh = false): Promise<DatabaseSchema> {
-  const now = Date.now();
-  if (stateCache && !forceRefresh && (now - lastCacheFetchTime < CACHE_TTL_MS)) {
-    return stateCache;
-  }
-
-  // 1. CLOUDFLARE KV (Ultra-fast edge state read)
-  if (isCFWorkerConfigured || isKVConfigured) {
-    try {
-      const stateHex = await readRawKV('telebase_state_current');
-      if (stateHex) {
-        const encryptedBuffer = hexToBytes(stateHex);
-        const decryptedText = await decryptStatePayload(encryptedBuffer);
-        const state = JSON.parse(decryptedText) as DatabaseSchema;
-        stateCache = state;
-        lastCacheFetchTime = now;
-        return state;
-      }
-    } catch (kvErr: any) {
-      console.warn('[TeleStore] Failed to read state from KV, falling back to Telegram:', kvErr.message);
-    }
-  }
-
-  // 2. TELEGRAM BACKEND (Fallback / Source of truth)
-  if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
-    try {
-      const getChatUrl = `https://api.telegram.org/bot${BOT_TOKEN}/getChat`;
-      const chatRes = await fetch(getChatUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID })
-      });
-      
-      const chatData = await chatRes.json();
-      if (!chatData.ok) {
-        throw new Error(`getChat failed: ${JSON.stringify(chatData)}`);
-      }
-
-      const pinnedMessage = chatData.result?.pinned_message;
-      if (!pinnedMessage) {
-        throw new TelebaseStateError('TELEGRAM_PIN_MISSING', 'Backing Telegram channel has no pinned database message.');
-      }
-
-      const latestPinnedMessageId = pinnedMessage.message_id;
-
-      // --- MONOTONIC STATE CACHE CHECK ---
-      const localState = loadLocalState();
-      if (localState && localState.last_pinned_message_id && latestPinnedMessageId <= localState.last_pinned_message_id) {
-        console.log(`[TeleStore] Local state is up-to-date (Pinned ID: ${latestPinnedMessageId}). Skipping download.`);
-        localState.last_pinned_message_id = latestPinnedMessageId; // Ensure synced
-        stateCache = localState;
-        lastCacheFetchTime = now;
-        return localState;
-      }
-      // ------------------------------------
-
-      let decrypted = '';
-      if (pinnedMessage.text) {
-        decrypted = pinnedMessage.text;
-      } else if (pinnedMessage.document) {
-        const fileId = pinnedMessage.document.file_id;
-        const getFileRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_id: fileId })
-        });
-        const fileData = await getFileRes.json();
-        if (!fileData.ok) {
-          throw new Error(`getFile failed: ${JSON.stringify(fileData)}`);
-        }
-
-        const filePath = fileData.result.file_path;
-        const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
-
-        const downloadRes = await fetch(downloadUrl);
-        const encryptedArrayBuffer = await downloadRes.arrayBuffer();
-        const encryptedBuffer = new Uint8Array(encryptedArrayBuffer);
-
-        try {
-          decrypted = await decryptStatePayload(encryptedBuffer);
-        } catch (decErr: any) {
-          throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for Telegram database file: ${decErr.message}`);
-        }
-      } else {
-        throw new TelebaseStateError('TELEGRAM_PIN_MISSING', 'Pinned message is neither text nor document.');
-      }
-
-      let state: DatabaseSchema;
-      try {
-        state = JSON.parse(decrypted) as DatabaseSchema;
-      } catch (parseErr: any) {
-        throw new TelebaseStateError('CORRUPTION_DETECTED', `JSON Parse failed for Telegram database: ${parseErr.message}`);
-      }
-      
-      state.last_pinned_message_id = pinnedMessage.message_id;
-      stateCache = state;
-      lastCacheFetchTime = now;
-      console.log(`[TeleStore] State successfully synchronized from Telegram! Loaded ${state.projects.length} projects.`);
-      return state;
-    } catch (error: any) {
-      if (error instanceof TelebaseStateError) throw error;
-      console.warn('[TeleStore] Telegram read failed, falling back to local file state:', error.message);
-      
-      const state = loadLocalState();
-      if (state) {
-        stateCache = state;
-        lastCacheFetchTime = now;
-        return state;
-      }
-      throw new TelebaseStateError('STATE_NOT_FOUND', `Failed to retrieve database state from Telegram or Local fallback. Original error: ${error.message}`);
-    }
-  }
-
-  // 5. LOCAL STATE FALLBACK ONLY (If no Telegram / Cloudflare credentials)
-  console.warn('[TeleStore] No cloud storage credentials configured. Operating in local fallback.');
-  const state = loadLocalState();
-  if (!state) {
-    throw new TelebaseStateError('STATE_NOT_FOUND', 'No local state file found. Setup is uninitialized.');
-  }
-  stateCache = state;
-  lastCacheFetchTime = now;
-  return state;
-}
-
-/**
- * Encrypts and uploads the updated state to Telegram, pinning the new index and removing the old one.
- */
 export async function saveDatabaseState(state: DatabaseSchema, options?: { allowShrink?: boolean }): Promise<void> {
   // Update local memory cache immediately to guarantee consistent consecutive reads
   stateCache = state;
   lastCacheFetchTime = Date.now();
 
-  // Load existing state to perform validation checks
   let existingState: DatabaseSchema | null = null;
   try {
     existingState = await getDatabaseState(true);
@@ -712,13 +747,11 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
     const existingProjects = existingState.projects?.length || 0;
     const incomingUsers = state.users?.length || 0;
     const existingUsers = existingState.users?.length || 0;
-    
+
     if ((incomingProjects < existingProjects || incomingUsers < existingUsers) && !options?.allowShrink) {
       console.warn(`[TeleStore] Overwrite protection blocked: incoming projects: ${incomingProjects}, existing: ${existingProjects}; incoming users: ${incomingUsers}, existing: ${existingUsers}`);
       throw new TelebaseStateError('INVALID_OVERWRITE', `Aborted save: Incoming state is smaller than existing state (Projects: ${incomingProjects}/${existingProjects}, Users: ${incomingUsers}/${existingUsers}).`);
     }
-
-
 
     // E. Implement State Versioning
     if (state.version !== undefined && existingState.version !== undefined && state.version <= existingState.version) {
@@ -745,11 +778,9 @@ export async function saveDatabaseState(state: DatabaseSchema, options?: { allow
   const newHashBytes = await sha256Bytes(serializedStateBytes);
   state.hash = bytesToHex(newHashBytes);
 
-  const payload = new TextEncoder().encode(JSON.stringify(state));
-
-  // Save as plaintext JSON (hex-encoded for KV/Telegram storage)
-  const finalBuffer = payload;
-  const encryptedHex = bytesToHex(finalBuffer);
+  // Encrypt state for KV/Telegram storage to guarantee consistency
+  const encryptedHex = await encryptStateAsync(state);
+  const finalBuffer = hexToBytes(encryptedHex);
   const durabilityErrors: string[] = [];
 
   // Always write to local backup file first to guarantee durability & prevent data loss!
@@ -823,21 +854,20 @@ export async function restoreState(backupIndex: 1 | 2 | 3): Promise<DatabaseSche
   }
 
   const encryptedBuffer = hexToBytes(rawHex);
-  if (encryptedBuffer.length < 28) {
-    throw new TelebaseStateError('CORRUPTION_DETECTED', `Backup state '${keyName}' is corrupted or incomplete.`);
-  }
-
-  const iv = encryptedBuffer.slice(0, 12);
-  const authTag = encryptedBuffer.slice(12, 28);
-  const cipherText = encryptedBuffer.slice(28);
-
   let decrypted;
   try {
+    if (encryptedBuffer.length < 28) {
+      throw new Error('Backup state document is too short for AES-GCM encryption.');
+    }
+    const iv = encryptedBuffer.slice(0, 12);
+    const authTag = encryptedBuffer.slice(12, 28);
+    const cipherText = encryptedBuffer.slice(28);
     const key = await getEncryptionKey();
     const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
     decrypted = new TextDecoder().decode(decryptedBytes);
   } catch (decErr: any) {
-    throw new TelebaseStateError('DECRYPTION_FAILED', `Decryption failed for backup '${keyName}': ${decErr.message}`);
+    console.warn(`[TeleStore] AES-GCM decryption failed for backup '${keyName}', attempting plaintext fallback...`);
+    decrypted = new TextDecoder().decode(encryptedBuffer);
   }
 
   let restoredState: DatabaseSchema;
@@ -853,7 +883,93 @@ export async function restoreState(backupIndex: 1 | 2 | 3): Promise<DatabaseSche
   restoredState.version = currentVersion + 1;
   restoredState.updatedAt = new Date().toISOString();
 
-  // Save the state (without rotating to prevent loop back)
+  const stateToHash = { ...restoredState };
+  delete stateToHash.hash;
+  const serializedStateBytes = new TextEncoder().encode(JSON.stringify(stateToHash));
+  const newHashBytes = await sha256Bytes(serializedStateBytes);
+  restoredState.hash = bytesToHex(newHashBytes);
+
+  // 1. Upload and Pin to Telegram first to obtain the new message_id
+  if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
+    try {
+      const payload = new TextEncoder().encode(JSON.stringify(restoredState));
+      const key = await getEncryptionKey();
+      const newIv = randomBytes(12);
+      const { cipherText: newCipherText, authTag: newAuthTag } = await aesGcmEncrypt(key, newIv, payload);
+      const finalBuffer = new Uint8Array(newIv.length + newAuthTag.length + newCipherText.length);
+      finalBuffer.set(newIv, 0);
+      finalBuffer.set(newAuthTag, newIv.length);
+      finalBuffer.set(newCipherText, newIv.length + newAuthTag.length);
+
+      const formData = new FormData();
+      formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+      const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
+      formData.append('document', fileBlob, 'telebase_db.enc');
+
+      const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+        method: 'POST',
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadData.ok) {
+        const newMessageId = uploadData.result.message_id;
+        const oldMessageId = restoredState.last_pinned_message_id;
+
+        // Update state with the final pinned message ID
+        restoredState.last_pinned_message_id = newMessageId;
+
+        // Re-encrypt the finalized state
+        const updatedPayload = new TextEncoder().encode(JSON.stringify(restoredState));
+        const updatedIv = randomBytes(12);
+        const { cipherText: updatedCipherText, authTag: updatedAuthTag } = await aesGcmEncrypt(key, updatedIv, updatedPayload);
+        const updatedBuffer = new Uint8Array(updatedIv.length + updatedAuthTag.length + updatedCipherText.length);
+        updatedBuffer.set(updatedIv, 0);
+        updatedBuffer.set(updatedAuthTag, updatedIv.length);
+        updatedBuffer.set(updatedCipherText, updatedIv.length + updatedAuthTag.length);
+
+        // Edit the message media on Telegram to persist the finalized state
+        const editFormData = new FormData();
+        editFormData.append('chat_id', TELEGRAM_CHANNEL_ID);
+        editFormData.append('message_id', newMessageId.toString());
+        const media = {
+          type: 'document',
+          media: 'attach://document'
+        };
+        editFormData.append('media', JSON.stringify(media));
+        const updatedFileBlob = new Blob([updatedBuffer as any], { type: 'application/octet-stream' });
+        editFormData.append('document', updatedFileBlob, 'telebase_db.enc');
+
+        const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageMedia`, {
+          method: 'POST',
+          body: editFormData
+        });
+        const editData = await editRes.json();
+        if (!editData.ok) {
+          console.warn('[TeleStore] Telegram editMessageMedia failed during restoreState:', JSON.stringify(editData));
+        }
+
+        // Pin the new message
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/pinChatMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, message_id: newMessageId, disable_notification: true })
+        });
+
+        // Clean up previous message
+        if (oldMessageId) {
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, message_id: oldMessageId })
+          }).catch(() => {});
+        }
+      }
+    } catch (tgErr: any) {
+      console.error('[TeleStore] Telegram upload failed during restoreState:', tgErr.message);
+    }
+  }
+
+  // Save the state to local backup file (including new pinned message ID)
   if (fs && LOCAL_STATE_FILE) {
     try {
       ensureLocalStateDir();
@@ -861,64 +977,38 @@ export async function restoreState(backupIndex: 1 | 2 | 3): Promise<DatabaseSche
     } catch (e) {}
   }
 
-  const stateToHash = { ...restoredState };
-  delete stateToHash.hash;
-  const serializedStateBytes = new TextEncoder().encode(JSON.stringify(stateToHash));
-  const newHashBytes = await sha256Bytes(serializedStateBytes);
-  restoredState.hash = bytesToHex(newHashBytes);
+  // 2. Encrypt the finalized state (with the correct last_pinned_message_id) and save to KV with Backup Rotation
+  if (isCFWorkerConfigured || isKVConfigured) {
+    try {
+      const finalPayload = new TextEncoder().encode(JSON.stringify(restoredState));
+      const finalKey = await getEncryptionKey();
+      const finalIv = randomBytes(12);
+      const { cipherText: finalCipherText, authTag: finalAuthTag } = await aesGcmEncrypt(finalKey, finalIv, finalPayload);
+      const finalBuffer = new Uint8Array(finalIv.length + finalAuthTag.length + finalCipherText.length);
+      finalBuffer.set(finalIv, 0);
+      finalBuffer.set(finalAuthTag, finalIv.length);
+      finalBuffer.set(finalCipherText, finalIv.length + finalAuthTag.length);
+      const finalEncryptedHex = bytesToHex(finalBuffer);
 
-  const payload = new TextEncoder().encode(JSON.stringify(restoredState));
-  const key = await getEncryptionKey();
-  const newIv = randomBytes(12);
-  const { cipherText: newCipherText, authTag: newAuthTag } = await aesGcmEncrypt(key, newIv, payload);
-  const finalBuffer = new Uint8Array(newIv.length + newAuthTag.length + newCipherText.length);
-  finalBuffer.set(newIv, 0);
-  finalBuffer.set(newAuthTag, newIv.length);
-  finalBuffer.set(newCipherText, newIv.length + newAuthTag.length);
-  const newEncryptedHex = bytesToHex(finalBuffer);
-
-  if (isCFWorkerConfigured) {
-    const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/telebase_state_current`;
-    await fetch(url, {
-      method: 'PUT',
-      headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
-      body: newEncryptedHex
-    });
-  } else if (isKVConfigured) {
-    const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/telebase_state_current`;
-    await fetch(url, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' },
-      body: newEncryptedHex
-    });
-  }
-
-  if (BOT_TOKEN && TELEGRAM_CHANNEL_ID) {
-    const formData = new FormData();
-    formData.append('chat_id', TELEGRAM_CHANNEL_ID);
-    const fileBlob = new Blob([finalBuffer as any], { type: 'application/octet-stream' });
-    formData.append('document', fileBlob, 'telebase_db.enc');
-
-    const uploadRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-      method: 'POST',
-      body: formData
-    });
-    const uploadData = await uploadRes.json();
-    if (uploadData.ok) {
-      const newMessageId = uploadData.result.message_id;
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/pinChatMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, message_id: newMessageId, disable_notification: true })
-      });
-      if (restoredState.last_pinned_message_id) {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, message_id: restoredState.last_pinned_message_id })
-        }).catch(() => {});
+      console.log('[TeleStore] Shifting snapshot backup rings in Cloudflare KV...');
+      const backup2 = await readRawKV('telebase_state_backup_2');
+      if (backup2) {
+        await writeRawKV('telebase_state_backup_3', backup2);
       }
-      restoredState.last_pinned_message_id = newMessageId;
+      const backup1 = await readRawKV('telebase_state_backup_1');
+      if (backup1) {
+        await writeRawKV('telebase_state_backup_2', backup1);
+      }
+      const current = await readRawKV('telebase_state_current');
+      if (current) {
+        await writeRawKV('telebase_state_backup_1', current);
+      }
+      
+      const currentOk = await writeRawKV('telebase_state_current', finalEncryptedHex);
+      if (!currentOk) throw new Error('KV write failed for telebase_state_current');
+      console.log('[TeleStore] Successfully saved restored current state to Cloudflare KV.');
+    } catch (rotErr: any) {
+      console.warn('[TeleStore] KV Backup rotation failed during restoreState:', rotErr.message);
     }
   }
 
