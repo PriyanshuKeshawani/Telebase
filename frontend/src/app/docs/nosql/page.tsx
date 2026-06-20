@@ -101,7 +101,7 @@ export default function NoSqlDocs() {
           Telebase is expanding its document query engine to support complete NoSQL operations. Future releases will support all query formats and filters including:
         </p>
         <ul className="list-disc pl-5 text-zinc-400 text-xs space-y-1 mt-2">
-          <li>Nested object and subdocument queries (e.g. <code>{"profile.age": { $gte: 18 }}</code>)</li>
+          <li>Nested object and subdocument queries (e.g. <code>{"{ \"profile.age\": { \"$gte\": 18 } }"}</code>)</li>
           <li>Array filters and manipulation operators (e.g. <code>$in, $all, $size, $elemMatch</code>)</li>
           <li>Logical combinators for complex structures (e.g. <code>$or, $and, $not, $nor</code>)</li>
           <li>Field projection masks, advanced sorting limits, and multi-stage aggregation aggregation pipelines</li>
