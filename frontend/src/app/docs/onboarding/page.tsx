@@ -1,16 +1,27 @@
-import { Database, Zap, Key, Table2, UploadCloud, Bot, ArrowRight } from "lucide-react";
+import { Database, Zap, Key, Table2, UploadCloud, Bot, ArrowRight, Play } from "lucide-react";
 
 export default function OnboardingDocs() {
   return (
     <div className="space-y-8">
       {/* Page Title & Intro */}
-      <div className="space-y-3">
-        <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
-          Onboarding & Setup Guide
-        </h1>
-        <p className="text-zinc-400 text-lg leading-relaxed max-w-3xl">
-          Follow this 5-step checklist to configure your first serverless database, establish Telegram secure permanent storage, and generate authentication credentials.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-zinc-800/40">
+        <div className="space-y-3 flex-1">
+          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+            Onboarding & Setup Guide
+          </h1>
+          <p className="text-zinc-400 text-lg leading-relaxed max-w-3xl">
+            Follow this 5-step checklist to configure your first serverless database, establish Telegram secure permanent storage, and generate authentication credentials.
+          </p>
+        </div>
+        <a
+          href="https://www.youtube.com/watch?v=setup_video_placeholder"
+          target="_blank"
+          rel="noreferrer"
+          className="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 flex-shrink-0"
+        >
+          <Play size={14} />
+          Watch Setup Video
+        </a>
       </div>
 
       {/* Checklist Cards Container */}
