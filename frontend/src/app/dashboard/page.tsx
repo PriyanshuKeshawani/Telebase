@@ -8,7 +8,8 @@ import {
   FileText, PlusCircle, ArrowLeft, Bot, Server, UploadCloud, X,
   HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
   ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder,
-  Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code
+  Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code,
+  Upload, FileUp, ArrowRight, FileJson2, FileSpreadsheet
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -113,6 +114,19 @@ export default function Dashboard() {
   const [forceLockCrash, setForceLockCrash] = useState(false);
   const [recoveryLogs, setRecoveryLogs] = useState<string[]>([]);
   const [isNewTableModalOpen, setIsNewTableModalOpen] = useState(false);
+
+  // ── Import Table States ──
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState<'upload' | 'preview' | 'importing' | 'done' | 'error'>('upload');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importData, setImportData] = useState<Record<string, any>[]>([]);
+  const [importColumns, setImportColumns] = useState<{ name: string; type: 'string' | 'number' | 'boolean' }[]>([]);
+  const [importTableName, setImportTableName] = useState('');
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, percent: 0 });
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importResultMsg, setImportResultMsg] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   // Visual Interactive Explorer states
   const [dbSubTab, setDbSubTab] = useState<'explorer' | 'terminal'>('explorer');
@@ -1963,12 +1977,31 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Tables</h3>
-                            <button
-                              onClick={() => setIsNewTableModalOpen(true)}
-                              className="w-6 h-6 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-400 transition-all"
-                            >
-                              <Plus size={11} />
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setIsImportModalOpen(true);
+                                  setImportStep('upload');
+                                  setImportFile(null);
+                                  setImportData([]);
+                                  setImportColumns([]);
+                                  setImportTableName('');
+                                  setImportErrors([]);
+                                  setImportResultMsg('');
+                                  setImportProgress({ current: 0, total: 0, percent: 0 });
+                                }}
+                                title="Import Table from CSV/JSON"
+                                className="w-6 h-6 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center text-emerald-400 transition-all"
+                              >
+                                <Upload size={11} />
+                              </button>
+                              <button
+                                onClick={() => setIsNewTableModalOpen(true)}
+                                className="w-6 h-6 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-400 transition-all"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            </div>
                           </div>
 
                           {dbTables.length > 0 && (
@@ -4197,6 +4230,644 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* ════════ IMPORT TABLE MODAL ════════ */}
+      <AnimatePresence>
+        {isImportModalOpen && (() => {
+          // ── CSV Parser (RFC 4180 compliant) ──
+          const parseCSVContent = (text: string): { headers: string[]; rows: Record<string, any>[] } => {
+            // Strip BOM
+            let cleaned = text.replace(/^\uFEFF/, '');
+            const lines: string[][] = [];
+            let currentRow: string[] = [];
+            let currentField = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < cleaned.length; i++) {
+              const char = cleaned[i];
+              const nextChar = cleaned[i + 1];
+
+              if (inQuotes) {
+                if (char === '"' && nextChar === '"') {
+                  currentField += '"';
+                  i++; // skip escaped quote
+                } else if (char === '"') {
+                  inQuotes = false;
+                } else {
+                  currentField += char;
+                }
+              } else {
+                if (char === '"') {
+                  inQuotes = true;
+                } else if (char === ',') {
+                  currentRow.push(currentField.trim());
+                  currentField = '';
+                } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+                  currentRow.push(currentField.trim());
+                  currentField = '';
+                  if (currentRow.some(c => c !== '')) lines.push(currentRow);
+                  currentRow = [];
+                  if (char === '\r') i++; // skip \n after \r
+                } else {
+                  currentField += char;
+                }
+              }
+            }
+            // Last field/row
+            currentRow.push(currentField.trim());
+            if (currentRow.some(c => c !== '')) lines.push(currentRow);
+
+            if (lines.length < 2) return { headers: [], rows: [] };
+
+            const headers = lines[0].map(h => h.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '') || `col_${Math.random().toString(36).slice(2, 6)}`);
+            const rows = lines.slice(1).map(row => {
+              const obj: Record<string, any> = {};
+              headers.forEach((h, idx) => {
+                const val = row[idx] ?? '';
+                // Auto-cast types
+                if (val === '') { obj[h] = ''; }
+                else if (val.toLowerCase() === 'true') { obj[h] = true; }
+                else if (val.toLowerCase() === 'false') { obj[h] = false; }
+                else if (val.toLowerCase() === 'null' || val.toLowerCase() === 'undefined') { obj[h] = ''; }
+                else if (!isNaN(Number(val)) && val !== '') { obj[h] = Number(val); }
+                else { obj[h] = val; }
+              });
+              return obj;
+            });
+
+            return { headers, rows };
+          };
+
+          // ── JSON Parser ──
+          const parseJSONContent = (text: string): { headers: string[]; rows: Record<string, any>[] } => {
+            let parsed: any;
+            try { parsed = JSON.parse(text); } catch { throw new Error('Invalid JSON format. Please check your file syntax.'); }
+
+            let records: Record<string, any>[];
+            if (Array.isArray(parsed)) {
+              records = parsed.filter(item => item && typeof item === 'object' && !Array.isArray(item));
+            } else if (typeof parsed === 'object' && parsed !== null) {
+              // Check if it's wrapped: { data: [...] } or { records: [...] } etc.
+              const arrayKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+              if (arrayKey) {
+                records = parsed[arrayKey].filter((item: any) => item && typeof item === 'object' && !Array.isArray(item));
+              } else {
+                records = [parsed];
+              }
+            } else {
+              throw new Error('JSON must be an array of objects or a single object.');
+            }
+
+            if (records.length === 0) throw new Error('No valid records found in JSON file.');
+
+            // Flatten nested objects one level
+            records = records.map(record => {
+              const flat: Record<string, any> = {};
+              for (const [key, value] of Object.entries(record)) {
+                if (key === 'id' || key === 'created_at') continue;
+                if (value && typeof value === 'object' && !Array.isArray(value)) {
+                  for (const [subKey, subValue] of Object.entries(value as Record<string, any>)) {
+                    if (typeof subValue !== 'object' || subValue === null) {
+                      flat[`${key}_${subKey}`] = subValue;
+                    }
+                  }
+                } else if (Array.isArray(value)) {
+                  flat[key] = JSON.stringify(value);
+                } else {
+                  flat[key] = value;
+                }
+              }
+              return flat;
+            });
+
+            // Collect all unique headers
+            const headerSet = new Set<string>();
+            records.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
+            const headers = Array.from(headerSet).map(h => h.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '') || `col_${Math.random().toString(36).slice(2, 6)}`);
+
+            return { headers, rows: records };
+          };
+
+          // ── Detect column types ──
+          const detectColumnTypes = (rows: Record<string, any>[], headers: string[]): { name: string; type: 'string' | 'number' | 'boolean' }[] => {
+            return headers.map(header => {
+              let numCount = 0, boolCount = 0, total = 0;
+              for (const row of rows) {
+                const val = row[header];
+                if (val === undefined || val === null || val === '') continue;
+                total++;
+                if (typeof val === 'number' || (!isNaN(Number(val)) && typeof val === 'string' && val.trim() !== '')) numCount++;
+                if (typeof val === 'boolean' || val === 'true' || val === 'false') boolCount++;
+              }
+              if (total === 0) return { name: header, type: 'string' as const };
+              if (boolCount === total) return { name: header, type: 'boolean' as const };
+              if (numCount / total >= 0.8) return { name: header, type: 'number' as const };
+              return { name: header, type: 'string' as const };
+            });
+          };
+
+          // ── Handle file select ──
+          const handleImportFileSelect = async (file: File) => {
+            setImportErrors([]);
+            const errors: string[] = [];
+
+            // Validate type
+            const ext = file.name.split('.').pop()?.toLowerCase();
+            if (ext !== 'csv' && ext !== 'json') {
+              errors.push(`Unsupported file type ".${ext}". Only .csv and .json are allowed.`);
+              setImportErrors(errors);
+              return;
+            }
+
+            // Validate size (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+              errors.push(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 5MB.`);
+              setImportErrors(errors);
+              return;
+            }
+
+            setImportFile(file);
+
+            try {
+              const text = await file.text();
+              if (!text.trim()) {
+                errors.push('File is empty.');
+                setImportErrors(errors);
+                return;
+              }
+
+              let headers: string[];
+              let rows: Record<string, any>[];
+
+              if (ext === 'csv') {
+                const result = parseCSVContent(text);
+                headers = result.headers;
+                rows = result.rows;
+              } else {
+                const result = parseJSONContent(text);
+                headers = result.headers;
+                rows = result.rows;
+              }
+
+              if (headers.length === 0) {
+                errors.push('No columns detected. The file may be empty or malformed.');
+                setImportErrors(errors);
+                return;
+              }
+
+              if (rows.length === 0) {
+                errors.push('No data rows found. The file only contains headers.');
+                setImportErrors(errors);
+                return;
+              }
+
+              if (rows.length > 10000) {
+                errors.push(`Too many rows (${rows.length.toLocaleString()}). Maximum is 10,000 per import.`);
+                setImportErrors(errors);
+                return;
+              }
+
+              const detectedCols = detectColumnTypes(rows, headers);
+
+              // Auto table name from filename
+              const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'imported_table';
+              let tableName = baseName;
+              let counter = 2;
+              while (dbTables.some(t => t.name === tableName)) {
+                tableName = `${baseName}_${counter}`;
+                counter++;
+              }
+
+              setImportTableName(tableName);
+              setImportData(rows);
+              setImportColumns(detectedCols);
+              setImportStep('preview');
+
+            } catch (err: any) {
+              errors.push(err.message || 'Failed to parse file.');
+              setImportErrors(errors);
+            }
+          };
+
+          // ── Execute import ──
+          const handleImportExecute = async () => {
+            if (!currentProject || importData.length === 0) return;
+            setImportStep('importing');
+            setImportProgress({ current: 0, total: importData.length, percent: 0 });
+
+            try {
+              // Build schema
+              const fields: Record<string, string> = {};
+              importColumns.forEach(col => { fields[col.name] = col.type; });
+
+              // Cast values to match detected types
+              const castRecords = importData.map(row => {
+                const cast: Record<string, any> = {};
+                importColumns.forEach(col => {
+                  let val = row[col.name];
+                  if (val === undefined || val === null) { cast[col.name] = col.type === 'number' ? 0 : col.type === 'boolean' ? false : ''; return; }
+                  if (col.type === 'number') {
+                    const n = Number(val);
+                    cast[col.name] = isNaN(n) ? 0 : n;
+                  } else if (col.type === 'boolean') {
+                    cast[col.name] = val === true || val === 'true' || val === '1';
+                  } else {
+                    cast[col.name] = String(val);
+                  }
+                });
+                return cast;
+              });
+
+              // Simulate progress animation
+              const progressInterval = setInterval(() => {
+                setImportProgress(prev => {
+                  const next = Math.min(prev.percent + 2, 90);
+                  return { ...prev, percent: next, current: Math.floor((next / 100) * prev.total) };
+                });
+              }, 80);
+
+              const res = await fetch('/api/db/import', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': currentProject.api_key
+                },
+                body: JSON.stringify({
+                  tableName: importTableName.trim(),
+                  schema: { name: importTableName.trim(), fields, indexes: ['id'] },
+                  records: castRecords,
+                  overwrite: false
+                })
+              });
+
+              clearInterval(progressInterval);
+              const data = await res.json();
+
+              if (data.success) {
+                setImportProgress({ current: importData.length, total: importData.length, percent: 100 });
+                setImportResultMsg(data.message || `Imported ${data.insertedCount} records.`);
+                setImportStep('done');
+                setSelectedTableName(importTableName.trim());
+                await loadDBMetadata(currentProject.id);
+                if (currentProject) fetchTableRecords(importTableName.trim(), currentProject.api_key);
+              } else {
+                clearInterval(progressInterval);
+                setImportErrors([data.error || 'Import failed.']);
+                setImportStep('error');
+              }
+            } catch (err: any) {
+              setImportErrors([err.message || 'Import failed unexpectedly.']);
+              setImportStep('error');
+            }
+          };
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="w-full max-w-2xl bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <Upload size={16} className="text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white">Import Table</h3>
+                        <p className="text-[11px] text-zinc-500">
+                          {importStep === 'upload' && 'Upload a CSV or JSON file to create a table'}
+                          {importStep === 'preview' && 'Review detected schema and data preview'}
+                          {importStep === 'importing' && 'Importing records into your database...'}
+                          {importStep === 'done' && 'Import completed successfully!'}
+                          {importStep === 'error' && 'Import encountered an error'}
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => setIsImportModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Step indicators */}
+                  <div className="flex items-center gap-2 mt-4">
+                    {['upload', 'preview', 'importing', 'done'].map((step, i) => (
+                      <React.Fragment key={step}>
+                        <div className={`flex items-center gap-1.5 ${
+                          importStep === step ? 'text-emerald-400' :
+                          ['upload', 'preview', 'importing', 'done'].indexOf(importStep) > i ? 'text-emerald-600' : 'text-zinc-700'
+                        }`}>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border ${
+                            importStep === step ? 'border-emerald-400 bg-emerald-500/10' :
+                            ['upload', 'preview', 'importing', 'done'].indexOf(importStep) > i ? 'border-emerald-600 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50'
+                          }`}>
+                            {['upload', 'preview', 'importing', 'done'].indexOf(importStep) > i ? <Check size={10} /> : i + 1}
+                          </div>
+                          <span className="text-[10px] font-medium capitalize hidden sm:inline">{step === 'done' ? 'Complete' : step}</span>
+                        </div>
+                        {i < 3 && <div className={`flex-1 h-px ${['upload', 'preview', 'importing', 'done'].indexOf(importStep) > i ? 'bg-emerald-600/40' : 'bg-zinc-800/40'}`} />}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6">
+
+                  {/* ── STEP 1: Upload ── */}
+                  {importStep === 'upload' && (
+                    <div className="space-y-4">
+                      <div
+                        className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
+                          isDragOver
+                            ? 'border-emerald-400 bg-emerald-500/5 scale-[1.01]'
+                            : 'border-zinc-800/60 hover:border-zinc-600/60 bg-[#08080a]'
+                        }`}
+                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDragOver(false);
+                          const file = e.dataTransfer.files[0];
+                          if (file) handleImportFileSelect(file);
+                        }}
+                        onClick={() => importFileInputRef.current?.click()}
+                      >
+                        <input
+                          ref={importFileInputRef}
+                          type="file"
+                          accept=".csv,.json"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImportFileSelect(file);
+                            e.target.value = '';
+                          }}
+                        />
+                        <div className="flex flex-col items-center gap-3">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
+                            isDragOver ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-zinc-800/30 border-zinc-700/30'
+                          } border`}>
+                            <FileUp size={24} className={isDragOver ? 'text-emerald-400' : 'text-zinc-500'} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-300">Drop your file here or <span className="text-emerald-400">browse</span></p>
+                            <p className="text-[11px] text-zinc-600 mt-1">Supports CSV and JSON files (max 5MB)</p>
+                          </div>
+                          <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/30 border border-zinc-700/20">
+                              <FileSpreadsheet size={12} className="text-green-500" />
+                              <span className="text-[10px] text-zinc-400 font-mono">.csv</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/30 border border-zinc-700/20">
+                              <FileJson2 size={12} className="text-amber-500" />
+                              <span className="text-[10px] text-zinc-400 font-mono">.json</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Errors */}
+                      {importErrors.length > 0 && (
+                        <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
+                          {importErrors.map((err, i) => (
+                            <div key={i} className="flex items-start gap-2">
+                              <AlertCircle size={13} className="text-rose-400 mt-0.5 shrink-0" />
+                              <span className="text-xs text-rose-300">{err}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── STEP 2: Preview ── */}
+                  {importStep === 'preview' && (
+                    <div className="space-y-4">
+                      {/* File info */}
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/20 border border-zinc-800/30">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-700/20 flex items-center justify-center">
+                          {importFile?.name.endsWith('.csv') ? <FileSpreadsheet size={15} className="text-green-500" /> : <FileJson2 size={15} className="text-amber-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white font-mono truncate">{importFile?.name}</p>
+                          <p className="text-[10px] text-zinc-500">{importFile ? (importFile.size / 1024).toFixed(1) + ' KB' : ''} · {importData.length.toLocaleString()} rows · {importColumns.length} columns</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                            <span className="text-[9px] text-emerald-400 font-bold">VALID</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Table name */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Table Name</label>
+                        <input
+                          type="text"
+                          value={importTableName}
+                          onChange={(e) => setImportTableName(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())}
+                          className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-emerald-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                          placeholder="e.g. users"
+                        />
+                        {dbTables.some(t => t.name === importTableName) && (
+                          <p className="text-[10px] text-amber-400 mt-1.5 flex items-center gap-1">
+                            <AlertTriangle size={10} />
+                            Table name already exists. Import will fail — please choose a different name.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Detected columns */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Detected Columns ({importColumns.length})</label>
+                        <div className="max-h-[140px] overflow-y-auto rounded-xl border border-zinc-800/40 bg-[#08080a]">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="text-[10px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+                                <th className="text-left px-3 py-2 font-semibold">Column</th>
+                                <th className="text-left px-3 py-2 font-semibold">Detected Type</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {importColumns.map((col, i) => (
+                                <tr key={i} className="border-b border-zinc-800/20 last:border-b-0">
+                                  <td className="px-3 py-1.5 text-xs text-white font-mono">{col.name}</td>
+                                  <td className="px-3 py-1.5">
+                                    <select
+                                      value={col.type}
+                                      onChange={(e) => {
+                                        const updated = [...importColumns];
+                                        updated[i] = { ...updated[i], type: e.target.value as any };
+                                        setImportColumns(updated);
+                                      }}
+                                      className="bg-zinc-900/50 border border-zinc-700/30 rounded-lg px-2 py-1 text-[11px] text-zinc-300 outline-none focus:border-emerald-500/50"
+                                    >
+                                      <option value="string">string</option>
+                                      <option value="number">number</option>
+                                      <option value="boolean">boolean</option>
+                                    </select>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Data preview */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Data Preview (first 5 rows)</label>
+                        <div className="overflow-x-auto rounded-xl border border-zinc-800/40 bg-[#08080a]">
+                          <table className="w-full text-left">
+                            <thead>
+                              <tr className="text-[10px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+                                {importColumns.slice(0, 6).map((col, i) => (
+                                  <th key={i} className="px-3 py-2 font-semibold whitespace-nowrap">{col.name}</th>
+                                ))}
+                                {importColumns.length > 6 && <th className="px-3 py-2 font-semibold text-zinc-600">+{importColumns.length - 6} more</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {importData.slice(0, 5).map((row, ri) => (
+                                <tr key={ri} className="border-b border-zinc-800/20 last:border-b-0">
+                                  {importColumns.slice(0, 6).map((col, ci) => (
+                                    <td key={ci} className="px-3 py-1.5 text-[11px] text-zinc-300 font-mono truncate max-w-[150px]">
+                                      {row[col.name] === undefined || row[col.name] === null ? <span className="text-zinc-700 italic">null</span> : String(row[col.name])}
+                                    </td>
+                                  ))}
+                                  {importColumns.length > 6 && <td className="px-3 py-1.5 text-[11px] text-zinc-600">…</td>}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-3 pt-1">
+                        <button
+                          onClick={() => { setImportStep('upload'); setImportFile(null); setImportData([]); setImportColumns([]); setImportErrors([]); }}
+                          className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                        >
+                          Back
+                        </button>
+                        <button
+                          onClick={handleImportExecute}
+                          disabled={!importTableName.trim() || dbTables.some(t => t.name === importTableName)}
+                          className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-sm font-semibold transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none flex items-center justify-center gap-2"
+                        >
+                          Import {importData.length.toLocaleString()} Records
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── STEP 3: Importing ── */}
+                  {importStep === 'importing' && (
+                    <div className="py-8 space-y-6">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="relative">
+                          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                            <RefreshCw size={24} className="text-emerald-400 animate-spin" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-semibold text-white">Importing Records...</p>
+                          <p className="text-[11px] text-zinc-500 mt-1">{importProgress.current.toLocaleString()} of {importProgress.total.toLocaleString()} records</p>
+                        </div>
+                      </div>
+                      <div className="max-w-sm mx-auto">
+                        <div className="h-2 bg-zinc-800/50 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+                            initial={{ width: '0%' }}
+                            animate={{ width: `${importProgress.percent}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        <p className="text-center text-[11px] text-zinc-500 mt-2 font-mono">{importProgress.percent}%</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── STEP 4: Done ── */}
+                  {importStep === 'done' && (
+                    <div className="py-8 space-y-5">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                          <CheckCircle2 size={28} className="text-emerald-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-base font-bold text-white">Import Successful!</p>
+                          <p className="text-xs text-zinc-400 mt-1">{importResultMsg}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 max-w-sm mx-auto">
+                        <button
+                          onClick={() => setIsImportModalOpen(false)}
+                          className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                        >
+                          Close
+                        </button>
+                        <button
+                          onClick={() => { setIsImportModalOpen(false); }}
+                          className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                        >
+                          View Table
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── STEP: Error ── */}
+                  {importStep === 'error' && (
+                    <div className="py-8 space-y-5">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                          <AlertCircle size={28} className="text-rose-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-base font-bold text-white">Import Failed</p>
+                          {importErrors.map((err, i) => (
+                            <p key={i} className="text-xs text-rose-300 mt-1">{err}</p>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 max-w-sm mx-auto">
+                        <button
+                          onClick={() => setIsImportModalOpen(false)}
+                          className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                        >
+                          Close
+                        </button>
+                        <button
+                          onClick={() => {
+                            setImportStep('upload');
+                            setImportFile(null);
+                            setImportData([]);
+                            setImportColumns([]);
+                            setImportErrors([]);
+                          }}
+                          className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <RotateCcw size={14} />
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* ════════ ADD AUTH USER MODAL ════════ */}
