@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Telebase | Telegram Storage as a Database",
-  description: "Connect your Telegram channels to a robust production-ready database layer with API access and guaranteed data integrity.",
+  description: "Telebase is an open-source backend platform powered by Telegram infrastructure, designed for students, hackathons and side projects.",
 };
 
 export default function RootLayout({

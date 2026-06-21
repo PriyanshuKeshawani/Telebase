@@ -1,0 +1,169 @@
+# Telebase Full Documentation & API Reference
+
+Telebase is an open-source backend platform powered by Telegram infrastructure, designed for students, hackathons, and side projects.
+
+---
+
+## 1. Getting Started
+
+Telebase is a serverless database and file storage engine that uses Telegram as the persistent storage layer and Cloudflare KV as a global cache.
+
+### FAQ
+#### What is Telebase?
+Telebase is an open-source serverless database layer using Telegram API for storage, cached globally via Cloudflare KV for sub-15ms reads.
+
+#### How does Telebase work?
+Your application queries are captured by a Cloudflare Edge Worker. Write requests upload serialized data packets to private Telegram channels. Read requests fetch global indexes instantly from Cloudflare KV.
+
+#### Is Telebase a Firebase alternative?
+Yes! It is a fully featured free alternative to Firebase for students and hobby builders who want database and file hosting features without billing caps or cold starts.
+
+#### Is Telebase a Supabase alternative?
+Yes. Unlike Supabase's free databases that pause after 1 week of inactivity, Telebase uses Telegram and Cloudflare edge computing, keeping your staging database active and online permanently.
+
+#### Can Telebase store files?
+Absolutely. Telebase automatically splits files larger than 19MB into separate packets, records their hashes, and merges them dynamically when retrieved.
+
+#### Can Telebase be used with Next.js?
+Yes. Telebase exposes a standard HTTP API that works with Next.js server components, client components, API routes, or standard node services.
+
+---
+
+## 2. Onboarding & Setup
+
+### Step 1: Create a Project
+1. Open the Telebase console.
+2. Click "+ New Project" and enter a project namespace (e.g., `my-project`).
+
+### Step 2: Configure Telegram Bot and Channel
+1. Message @BotFather on Telegram. Send `/newbot`, name your bot, and copy the Bot Token.
+2. Create a private Telegram channel. Add your bot as an Administrator.
+3. Grant post, edit, delete, and pin message permissions.
+4. Retrieve the channel's Chat ID (usually starts with `-100`).
+5. Open Project Settings in Telebase console, input your Channel ID and Bot Token, and click "Save Settings".
+
+### Step 3: API Authentication
+All API requests must pass your Project API Key in the headers:
+```json
+{
+  "Content-Type": "application/json",
+  "x-api-key": "YOUR_PROJECT_API_KEY"
+}
+```
+
+---
+
+## 3. CRUD API Reference
+
+All database queries are executed via POST requests to `/api/db`.
+
+### Insert Document
+```javascript
+const response = await fetch("https://telebase.pages.dev/api/db", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_PROJECT_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    action: "insert",
+    table: "users",
+    data: {
+      name: "Priyanshu",
+      role: "developer",
+      joinedAt: new Date().toISOString()
+    }
+  })
+});
+const result = await response.json();
+```
+
+### Select Documents
+```javascript
+const response = await fetch("https://telebase.pages.dev/api/db", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_PROJECT_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    action: "select",
+    table: "users",
+    query: {
+      role: "developer"
+    }
+  })
+});
+const data = await response.json();
+```
+
+### Update Document
+```javascript
+const response = await fetch("https://telebase.pages.dev/api/db", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_PROJECT_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    action: "update",
+    table: "users",
+    query: { name: "Priyanshu" },
+    data: { role: "lead-developer" }
+  })
+});
+```
+
+### Delete Document
+```javascript
+const response = await fetch("https://telebase.pages.dev/api/db", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_PROJECT_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    action: "delete",
+    table: "users",
+    query: { name: "Priyanshu" }
+  })
+});
+```
+
+---
+
+## 4. File Upload & Download
+
+### Programmatic File Upload
+Upload raw file binaries using multipart forms to `/api/data/upload`:
+```javascript
+const formData = new FormData();
+formData.append("file", fileInputElement.files[0]);
+
+const response = await fetch("https://telebase.pages.dev/api/data/upload", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_PROJECT_API_KEY"
+  },
+  body: formData
+});
+
+const fileData = await response.json();
+console.log("File UUID:", fileData.file.uuid);
+```
+
+### Programmatic File Download
+Download files using the asset UUID:
+```javascript
+// Streams file bytes directly from Telegram endpoints
+const fileUrl = "https://telebase.pages.dev/api/data/download?uuid=YOUR_FILE_UUID";
+```
+
+---
+
+## 5. Security & Encryption
+
+Enable client-side Zero-Knowledge Encryption in settings to secure data at rest.
+- Encryption key remains strictly client-side.
+- Payloads are encrypted using AES-256-GCM prior to transmission.
+- Telegram servers only store and transmit encrypted binary ciphertext blocks.

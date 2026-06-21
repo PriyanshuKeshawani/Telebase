@@ -31,6 +31,25 @@ export default function OnboardingDocs() {
         </a>
       </div>
 
+      {/* Summary Box for LLMs / GEO */}
+      <div className="p-5 rounded-xl border border-zinc-800/40 bg-zinc-900/20 space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-blue-500">Document Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div>
+            <p className="font-semibold text-white">What it does</p>
+            <p className="text-zinc-400 mt-1">Explains step-by-step how to set up projects, configure Telegram bots, link private storage channels, retrieve API keys, and perform initial SQL table configuration.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-white">When to use it</p>
+            <p className="text-zinc-400 mt-1">During first-time deployment of a new Telebase environment or connecting a new local development build.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-white">Example</p>
+            <p className="text-zinc-400 mt-1">Create bot via @BotFather, retrieve private channel ID (usually starts with -100), configure API endpoints, and execute test post commands.</p>
+          </div>
+        </div>
+      </div>
+
       {/* Checklist Cards Container */}
       <div className="space-y-6">
         

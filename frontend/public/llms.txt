@@ -1,0 +1,32 @@
+# Telebase
+
+Telebase is an open-source backend platform powered by Telegram infrastructure, designed for students, hackathons, and side projects. It provides a secure database and asset hosting layer with zero cold starts, infinite storage capacity, and global edge-caching capabilities.
+
+## Details
+- Website: https://telebase.pages.dev
+- Repository: https://github.com/PriyanshuKeshawani/Telebase
+- License: MIT Open Source
+
+## Key Features
+- **Infinite Free Storage:** Leverages Telegram's cloud storage infrastructure for document and asset hosting.
+- **Dual API Layer:** Supports SQL queries for relational data modeling and NoSQL queries for flexible key-value storage.
+- **Global Edge Caching:** Connects to Cloudflare KV to cache tables and indexes, serving reads in sub-15ms.
+- **Zero-Knowledge Encryption:** Secures data at rest using client-side AES-256-GCM encryption.
+- **Uptime:** Zero hibernation or database sleep timers.
+
+## Documentation Index
+- [Getting Started](https://telebase.pages.dev/docs)
+- [Onboarding & Setup](https://telebase.pages.dev/docs/onboarding)
+- [System Architecture](https://telebase.pages.dev/docs/architecture)
+- [Authentication API](https://telebase.pages.dev/docs/authentication)
+- [CRUD Operations Reference](https://telebase.pages.dev/docs/crud)
+- [SQL Interface](https://telebase.pages.dev/docs/sql)
+- [NoSQL Interface](https://telebase.pages.dev/docs/nosql)
+- [File Upload Guide](https://telebase.pages.dev/docs/file-upload)
+- [File Download Guide](https://telebase.pages.dev/docs/file-download)
+
+## Comparisons & Alternatives
+- [Supabase vs Telebase](https://telebase.pages.dev/compare/supabase-vs-telebase)
+- [Firebase vs Telebase](https://telebase.pages.dev/compare/firebase-vs-telebase)
+- [Supabase Student Alternative](https://telebase.pages.dev/blog/supabase-alternative)
+- [Firebase Hackathon Alternative](https://telebase.pages.dev/blog/firebase-alternative)

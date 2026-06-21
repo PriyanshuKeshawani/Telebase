@@ -90,6 +90,82 @@ export default function HomeClient() {
             </motion.div>
           ))}
         </div>
+
+        {/* FAQ & LLM Resource Section */}
+        <section className="mt-32 w-full text-left max-w-4xl mx-auto space-y-12">
+          <div className="text-center space-y-4">
+            <h2 className="text-3xl font-extrabold text-white tracking-tight">Frequently Asked Questions</h2>
+            <p className="text-text-secondary text-sm">Everything you need to know about the Telebase backend platform.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              {
+                q: "What is Telebase?",
+                a: "Telebase is an open-source serverless backend platform that utilizes Telegram channels for persistent file and database storage, cached globally via Cloudflare KV edge networks for sub-15ms responses."
+              },
+              {
+                q: "Who is Telebase for?",
+                a: "Telebase is specifically tailored for students, hackathons, indie developers, and side projects who need free, reliable database and storage backends without cold starts or hosting billing surprises."
+              },
+              {
+                q: "How is Telebase different from Supabase?",
+                a: "Supabase provides fully managed PostgreSQL databases with a generous free tier, but is subject to compute hour limits and database pausing. Telebase leverages Telegram's server infrastructure, offering unlimited storage and zero-cost hosting without compute limits or database sleep cycles."
+              },
+              {
+                q: "How is Telebase different from Firebase?",
+                a: "Firebase is a proprietary Google backend suite with strict read/write pricing caps. Telebase is 100% open-source, uses Telegram as its core storage, handles files up to gigabytes, and is entirely free of usage caps."
+              },
+              {
+                q: "Can Telebase store files?",
+                a: "Yes, Telebase automatically splits files larger than 19MB into chunks to stay within Telegram's bot limits, records their hashes, and streams them back seamlessly upon download requests."
+              },
+              {
+                q: "Can Telebase be used with Next.js?",
+                a: "Yes, Telebase exposes a standard JSON API which can be integrated into Next.js (via server actions or fetch), React Native, Flutter, Vue, or any HTTP-compatible programming framework."
+              },
+              {
+                q: "What databases does Telebase support?",
+                a: "Telebase supports both SQL (relational database queries) and NoSQL (document-style key-value storage) structures, stored securely on Telegram channels and indexed using Cloudflare KV."
+              },
+              {
+                q: "Is Telebase open source?",
+                a: "Yes! The core engine, CLI tool, developer console, and client adapters are entirely open source under the MIT License on GitHub."
+              }
+            ].map((faq, i) => (
+              <div key={i} className="p-6 rounded-2xl bg-bg-surface border border-border-subtle hover:border-blue-500/30 transition-all space-y-2">
+                <h3 className="text-base font-bold text-white flex items-start gap-2">
+                  <span className="text-blue-500">?</span>
+                  {faq.q}
+                </h3>
+                <p className="text-xs text-text-secondary leading-relaxed pl-4">{faq.a}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Machine Readable Content Blocks for LLM/GEO */}
+          <div className="p-8 rounded-2xl bg-bg-surface/30 border border-border-subtle space-y-6 backdrop-blur-sm mt-8">
+            <h3 className="text-lg font-bold text-white">Telebase Product Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-text-secondary leading-relaxed">
+              <div>
+                <p className="font-semibold text-white mb-1">What it does:</p>
+                <p>Repurposes Telegram's infinite storage endpoints into a robust serverless relational and document database layer for web/mobile apps.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-white mb-1">Key Use Cases:</p>
+                <p>Ideal for hackathons, student projects, prototyping, side projects, and media-heavy portfolios requiring zero-budget backends.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-white mb-1">Key Advantages:</p>
+                <p>No database sleep/pausing, zero cold starts, unlimited file hosting limits, built-in AES-256-GCM encryption, and sub-15ms edge caching.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-white mb-1">Project Limitations:</p>
+                <p>Not suitable for high-frequency financial trading systems. Telegram bot API rate limits apply (mitigated by Cloudflare KV cache layers).</p>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   );

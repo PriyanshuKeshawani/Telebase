@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-brand-500: #3b82f6;
@@ -178,15 +179,6 @@ html:not(.dark) .bg-zinc-800\/60,
 html:not(.dark) .bg-zinc-800\/70,
 html:not(.dark) .bg-zinc-800\/80,
 html:not(.dark) .bg-zinc-800\/90,
-html:not(.dark) .bg-zinc-700,
-html:not(.dark) .bg-zinc-700\/10,
-html:not(.dark) .bg-zinc-700\/20,
-html:not(.dark) .bg-zinc-700\/30,
-html:not(.dark) .bg-zinc-700\/40,
-html:not(.dark) .bg-zinc-700\/50,
-html:not(.dark) .bg-zinc-700\/60,
-html:not(.dark) .bg-zinc-700\/80,
-html:not(.dark) .bg-zinc-700\/90,
 html:not(.dark) .bg-bg-surface {
   background-color: var(--bg-surface) !important;
 }
@@ -201,7 +193,16 @@ html:not(.dark) .bg-zinc-850\/50,
 html:not(.dark) .bg-zinc-850\/60,
 html:not(.dark) .bg-zinc-850\/70,
 html:not(.dark) .bg-zinc-850\/80,
-html:not(.dark) .bg-zinc-850\/90 {
+html:not(.dark) .bg-zinc-850\/90,
+html:not(.dark) .bg-zinc-700,
+html:not(.dark) .bg-zinc-700\/10,
+html:not(.dark) .bg-zinc-700\/20,
+html:not(.dark) .bg-zinc-700\/30,
+html:not(.dark) .bg-zinc-700\/40,
+html:not(.dark) .bg-zinc-700\/50,
+html:not(.dark) .bg-zinc-700\/60,
+html:not(.dark) .bg-zinc-700\/80,
+html:not(.dark) .bg-zinc-700\/90 {
   background-color: var(--border-subtle) !important; /* Visible light-gray contrast for skeletons/input background templates */
 }
 
