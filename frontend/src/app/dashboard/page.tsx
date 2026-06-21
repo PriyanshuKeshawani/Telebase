@@ -1543,24 +1543,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
     { id: "ai" as const, label: "AI Connect", icon: Cpu },
   ];
 
-  // ─── AUTH LOADING SKELETON ───
-  if (status === "loading" || status === "unauthenticated") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#050506] gap-5">
-        <div className="relative">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/20 flex items-center justify-center"
-          >
-            <Database className="text-blue-400 w-6 h-6" />
-          </motion.div>
-          <div className="absolute -bottom-1 -right-1 status-dot" />
-        </div>
-        <div className="text-sm font-medium text-zinc-500 tracking-wide">Securing TeleBase Console...</div>
-      </div>
-    );
-  }
+  // ─── AUTH LOADING — handled by skeleton below ───
+
 
   const renderSidebarContent = (isMobile = false) => {
     return (
