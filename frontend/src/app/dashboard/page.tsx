@@ -2652,7 +2652,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               </button>
                               <button
                                 onClick={() => alert("Telebase Advanced Console Redesign: This SQL editor is built to replicate the premium look and feel of modern developer suites.")}
-                                className="p-1 rounded-md hover:bg-zinc-800 text-text-muted hover:text-zinc-300 transition-colors"
+                                className="p-1 rounded-md hover:bg-bg-base text-text-muted hover:text-text-primary transition-colors"
                               >
                                 <HelpCircle size={14} />
                               </button>
@@ -2660,11 +2660,11 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           </div>
 
                           {/* Code Editor block with line numbers */}
-                          <div className="relative flex border-b border-zinc-850 bg-[#07070a] min-h-[220px] transition-all focus-within:border-zinc-800">
+                          <div className="relative flex border-b border-border-subtle bg-bg-input min-h-[220px] transition-all focus-within:border-color-brand-500">
                             {/* Line Numbers Gutter */}
                             <div
                               ref={sqlGutterRef}
-                              className="w-11 py-4 pr-3 text-right bg-bg-base/90 border-r border-zinc-900/60 select-none overflow-hidden font-mono text-[12px] leading-relaxed text-zinc-600 flex flex-col gap-0"
+                              className="w-11 py-4 pr-3 text-right bg-bg-base/90 border-r border-border-subtle select-none overflow-hidden font-mono text-[12px] leading-relaxed text-text-muted flex flex-col gap-0"
                               style={{ maxHeight: '300px' }}
                             >
                               {Array.from({ length: Math.max(sqlQueryInput.split('\n').length, 12) }, (_, i) => (
@@ -3730,14 +3730,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           {/* Endpoint */}
                           <div className="space-y-1.5">
                             <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wider">API Endpoint Base</span>
-                            <div className="bg-[#07070a] border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between">
-                              <code className="text-xs text-zinc-300 font-mono">http://https://telebase.pages.dev/</code>
+                            <div className="bg-bg-input border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between">
+                              <code className="text-xs text-text-secondary font-mono">http://https://telebase.pages.dev/</code>
                               <button
                                 onClick={() => {
                                   navigator.clipboard.writeText("http://https://telebase.pages.dev/");
                                   alert("Endpoint base URL copied!");
                                 }}
-                                className="text-text-muted hover:text-blue-400 transition-colors"
+                                className="text-text-muted hover:text-blue-500 transition-colors"
                               >
                                 <Copy size={11} />
                               </button>
@@ -3747,21 +3747,21 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           {/* Key */}
                           <div className="space-y-1.5">
                             <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wider">Project API Key</span>
-                            <div className="bg-[#07070a] border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                            <div className="bg-bg-input border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between gap-2">
                               <div className="flex-1 min-w-0 flex items-center gap-1.5">
                                 {showAPIKeyInAI ? (
-                                  <Key size={11} className="text-amber-400 flex-shrink-0" />
+                                  <Key size={11} className="text-amber-500 flex-shrink-0" />
                                 ) : (
-                                  <Lock size={11} className="text-zinc-600 flex-shrink-0" />
+                                  <Lock size={11} className="text-text-muted flex-shrink-0" />
                                 )}
-                                <code className="text-[11px] text-zinc-400 font-mono truncate select-all">
+                                <code className="text-[11px] text-text-secondary font-mono truncate select-all">
                                   {showAPIKeyInAI ? currentProject.api_key : "••••••••••••••••••••••••••••••••••••••••"}
                                 </code>
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                   onClick={() => setShowAPIKeyInAI(!showAPIKeyInAI)}
-                                  className="text-[9px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700/50 hover:bg-zinc-700/50 text-zinc-400 transition-colors"
+                                  className="text-[9px] px-2 py-0.5 rounded bg-bg-base border border-border-subtle hover:bg-bg-input text-text-secondary transition-colors"
                                 >
                                   {showAPIKeyInAI ? "Hide" : "Show"}
                                 </button>
@@ -3908,8 +3908,8 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                             key={subTab.id}
                             onClick={() => setAiSnippetTab(subTab.id)}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${aiSnippetTab === subTab.id
-                                ? "bg-zinc-800 text-white border-zinc-700/60"
-                                : "text-text-muted hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                                ? "bg-bg-input text-text-primary border-border-subtle"
+                                : "text-text-muted hover:text-text-primary hover:bg-bg-input border-transparent"
                               }`}
                           >
                             {subTab.label}
@@ -3918,9 +3918,9 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       </div>
 
                       {/* Snippet Code block */}
-                      <div className="flex-1 bg-[#050507] border border-zinc-900 rounded-xl p-4 font-mono text-xs overflow-x-auto text-zinc-300 max-h-[300px] overflow-y-auto leading-relaxed">
+                      <div className="flex-1 bg-bg-input border border-border-subtle rounded-xl p-4 font-mono text-xs overflow-x-auto text-text-secondary max-h-[300px] overflow-y-auto leading-relaxed">
                         {aiSnippetTab === "js_sql" && (
-                          <pre className="text-blue-300/90 whitespace-pre-wrap select-all">
+                          <pre className="text-blue-600 dark:text-blue-300/90 whitespace-pre-wrap select-all">
                             {`// 1. Fetch records using standard SQL SELECT query
 const response = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
@@ -3939,7 +3939,7 @@ console.log('Query records:', data.records);`}
                         )}
 
                         {aiSnippetTab === "js_nosql" && (
-                          <pre className="text-violet-300/90 whitespace-pre-wrap select-all">
+                          <pre className="text-violet-600 dark:text-violet-300/90 whitespace-pre-wrap select-all">
                             {`// 2. Insert records using Mongo-style NoSQL payload
 const response = await fetch('http://https://telebase.pages.dev//api/db', {
   method: 'POST',
@@ -3963,7 +3963,7 @@ console.log('Insert success:', data.success);`}
                         )}
 
                         {aiSnippetTab === "upload" && (
-                          <pre className="text-emerald-300/90 whitespace-pre-wrap select-all">
+                          <pre className="text-emerald-600 dark:text-emerald-300/90 whitespace-pre-wrap select-all">
                             {`// 3. Encrypted binary/media uploads (multipart/form-data)
 const formData = new FormData();
 formData.append('file', fileSelectorInput.files[0]);
@@ -3981,7 +3981,7 @@ console.log('Decrypted File UUID in DB:', data.file.uuid);`}
                         )}
 
                         {aiSnippetTab === "retrieve" && (
-                          <pre className="text-amber-300/90 whitespace-pre-wrap select-all">
+                          <pre className="text-amber-600 dark:text-amber-300/90 whitespace-pre-wrap select-all">
                             {`// 4. Retrieve/Stream media link with dynamic decryption
 const fileUuid = 'your-file-uuid';
 const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;
@@ -3990,7 +3990,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                           </pre>
                         )}
                       </div>
-                      <div className="mt-4 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-[10px] text-blue-400/90 flex gap-2">
+                      <div className="mt-4 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-[10px] text-blue-600 dark:text-blue-400/90 flex gap-2">
                         <Cpu size={12} className="flex-shrink-0 mt-0.5" />
                         <p className="leading-relaxed">
                           <strong>Protip:</strong> Copy the primary AI Developer Prompt at the top to give your AI model the entire database structure, dynamic tables and detailed setup guide at once.

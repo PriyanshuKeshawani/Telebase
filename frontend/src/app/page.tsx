@@ -14,7 +14,7 @@ export default function Home() {
 
   if (!mounted) {
     return (
-      <main className="relative min-h-screen overflow-hidden bg-[#09090b]">
+      <main className="relative min-h-screen overflow-hidden bg-bg-base">
         {/* Background Gradients static match */}
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/20 blur-[120px] rounded-full" />
@@ -23,17 +23,17 @@ export default function Home() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#09090b]">
+    <main className="relative min-h-screen overflow-hidden bg-bg-base text-text-primary">
       {/* Background Gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/20 blur-[120px] rounded-full" />
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 dark:bg-blue-600/20 blur-[120px] rounded-full" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 dark:bg-indigo-600/20 blur-[120px] rounded-full" />
 
       <div className="relative max-w-7xl mx-auto px-6 pt-32 pb-16 flex flex-col items-center justify-center min-h-screen text-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 px-3 py-1 mb-8 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-medium"
+          className="inline-flex items-center gap-2 px-3 py-1 mb-8 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-sm font-medium"
         >
           <Zap size={16} />
           <span>v1.0 is now live</span>
@@ -45,14 +45,14 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6"
         >
-          The Storage Layer for <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Modern Distributed Apps</span>
+          The Storage Layer for <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-500">Modern Distributed Apps</span>
         </motion.h1>
 
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-lg md:text-xl text-zinc-400 max-w-2xl mb-12"
+          className="text-lg md:text-xl text-text-secondary max-w-2xl mb-12"
         >
           Build production-ready full-stack applications using Telegram channels as a fast, reliable, and free storage backend. Seamlessly integrate with any frontend.
         </motion.p>
@@ -63,10 +63,10 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-4"
         >
-          <Link href="/dashboard" className="px-8 py-4 bg-white text-black rounded-lg font-semibold hover:bg-zinc-200 transition-colors">
+          <Link href="/dashboard" className="px-8 py-4 bg-blue-600 dark:bg-white hover:bg-blue-700 dark:hover:bg-zinc-200 text-white dark:text-black rounded-lg font-semibold transition-colors shadow-lg shadow-blue-500/10 dark:shadow-none">
             Go to Dashboard
           </Link>
-          <Link href="https://telebase.pages.dev/docs" className="px-8 py-4 bg-[#18181b] border border-zinc-800 text-white rounded-lg font-semibold hover:bg-zinc-800 transition-colors">
+          <Link href="/docs" className="px-8 py-4 bg-bg-surface border border-border-subtle text-text-primary rounded-lg font-semibold hover:bg-bg-input transition-colors">
             Read Documentation
           </Link>
         </motion.div>
@@ -82,11 +82,11 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 + i * 0.1 }}
-              className="p-6 rounded-2xl bg-[#18181b]/50 border border-zinc-800 backdrop-blur-md"
+              className="p-6 rounded-2xl bg-bg-surface/50 border border-border-subtle backdrop-blur-md"
             >
               <feature.icon className="w-8 h-8 text-blue-500 mb-4" />
               <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-              <p className="text-zinc-400 leading-relaxed">{feature.desc}</p>
+              <p className="text-text-secondary leading-relaxed">{feature.desc}</p>
             </motion.div>
           ))}
         </div>

@@ -193,10 +193,10 @@ export default function LoginPage() {
       : "Cancel / Generate New Code";
 
   return (
-    <main className="relative min-h-screen flex items-center justify-center bg-[#050506] px-6 text-white overflow-hidden">
+    <main className="relative min-h-screen flex items-center justify-center bg-bg-base px-6 text-text-primary overflow-hidden">
       {/* Dynamic Ambient Blur */}
-      <div className="absolute top-[-15%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[130px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-15%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[130px] rounded-full pointer-events-none" />
+      <div className="absolute top-[-15%] right-[-10%] w-[50%] h-[50%] bg-blue-600/5 dark:bg-blue-600/10 blur-[130px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-15%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/5 dark:bg-indigo-600/10 blur-[130px] rounded-full pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -204,16 +204,16 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md relative"
       >
-        <div className="p-8 rounded-2xl border border-zinc-800/60 bg-[#0a0a0d]/85 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+        <div className="p-8 rounded-2xl border border-border-subtle bg-bg-surface/85 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
           {/* Header */}
           <div className="flex flex-col items-center text-center mb-8">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/25">
               <Database size={24} className="text-white" />
             </div>
-            <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary">
               Welcome to TeleBase
             </h2>
-            <p className="text-xs text-zinc-500 font-medium mt-2">
+            <p className="text-xs text-text-muted font-medium mt-2">
               Telegram-Backed Secure Storage Engine
             </p>
           </div>
@@ -227,12 +227,12 @@ export default function LoginPage() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="space-y-6"
               >
-                <div className="text-center bg-[#07070a] border border-zinc-800/40 p-5 rounded-xl text-xs text-zinc-400 leading-relaxed">
+                <div className="text-center bg-bg-input border border-border-subtle p-5 rounded-xl text-xs text-text-secondary leading-relaxed">
                   TeleBase uses Telegram as the single secure identity provider. No passwords or email addresses are stored.
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2.5 text-xs text-rose-400 font-medium bg-rose-500/8 p-4 rounded-xl border border-rose-500/15">
+                  <div className="flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-500/8 p-4 rounded-xl border border-rose-500/15">
                     <ShieldAlert size={14} className="flex-shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
@@ -265,71 +265,71 @@ export default function LoginPage() {
                 className="space-y-6"
               >
                 {/* Code display */}
-                <div className="flex flex-col items-center bg-[#07070a] border border-zinc-800/60 p-6 rounded-xl relative">
-                  <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-3">Your Authentication Code</span>
-                  <span className="text-3xl font-mono tracking-wider font-extrabold text-blue-400 selection:bg-blue-500/20">{code}</span>
-                  <div className="w-full border-t border-zinc-900 my-4" />
+                <div className="flex flex-col items-center bg-bg-input border border-border-subtle p-6 rounded-xl relative">
+                  <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold mb-3">Your Authentication Code</span>
+                  <span className="text-3xl font-mono tracking-wider font-extrabold text-blue-600 dark:text-blue-400 selection:bg-blue-500/20">{code}</span>
+                  <div className="w-full border-t border-border-subtle my-4" />
 
-                  <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
+                  <p className="text-[11px] text-text-secondary text-center leading-relaxed">
                     Send the command below to the TeleBase Bot:
                   </p>
 
-                  <div className="w-full flex mt-3 bg-black/40 border border-zinc-800 rounded-lg overflow-hidden items-center">
-                    <code className="text-xs font-mono text-zinc-400 px-3 flex-1 select-all py-2">/login {code}</code>
+                  <div className="w-full flex mt-3 bg-bg-base border border-border-subtle rounded-lg overflow-hidden items-center">
+                    <code className="text-xs font-mono text-text-secondary px-3 flex-1 select-all py-2">/login {code}</code>
                     <button
                       onClick={handleCopy}
-                      className="p-2 border-l border-zinc-800 hover:bg-zinc-800/50 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                      className="p-2 border-l border-border-subtle hover:bg-bg-input text-text-muted hover:text-text-primary transition-colors cursor-pointer"
                       title="Copy Command"
                     >
-                      <Copy size={14} className={copied ? "text-emerald-400" : ""} />
+                      <Copy size={14} className={copied ? "text-emerald-500" : ""} />
                     </button>
                   </div>
                 </div>
 
                 {/* 4-Step Progress Indicator */}
-                <div className="bg-[#07070a] border border-zinc-800/40 p-5 rounded-xl space-y-3">
+                <div className="bg-bg-input border border-border-subtle p-5 rounded-xl space-y-3">
                   <div className="flex items-center gap-3 text-xs">
                     {(openedBot || pollingStatus !== "waiting") ? (
-                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="text-emerald-500 dark:text-emerald-400 font-bold">✓</span>
                     ) : (
-                      <span className="text-zinc-500 font-bold animate-pulse">⏳</span>
+                      <span className="text-text-muted font-bold animate-pulse">⏳</span>
                     )}
-                    <span className={(openedBot || pollingStatus !== "waiting") ? "text-zinc-300" : "text-zinc-500"}>
+                    <span className={(openedBot || pollingStatus !== "waiting") ? "text-text-primary" : "text-text-muted"}>
                       Open Telegram Bot
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3 text-xs">
                     {(pollingStatus !== "waiting") ? (
-                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="text-emerald-500 dark:text-emerald-400 font-bold">✓</span>
                     ) : (
-                      <span className="text-zinc-500 font-bold">⏳</span>
+                      <span className="text-text-muted font-bold">⏳</span>
                     )}
-                    <span className={(pollingStatus !== "waiting") ? "text-zinc-300" : "text-zinc-500"}>
+                    <span className={(pollingStatus !== "waiting") ? "text-text-primary" : "text-text-muted"}>
                       Send /login {code}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3 text-xs">
                     {pollingStatus === "redirecting" ? (
-                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="text-emerald-500 dark:text-emerald-400 font-bold">✓</span>
                     ) : pollingStatus === "verifying" ? (
-                      <span className="text-amber-400 font-bold animate-spin">⏳</span>
+                      <span className="text-amber-500 dark:text-amber-400 font-bold animate-spin">⏳</span>
                     ) : (
-                      <span className="text-zinc-500 font-bold">⏳</span>
+                      <span className="text-text-muted font-bold">⏳</span>
                     )}
-                    <span className={pollingStatus === "verifying" ? "text-amber-300 font-medium" : pollingStatus === "redirecting" ? "text-zinc-300" : "text-zinc-500"}>
+                    <span className={pollingStatus === "verifying" ? "text-amber-600 dark:text-amber-300 font-medium" : pollingStatus === "redirecting" ? "text-text-primary" : "text-text-muted"}>
                       {pollingStatus === "verifying" ? "Verifying..." : "Waiting for verification"}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3 text-xs">
                     {pollingStatus === "redirecting" ? (
-                      <span className="text-emerald-400 font-bold animate-pulse">⏳</span>
+                      <span className="text-emerald-500 dark:text-emerald-400 font-bold animate-pulse">⏳</span>
                     ) : (
-                      <span className="text-zinc-500 font-bold">⏳</span>
+                      <span className="text-text-muted font-bold">⏳</span>
                     )}
-                    <span className={pollingStatus === "redirecting" ? "text-emerald-400 font-medium" : "text-zinc-500"}>
+                    <span className={pollingStatus === "redirecting" ? "text-emerald-500 dark:text-emerald-400 font-medium" : "text-text-muted"}>
                       Redirecting to dashboard
                     </span>
                   </div>
@@ -338,14 +338,14 @@ export default function LoginPage() {
                 {/* Status Indicator */}
                 <div className={`flex items-center justify-center gap-3 p-4 rounded-xl text-xs font-medium border ${
                   pollingStatus === "redirecting"
-                    ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-300"
+                    ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-600 dark:text-emerald-300"
                     : pollingStatus === "verifying"
-                    ? "bg-amber-500/5 border-amber-500/10 text-amber-300"
-                    : "bg-blue-500/5 border-blue-500/10 text-blue-300"
+                    ? "bg-amber-500/5 border-amber-500/10 text-amber-600 dark:text-amber-300"
+                    : "bg-blue-500/5 border-blue-500/10 text-blue-600 dark:text-blue-300"
                 }`}>
                   {pollingStatus === "redirecting" ? (
                     <>
-                      <CheckCircle2 size={16} className="text-emerald-400" />
+                      <CheckCircle2 size={16} className="text-emerald-500 dark:text-emerald-400" />
                       <span>{pollingLabel}</span>
                     </>
                   ) : (
@@ -357,7 +357,7 @@ export default function LoginPage() {
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2.5 text-xs text-rose-400 font-medium bg-rose-500/8 p-4 rounded-xl border border-rose-500/15">
+                  <div className="flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-500/8 p-4 rounded-xl border border-rose-500/15">
                     <ShieldAlert size={14} className="flex-shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
@@ -382,7 +382,7 @@ export default function LoginPage() {
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => setOpenedBot(true)}
-                    className="w-full py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-800"
+                    className="w-full py-3 rounded-xl bg-bg-input hover:bg-bg-base text-text-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-border-subtle"
                   >
                     <span>Open in Telegram Web</span>
                   </a>
@@ -390,9 +390,9 @@ export default function LoginPage() {
                   <button
                     onClick={handleStartLogin}
                     disabled={cooldownLeft > 0 || isLoading}
-                    className="w-full py-2.5 rounded-xl bg-transparent border border-zinc-900 hover:border-zinc-800 text-zinc-500 hover:text-zinc-400 text-[11px] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 rounded-xl bg-transparent border border-border-subtle hover:border-text-muted/30 text-text-muted hover:text-text-secondary text-[11px] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                   >
-                    {cooldownLeft > 0 && <Clock size={11} className="text-zinc-600" />}
+                    {cooldownLeft > 0 && <Clock size={11} className="text-text-muted" />}
                     <span>{newCodeLabel}</span>
                   </button>
                 </div>
@@ -401,7 +401,7 @@ export default function LoginPage() {
           </AnimatePresence>
         </div>
 
-        <p className="text-center text-[10px] text-zinc-700 mt-6">
+        <p className="text-center text-[10px] text-text-muted mt-6">
           Exclusively secured via cryptographically signed Telegram requests.
         </p>
       </motion.div>

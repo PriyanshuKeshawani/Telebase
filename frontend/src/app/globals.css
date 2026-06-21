@@ -71,36 +71,60 @@
 
 /* Glassmorphism */
 .glass {
-  background: rgba(12, 12, 15, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.dark .glass {
+  background: rgba(12, 12, 15, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .glass-light {
-  background: rgba(24, 24, 27, 0.4);
+  background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.dark .glass-light {
+  background: rgba(24, 24, 27, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Glow effects */
 .glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.08), 0 0 60px rgba(59, 130, 246, 0.03);
+}
+.dark .glow-blue {
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.15), 0 0 60px rgba(59, 130, 246, 0.05);
 }
 
 .glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.08), 0 0 60px rgba(16, 185, 129, 0.03);
+}
+.dark .glow-emerald {
   box-shadow: 0 0 20px rgba(16, 185, 129, 0.15), 0 0 60px rgba(16, 185, 129, 0.05);
 }
 
 /* Sidebar active indicator */
 .sidebar-active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(99, 102, 241, 0.05));
+  border-color: rgba(59, 130, 246, 0.2);
+}
+.dark .sidebar-active {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(99, 102, 241, 0.08));
   border-color: rgba(59, 130, 246, 0.3);
 }
 
 /* Gradient text */
 .gradient-text {
+  background: linear-gradient(135deg, #18181b 0%, #71717a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text {
   background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -108,11 +132,60 @@
 }
 
 .gradient-text-brand {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text-brand {
   background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Docs content theme overrides to handle hardcoded styles in markdown/tsx files */
+html:not(.dark) .docs-content {
+  color: var(--text-secondary);
+}
+html:not(.dark) .docs-content h1,
+html:not(.dark) .docs-content h2,
+html:not(.dark) .docs-content h3,
+html:not(.dark) .docs-content h4,
+html:not(.dark) .docs-content .text-white {
+  color: var(--text-primary) !important;
+}
+html:not(.dark) .docs-content .text-zinc-200,
+html:not(.dark) .docs-content .text-zinc-300 {
+  color: var(--text-secondary) !important;
+}
+html:not(.dark) .docs-content .text-zinc-400,
+html:not(.dark) .docs-content .text-zinc-500 {
+  color: var(--text-muted) !important;
+}
+html:not(.dark) .docs-content .bg-\[\#0a0a0d\],
+html:not(.dark) .docs-content .bg-zinc-900\/50 {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+}
+html:not(.dark) .docs-content .border-zinc-800\/40,
+html:not(.dark) .docs-content .border-zinc-800\/50,
+html:not(.dark) .docs-content .border-zinc-800\/60,
+html:not(.dark) .docs-content .border-zinc-900\/50,
+html:not(.dark) .docs-content .border-zinc-900 {
+  border-color: var(--border-subtle) !important;
+}
+html:not(.dark) .docs-content pre {
+  background-color: var(--bg-input) !important;
+  border: 1px solid var(--border-subtle);
+}
+html:not(.dark) .docs-content code {
+  color: #1e3a8a !important; /* dark blue for contrast */
+}
+html:not(.dark) .docs-content .hover\:border-zinc-700\/60:hover {
+  border-color: var(--color-brand-500) !important;
+}
+
 
 /* Pulse ring animation */
 @keyframes pulse-ring {
