@@ -619,6 +619,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'DROP_TABLE') {
+      await TelebaseQueryEngine.clearWALLogsForTable(project.id, tableName);
+      TelebaseQueryEngine.clearTableCache(project.id, tableName);
+      TelebaseQueryEngine.clearTableArtifacts(project.id, tableName);
+
       const state = await getDatabaseState(true);
       const filename = `table_${project.id}_${tableName}.json`;
 
@@ -631,10 +635,6 @@ export async function POST(req: NextRequest) {
       if (state.schemas) {
         delete state.schemas[`${project.id}_${tableName}`];
       }
-
-      await TelebaseQueryEngine.clearWALLogsForTable(project.id, tableName);
-      TelebaseQueryEngine.clearTableCache(project.id, tableName);
-      TelebaseQueryEngine.clearTableArtifacts(project.id, tableName);
 
       await saveDatabaseState(state, { allowShrink: true });
       return NextResponse.json({ success: true, message: `Table "${tableName}" successfully deleted!` });
@@ -741,8 +741,12 @@ export async function POST(req: NextRequest) {
       }
 
       if (parsed.type === 'DROP_TABLE') {
-        const state = await getDatabaseState(true);
         const resolvedTableName = parsed.tableName || tableName;
+        await TelebaseQueryEngine.clearWALLogsForTable(project.id, resolvedTableName);
+        TelebaseQueryEngine.clearTableCache(project.id, resolvedTableName);
+        TelebaseQueryEngine.clearTableArtifacts(project.id, resolvedTableName);
+
+        const state = await getDatabaseState(true);
         const filename = `table_${project.id}_${resolvedTableName}.json`;
         const fileIndex = state.files.findIndex(f => f.project_id === project.id && f.filename === filename);
         if (fileIndex === -1) {
@@ -752,9 +756,6 @@ export async function POST(req: NextRequest) {
         if (state.schemas) {
           delete state.schemas[`${project.id}_${resolvedTableName}`];
         }
-        await TelebaseQueryEngine.clearWALLogsForTable(project.id, resolvedTableName);
-        TelebaseQueryEngine.clearTableCache(project.id, resolvedTableName);
-        TelebaseQueryEngine.clearTableArtifacts(project.id, resolvedTableName);
         await saveDatabaseState(state, { allowShrink: true });
         return NextResponse.json({ success: true, message: `Table "${resolvedTableName}" successfully deleted!` });
       }
