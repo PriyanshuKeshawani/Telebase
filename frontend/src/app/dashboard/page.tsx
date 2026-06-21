@@ -1696,7 +1696,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
   // ─── AUTH LOADING SKELETON ───
   if ((status as any) === "loading" || (status as any) === "unauthenticated") {
     return (
-      <div className="flex h-screen bg-bg-base text-zinc-100 overflow-hidden">
+      <div className="flex h-screen bg-bg-base text-text-primary overflow-hidden dashboard-container">
         {/* Sidebar Skeleton */}
         <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-border-subtle bg-bg-surface flex-col h-full p-4 space-y-6">
           <div className="flex items-center gap-3 animate-pulse">
@@ -1770,7 +1770,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
   // ─── MAIN DASHBOARD ───
   return (
-    <div className="flex h-screen bg-bg-base text-zinc-100 overflow-hidden selection:bg-blue-500/30">
+    <div className="flex h-screen bg-bg-base text-text-primary overflow-hidden selection:bg-blue-500/30 dashboard-container">
 
       {/* Desktop Sidebar (hidden on mobile) */}
       <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-border-subtle bg-bg-surface flex flex-col h-full">

@@ -186,6 +186,126 @@ html:not(.dark) .docs-content .hover\:border-zinc-700\/60:hover {
   border-color: var(--color-brand-500) !important;
 }
 
+/* Dashboard Container Light Mode Overrides */
+html:not(.dark) .dashboard-container {
+  color: var(--text-primary);
+}
+
+/* Background overrides */
+html:not(.dark) .dashboard-container .bg-zinc-950,
+html:not(.dark) .dashboard-container .bg-zinc-900,
+html:not(.dark) .dashboard-container .bg-zinc-900\/30,
+html:not(.dark) .dashboard-container .bg-zinc-900\/50,
+html:not(.dark) .dashboard-container .bg-zinc-900\/60,
+html:not(.dark) .dashboard-container .bg-zinc-900\/80,
+html:not(.dark) .dashboard-container .bg-zinc-900\/10 {
+  background-color: var(--bg-base) !important;
+}
+
+html:not(.dark) .dashboard-container .bg-zinc-800,
+html:not(.dark) .dashboard-container .bg-zinc-800\/80,
+html:not(.dark) .dashboard-container .bg-zinc-800\/60,
+html:not(.dark) .dashboard-container .bg-zinc-800\/50,
+html:not(.dark) .dashboard-container .bg-zinc-800\/30,
+html:not(.dark) .dashboard-container .bg-zinc-800\/40,
+html:not(.dark) .dashboard-container .bg-zinc-900\/40,
+html:not(.dark) .dashboard-container .bg-bg-surface {
+  background-color: var(--bg-surface) !important;
+}
+
+html:not(.dark) .dashboard-container .bg-zinc-850 {
+  background-color: var(--bg-input) !important;
+}
+
+/* Text overrides */
+html:not(.dark) .dashboard-container .text-zinc-50,
+html:not(.dark) .dashboard-container .text-zinc-100,
+html:not(.dark) .dashboard-container .text-zinc-200 {
+  color: var(--text-primary) !important;
+}
+
+html:not(.dark) .dashboard-container .text-zinc-300,
+html:not(.dark) .dashboard-container .text-zinc-450,
+html:not(.dark) .dashboard-container .text-zinc-400 {
+  color: var(--text-secondary) !important;
+}
+
+html:not(.dark) .dashboard-container .text-zinc-500,
+html:not(.dark) .dashboard-container .text-zinc-650,
+html:not(.dark) .dashboard-container .text-zinc-600 {
+  color: var(--text-muted) !important;
+}
+
+/* Border overrides */
+html:not(.dark) .dashboard-container .border-zinc-800,
+html:not(.dark) .dashboard-container .border-zinc-800\/30,
+html:not(.dark) .dashboard-container .border-zinc-800\/40,
+html:not(.dark) .dashboard-container .border-zinc-800\/50,
+html:not(.dark) .dashboard-container .border-zinc-800\/60,
+html:not(.dark) .dashboard-container .border-zinc-900,
+html:not(.dark) .dashboard-container .border-zinc-900\/50,
+html:not(.dark) .dashboard-container .border-zinc-700,
+html:not(.dark) .dashboard-container .border-zinc-700\/50,
+html:not(.dark) .dashboard-container .border-zinc-700\/30,
+html:not(.dark) .dashboard-container .border-zinc-850 {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Hover background and text overrides */
+html:not(.dark) .dashboard-container .hover\:bg-zinc-800:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/50:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/30:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/20:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/40:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-700:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-700\/50:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-900\/10:hover,
+html:not(.dark) .dashboard-container .hover\:bg-zinc-900:hover {
+  background-color: var(--bg-input) !important;
+}
+
+html:not(.dark) .dashboard-container .hover\:text-zinc-100:hover,
+html:not(.dark) .dashboard-container .hover\:text-zinc-200:hover,
+html:not(.dark) .dashboard-container .hover\:text-zinc-300:hover,
+html:not(.dark) .dashboard-container .hover\:text-white:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Core typography overrides for Light Mode */
+html:not(.dark) .dashboard-container h1,
+html:not(.dark) .dashboard-container h2,
+html:not(.dark) .dashboard-container h3,
+html:not(.dark) .dashboard-container h4,
+html:not(.dark) .dashboard-container h5,
+html:not(.dark) .dashboard-container h6,
+html:not(.dark) .dashboard-container strong,
+html:not(.dark) .dashboard-container td,
+html:not(.dark) .dashboard-container th,
+html:not(.dark) .dashboard-container input,
+html:not(.dark) .dashboard-container textarea,
+html:not(.dark) .dashboard-container select {
+  color: var(--text-primary) !important;
+}
+
+/* code tags style in Light Mode */
+html:not(.dark) .dashboard-container code {
+  color: var(--text-secondary) !important;
+}
+
+/* Active tab override */
+html:not(.dark) .dashboard-container .bg-zinc-800\/60 {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Light mode shimmer support */
+html:not(.dark) .shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 50%, transparent 100%) !important;
+  background-size: 200% 100% !important;
+}
+
+
 
 /* Pulse ring animation */
 @keyframes pulse-ring {
