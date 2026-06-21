@@ -131,14 +131,50 @@ const CLOUDFLARE_KV_NAMESPACE_ID = process.env['CLOUDFLARE_KV_NAMESPACE_ID'] || 
 const CLOUDFLARE_API_TOKEN = process.env['CLOUDFLARE_API_TOKEN'] || '';
 
 export const getKVBinding = () => (process.env.TELEBASE_KV as any) || (globalThis as any).TELEBASE_KV;
-export const isKVConfigured = !!(
-  (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) ||
-  (getKVBinding() && typeof getKVBinding().get === 'function' && typeof getKVBinding().put === 'function')
-);
 
 const CLOUDFLARE_WORKER_URL = process.env['CLOUDFLARE_WORKER_URL'] || '';
 const CLOUDFLARE_WORKER_KEY = process.env['CLOUDFLARE_WORKER_KEY'] || '';
-export const isCFWorkerConfigured = !!(CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_KEY);
+
+// Mutable variables for dynamic KV bypass / caching controls
+let wasKVConfigured = false;
+let wasCFWorkerConfigured = false;
+export let isKVConfigured = false;
+export let isCFWorkerConfigured = false;
+let kvLimitExceededTime = 0;
+const KV_COOLDOWN_MS = 3600000; // 1 hour
+
+// Initialize configurations
+const initialKVBinding = getKVBinding();
+wasKVConfigured = !!(
+  (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) ||
+  (initialKVBinding && typeof initialKVBinding.get === 'function' && typeof initialKVBinding.put === 'function')
+);
+wasCFWorkerConfigured = !!(CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_KEY);
+
+isKVConfigured = wasKVConfigured;
+isCFWorkerConfigured = wasCFWorkerConfigured;
+
+export function handleKVLimitExceeded() {
+  if (kvLimitExceededTime === 0) {
+    console.warn('[TeleStore KV] KV operation limit exceeded (429/Limit Error). Activating 1-hour bypass...');
+    kvLimitExceededTime = Date.now();
+    isKVConfigured = false;
+    isCFWorkerConfigured = false;
+  }
+}
+
+export function reactivateKV() {
+  console.log('[TeleStore KV] Cooldown elapsed. Re-activating KV caching...');
+  kvLimitExceededTime = 0;
+  isKVConfigured = wasKVConfigured;
+  isCFWorkerConfigured = wasCFWorkerConfigured;
+}
+
+export function checkKVLimitCooldown() {
+  if (kvLimitExceededTime > 0 && Date.now() - kvLimitExceededTime > KV_COOLDOWN_MS) {
+    reactivateKV();
+  }
+}
 
 // Derive a secure, stable 32-byte key from BOT_TOKEN to ensure zero-config absolute safety
 export let ENCRYPTION_KEY: Uint8Array = new Uint8Array(32);
@@ -283,75 +319,6 @@ export async function decryptStatePayload(encryptedBuffer: Uint8Array): Promise<
     const decryptedBytes = await aesGcmDecrypt(key, iv, cipherText, authTag);
     return new TextDecoder().decode(decryptedBytes);
   }
-}
-
-export async function encryptStateAsync(state: DatabaseSchema): Promise<string> {
-  const payload = new TextEncoder().encode(JSON.stringify(state));
-  return bytesToHex(payload);
-}
-
-export async function readRawKV(key: string): Promise<string | null> {
-  const kvBinding = getKVBinding();
-  if (kvBinding && typeof kvBinding.get === 'function') {
-    try {
-      const val = await kvBinding.get(key);
-      if (val !== null) return val;
-    } catch (e) {
-      console.warn('[TeleStore KV] Direct KV get failed, falling back:', e);
-    }
-  }
-  if (isCFWorkerConfigured) {
-    try {
-      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
-      const res = await fetch(url, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
-      if (res.status === 404) return null;
-      if (res.ok) return await res.text();
-    } catch (e) {}
-  }
-  if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
-    try {
-      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
-      if (res.status === 404) return null;
-      if (res.ok) return await res.text();
-    } catch (e) {}
-  }
-  return null;
-}
-
-async function writeRawKV(key: string, value: string): Promise<boolean> {
-  const kvBinding = getKVBinding();
-  if (kvBinding && typeof kvBinding.put === 'function') {
-    try {
-      await kvBinding.put(key, value);
-      return true;
-    } catch (e) {
-      console.warn('[TeleStore KV] Direct KV put failed, falling back:', e);
-    }
-  }
-  if (isCFWorkerConfigured) {
-    try {
-      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
-        body: value
-      });
-      return res.ok;
-    } catch (e) {}
-  }
-  if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
-    try {
-      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' },
-        body: value
-      });
-      return res.ok;
-    } catch (e) {}
-  }
-  return false;
 }
 
 async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSchema): Promise<void> {
@@ -581,6 +548,9 @@ async function uploadStateToTelegram(finalBuffer: Uint8Array, state: DatabaseSch
 }
 
 export async function getDatabaseState(forceRefresh?: boolean): Promise<DatabaseSchema> {
+  // Check KV limit cooldown at the beginning
+  checkKVLimitCooldown();
+
   if (!forceRefresh && stateCache && (Date.now() - lastCacheFetchTime < CACHE_TTL_MS)) {
     return stateCache;
   }
@@ -613,6 +583,13 @@ export async function getDatabaseState(forceRefresh?: boolean): Promise<Database
     }
   } catch (err: any) {
     console.warn('[TeleStore] Failed to fetch pinned message from Telegram:', err.message);
+  }
+
+  // IN-MEMORY CACHE VALIDATION SHORTCUT:
+  // Query getChat from Telegram to compare pinned_message_id. If matches stateCache, return instantly!
+  if (!forceRefresh && stateCache && tgMessageId && stateCache.last_pinned_message_id === tgMessageId) {
+    lastCacheFetchTime = Date.now();
+    return stateCache;
   }
 
   if (!tgMessageId) {
@@ -1059,10 +1036,78 @@ export async function decryptPayload(encryptedHex: string): Promise<string> {
   return new TextDecoder().decode(decryptedBytes);
 }
 
-/**
- * Synchronously (within HTTP response timeframe) saves a key-value value directly to Cloudflare KV.
- */
-export async function saveKVValue(key: string, value: string): Promise<boolean> {
+export async function encryptStateAsync(state: DatabaseSchema): Promise<string> {
+  const payload = new TextEncoder().encode(JSON.stringify(state));
+  return bytesToHex(payload);
+}
+
+export async function readRawKV(key: string): Promise<string | null> {
+  const kvBinding = getKVBinding();
+  if (isKVConfigured && kvBinding && typeof kvBinding.get === 'function') {
+    try {
+      const val = await kvBinding.get(key);
+      if (val !== null) return val;
+    } catch (e: any) {
+      console.warn('[TeleStore KV] Direct KV get failed, falling back:', e);
+      const errMsg = String(e).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
+    }
+  }
+  if (isCFWorkerConfigured) {
+    try {
+      const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
+      const res = await fetch(url, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+      if (res.status === 429) {
+        handleKVLimitExceeded();
+        return null;
+      }
+      if (res.status === 404) return null;
+      if (res.ok) return await res.text();
+    } catch (e: any) {
+      console.warn('[TeleStore KV] CF Worker KV read error:', e);
+      const errMsg = String(e).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
+    }
+  }
+  if (isKVConfigured && CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
+    try {
+      const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}` } });
+      if (res.status === 429) {
+        handleKVLimitExceeded();
+        return null;
+      }
+      if (res.status === 404) return null;
+      if (res.ok) return await res.text();
+    } catch (e: any) {
+      console.warn('[TeleStore KV] REST API KV read error:', e);
+      const errMsg = String(e).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
+    }
+  }
+  return null;
+}
+
+async function writeRawKV(key: string, value: string): Promise<boolean> {
+  const kvBinding = getKVBinding();
+  if (isKVConfigured && kvBinding && typeof kvBinding.put === 'function') {
+    try {
+      await kvBinding.put(key, value);
+      return true;
+    } catch (e: any) {
+      console.warn('[TeleStore KV] Direct KV put failed, falling back:', e);
+      const errMsg = String(e).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
+    }
+  }
   if (isCFWorkerConfigured) {
     try {
       const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
@@ -1071,12 +1116,20 @@ export async function saveKVValue(key: string, value: string): Promise<boolean> 
         headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
         body: value
       });
+      if (res.status === 429) {
+        handleKVLimitExceeded();
+        return false;
+      }
       return res.ok;
-    } catch (e) {
-      console.error(`[TeleStore] saveKVValue (Worker) error for ${key}:`, e);
+    } catch (e: any) {
+      console.warn('[TeleStore KV] CF Worker KV write error:', e);
+      const errMsg = String(e).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
     }
   }
-  if (isKVConfigured) {
+  if (isKVConfigured && CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_KV_NAMESPACE_ID && CLOUDFLARE_API_TOKEN) {
     try {
       const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${CLOUDFLARE_KV_NAMESPACE_ID}/values/${key}`;
       const res = await fetch(url, {
@@ -1084,10 +1137,22 @@ export async function saveKVValue(key: string, value: string): Promise<boolean> 
         headers: { 'Authorization': `Bearer ${CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'text/plain' },
         body: value
       });
+      if (res.status === 429) {
+        handleKVLimitExceeded();
+        return false;
+      }
       return res.ok;
-    } catch (e) {
-      console.error(`[TeleStore] saveKVValue (REST API) error for ${key}:`, e);
+    } catch (e: any) {
+      console.warn('[TeleStore KV] REST API KV write error:', e);
+      const errMsg = String(e).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
     }
   }
   return false;
+}
+
+export async function saveKVValue(key: string, value: string): Promise<boolean> {
+  return await writeRawKV(key, value);
 }

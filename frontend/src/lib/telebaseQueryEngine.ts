@@ -21,7 +21,7 @@ if (typeof globalThis !== 'undefined') {
   }
 }
 
-import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId, decryptStatePayload, getKVBinding } from './telegramDatabase';
+import { getDatabaseState, saveDatabaseState, StoredFile, Project, isKVConfigured, ENCRYPTION_KEY, isCFWorkerConfigured, updateStateCache, encryptStateAsync, DatabaseSchema, formatTelegramChannelId, decryptStatePayload, getKVBinding, handleKVLimitExceeded } from './telegramDatabase';
 
 async function gzipDecompress(compressedBytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Response(compressedBytes as any).body
@@ -698,6 +698,7 @@ async function executeStructuredSelect(
       if (!trimmed) throw new Error('Column reference cannot be empty.');
       if (trimmed === '*') return;
       if (/^COUNT\s*\(/i.test(trimmed)) return;
+
       if (trimmed.includes(' AS ')) {
         const [expr] = trimmed.split(/\s+AS\s+/i);
         validateReference(expr.trim());
@@ -800,14 +801,14 @@ async function executeStructuredSelect(
       if (candidate.includes('.')) {
         const [tableName, ...rest] = candidate.split('.');
         const columnName = rest.join('.');
-      if (tableName !== baseTableName) {
-        throw new Error(`Table "${tableName}" is not part of this query.`);
+        if (tableName !== baseTableName) {
+          throw new Error(`Table "${tableName}" is not part of this query.`);
+        }
+        if (baseSchema?.fields && !baseSchema.fields[columnName]) {
+          throw new Error(`Column "${columnName}" does not exist on table "${baseTableName}".`);
+        }
+        return;
       }
-      if (baseSchema?.fields && !baseSchema.fields[columnName]) {
-        throw new Error(`Column "${columnName}" does not exist on table "${baseTableName}".`);
-      }
-      return;
-    }
       if (!isSqlIdentifier(candidate)) {
         throw new Error(`Invalid column reference: "${ref}".`);
       }
@@ -1037,6 +1038,10 @@ export async function getTableRecords(
         })
       });
 
+      if (res.status === 429) {
+        handleKVLimitExceeded();
+      }
+
       if (res.ok) {
         const batchData = await res.json() as Record<string, string | null>;
         
@@ -1076,6 +1081,10 @@ export async function getTableRecords(
       }
     } catch (error: any) {
       console.warn(`[Query Engine] Cloudflare Worker KV Batch GET read failed for ${tableName}:`, error.message);
+      const errMsg = String(error).toLowerCase();
+      if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+        handleKVLimitExceeded();
+      }
     }
   }
 
@@ -1095,15 +1104,37 @@ export async function getTableRecords(
       try {
         const kvBinding = getKVBinding();
         const kvRestGetFn = async (key: string): Promise<string | null> => {
-          if (kvBinding && typeof kvBinding.get === 'function') return await kvBinding.get(key);
+          try {
+            if (kvBinding && typeof kvBinding.get === 'function') {
+              return await kvBinding.get(key);
+            }
+          } catch (e: any) {
+            const errMsg = String(e).toLowerCase();
+            if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+              handleKVLimitExceeded();
+            }
+            throw e;
+          }
           const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
           const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
           const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
           const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
-          const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
-          if (res.status === 404) return null;
-          if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
-          return res.text();
+          try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
+            if (res.status === 429) {
+              handleKVLimitExceeded();
+              return null;
+            }
+            if (res.status === 404) return null;
+            if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
+            return res.text();
+          } catch (e: any) {
+            const errMsg = String(e).toLowerCase();
+            if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+              handleKVLimitExceeded();
+            }
+            throw e;
+          }
         };
         const encryptedHex = await kvGetChunked(`table_${project.id}_${tableName}`, kvRestGetFn);
         if (encryptedHex && encryptedHex !== '__chunked__') {
@@ -1182,11 +1213,23 @@ export async function getTableRecords(
   if (!records && isCFWorkerConfigured) {
     try {
       const workerGetFn = async (key: string): Promise<string | null> => {
-        const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
-        const res = await fetch(url, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
-        if (res.status === 404) return null;
-        if (!res.ok) throw new Error(`Worker KV GET failed: ${res.status}`);
-        return res.text();
+        try {
+          const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
+          const res = await fetch(url, { headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY } });
+          if (res.status === 429) {
+            handleKVLimitExceeded();
+            return null;
+          }
+          if (res.status === 404) return null;
+          if (!res.ok) throw new Error(`Worker KV GET failed: ${res.status}`);
+          return res.text();
+        } catch (e: any) {
+          const errMsg = String(e).toLowerCase();
+          if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+            handleKVLimitExceeded();
+          }
+          throw e;
+        }
       };
       const encryptedHex = await kvGetChunked(`table_${project.id}_${tableName}`, workerGetFn);
       if (encryptedHex && encryptedHex !== '__chunked__') {
@@ -1213,19 +1256,37 @@ export async function getTableRecords(
     try {
       const kvBinding = getKVBinding();
       const kvRestGetFn = async (key: string): Promise<string | null> => {
-        // A. Direct binding has priority (0-latency and works natively on Cloudflare Pages)
-        if (kvBinding && typeof kvBinding.get === 'function') {
-          return await kvBinding.get(key);
+        try {
+          if (kvBinding && typeof kvBinding.get === 'function') {
+            return await kvBinding.get(key);
+          }
+        } catch (e: any) {
+          const errMsg = String(e).toLowerCase();
+          if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+            handleKVLimitExceeded();
+          }
+          throw e;
         }
-        // B. Fallback to Cloudflare KV REST API
         const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
         const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
         const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
         const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
-        if (res.status === 404) return null;
-        if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
-        return res.text();
+        try {
+          const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CF_TOKEN}` } });
+          if (res.status === 429) {
+            handleKVLimitExceeded();
+            return null;
+          }
+          if (res.status === 404) return null;
+          if (!res.ok) throw new Error(`KV REST GET failed: ${res.status}`);
+          return res.text();
+        } catch (e: any) {
+          const errMsg = String(e).toLowerCase();
+          if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+            handleKVLimitExceeded();
+          }
+          throw e;
+        }
       };
       const encryptedHex = await kvGetChunked(`table_${project.id}_${tableName}`, kvRestGetFn);
       if (encryptedHex && encryptedHex !== '__chunked__') {
@@ -1410,14 +1471,26 @@ export async function saveTableRecords(
       if (isCFWorkerConfigured) {
         try {
           const workerPutFn = async (key: string, value: string): Promise<boolean> => {
-            const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
-            const res = await fetch(url, {
-              method: 'PUT',
-              headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
-              body: value
-            });
-            if (!res.ok) throw new Error(`Worker KV PUT failed: ${await res.text()}`);
-            return true;
+            try {
+              const url = `${CLOUDFLARE_WORKER_URL.replace(/\/$/, '')}/${key}`;
+              const res = await fetch(url, {
+                method: 'PUT',
+                headers: { 'x-worker-key': CLOUDFLARE_WORKER_KEY, 'Content-Type': 'text/plain' },
+                body: value
+              });
+              if (res.status === 429) {
+                handleKVLimitExceeded();
+                return false;
+              }
+              if (!res.ok) throw new Error(`Worker KV PUT failed: ${await res.text()}`);
+              return true;
+            } catch (e: any) {
+              const errMsg = String(e).toLowerCase();
+              if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+                handleKVLimitExceeded();
+              }
+              throw e;
+            }
           };
           const ok = await kvPutChunked(`table_${project.id}_${tableName}`, encryptedHex, workerPutFn);
           if (ok) {
@@ -1434,23 +1507,41 @@ export async function saveTableRecords(
         try {
           const kvBinding = getKVBinding();
           const kvRestPutFn = async (key: string, value: string): Promise<boolean> => {
-            // A. Direct binding has priority (0-latency and works natively on Cloudflare Pages)
-            if (kvBinding && typeof kvBinding.put === 'function') {
-              await kvBinding.put(key, value);
-              return true;
+            try {
+              if (kvBinding && typeof kvBinding.put === 'function') {
+                await kvBinding.put(key, value);
+                return true;
+              }
+            } catch (e: any) {
+              const errMsg = String(e).toLowerCase();
+              if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+                handleKVLimitExceeded();
+              }
+              throw e;
             }
-            // B. Fallback to Cloudflare KV REST API
             const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
             const CF_KV_NS = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
             const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
             const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NS}/values/${key}`;
-            const res = await fetch(url, {
-              method: 'PUT',
-              headers: { 'Authorization': `Bearer ${CF_TOKEN}`, 'Content-Type': 'text/plain' },
-              body: value
-            });
-            if (!res.ok) throw new Error(`KV REST PUT failed: ${await res.text()}`);
-            return true;
+            try {
+              const res = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${CF_TOKEN}`, 'Content-Type': 'text/plain' },
+                body: value
+              });
+              if (res.status === 429) {
+                handleKVLimitExceeded();
+                return false;
+              }
+              if (!res.ok) throw new Error(`KV REST PUT failed: ${await res.text()}`);
+              return true;
+            } catch (e: any) {
+              const errMsg = String(e).toLowerCase();
+              if (errMsg.includes('limit exceeded') || errMsg.includes('429') || errMsg.includes('rate limit')) {
+                handleKVLimitExceeded();
+              }
+              throw e;
+            }
           };
           const ok = await kvPutChunked(`table_${project.id}_${tableName}`, encryptedHex, kvRestPutFn);
           if (ok) {
@@ -1488,6 +1579,10 @@ export async function saveTableRecords(
             }
           })
         });
+
+        if (res.status === 429) {
+          handleKVLimitExceeded();
+        }
 
         if (res.ok) {
           updateStateCache(state); // Sync local cache

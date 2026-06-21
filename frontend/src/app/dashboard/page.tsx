@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "next-themes";
 import {
   Database, Zap, Lock, HardDrive, Cpu, Radio, Plus, Trash2,
   Download, RefreshCw, Key, Shield, AlertCircle, CheckCircle2,
@@ -9,7 +10,7 @@ import {
   HelpCircle, Terminal, Play, RotateCcw, AlertTriangle, LogOut, Check,
   ChevronRight, Copy, Layers, Activity, Settings, Hash, Table2, Folder,
   Search, History, BookOpen, ChevronLeft, Menu, Heart, Keyboard, Compass, Code,
-  Upload, FileUp, ArrowRight, FileJson2, FileSpreadsheet
+  Upload, FileUp, ArrowRight, FileJson2, FileSpreadsheet, Sun, Moon
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -56,9 +57,11 @@ interface DBTable {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
+  const { theme, setTheme } = useTheme();
+
   const [session, setSession] = useState<any>(null);
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
-  const router = useRouter();
 
   useEffect(() => {
     fetch('/api/auth/session')
@@ -1550,20 +1553,20 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
     return (
       <>
         {/* Sidebar Header */}
-        <div className="p-5 border-b border-zinc-800/50 flex items-center justify-between flex-shrink-0">
+        <div className="p-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <Database className="w-4.5 h-4.5 text-white" size={18} />
             </div>
             <div>
               <h1 className="text-base font-bold tracking-tight text-white">TeleBase</h1>
-              <p className="text-[10px] text-zinc-500 font-medium tracking-wide uppercase">Serverless DB Console</p>
+              <p className="text-[10px] text-text-muted font-medium tracking-wide uppercase">Serverless DB Console</p>
             </div>
           </div>
           {isMobile && (
             <button
               onClick={() => setIsMobileSidebarOpen(false)}
-              className="p-1.5 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors lg:hidden"
+              className="p-1.5 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors lg:hidden"
             >
               <X size={16} />
             </button>
@@ -1573,7 +1576,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
         {/* Project List */}
         <div className="flex-1 overflow-y-auto p-3">
           <div className="flex items-center justify-between px-2 mb-3">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Projects</span>
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Projects</span>
             <button
               onClick={() => setIsNewProjectModalOpen(true)}
               className="w-6 h-6 rounded-lg bg-zinc-800/60 hover:bg-blue-500/20 border border-zinc-700/50 hover:border-blue-500/30 flex items-center justify-center text-zinc-400 hover:text-blue-400 transition-all"
@@ -1597,14 +1600,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedProjectId === proj.id
                     ? "bg-blue-500/15 text-blue-400"
-                    : "bg-zinc-800/50 text-zinc-500 group-hover:text-zinc-300"
+                    : "bg-zinc-800/50 text-text-muted group-hover:text-zinc-300"
                   }`}>
                   <Folder size={14} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-semibold truncate">{proj.name}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[9px] font-mono bg-zinc-800/80 px-1.5 py-0.5 rounded text-zinc-500 border border-zinc-700/30">{proj.storage_type}</span>
+                    <span className="text-[9px] font-mono bg-zinc-800/80 px-1.5 py-0.5 rounded text-text-muted border border-zinc-700/30">{proj.storage_type}</span>
                     <span className="text-[9px] text-zinc-600">{proj.bots.length} bots</span>
                   </div>
                 </div>
@@ -1628,7 +1631,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               <div className="w-12 h-12 rounded-2xl bg-zinc-800/40 border border-zinc-700/30 flex items-center justify-center mx-auto mb-3">
                 <Database className="text-zinc-600 w-5 h-5" />
               </div>
-              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">No projects yet.<br />Create your first database.</p>
+              <p className="text-xs text-text-muted mb-3 leading-relaxed">No projects yet.<br />Create your first database.</p>
               <button
                 onClick={() => setIsNewProjectModalOpen(true)}
                 className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
@@ -1640,7 +1643,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-zinc-800/50 space-y-2 flex-shrink-0">
+        <div className="p-3 border-t border-border-subtle space-y-2 flex-shrink-0">
           <div className="flex items-center gap-3 px-3 py-2 mb-2 bg-zinc-900/30 rounded-xl border border-zinc-800/30">
             <div className="w-7 h-7 rounded-full bg-blue-500/10 flex items-center justify-center text-xs text-blue-400 border border-blue-500/20 font-medium uppercase">
               {(session?.user?.username?.[0] || session?.user?.name?.[0] || "T")}
@@ -1649,7 +1652,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               <span className="text-[11px] font-medium text-zinc-300 truncate">
                 {session?.user?.name || (session?.user?.username ? `@${session.user.username}` : "Telegram User")}
               </span>
-              <span className="text-[9px] text-zinc-500 truncate">Active Session</span>
+              <span className="text-[9px] text-text-muted truncate">Active Session</span>
             </div>
           </div>
           <button
@@ -1679,7 +1682,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             </Link>
             <button
               onClick={() => handleSignOut()}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-xs font-medium border border-zinc-800/30 bg-zinc-900/10"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-text-muted hover:text-rose-400 hover:bg-rose-500/5 transition-all text-xs font-medium border border-zinc-800/30 bg-zinc-900/10"
             >
               <LogOut size={14} />
               <span>Sign Out</span>
@@ -1693,9 +1696,9 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
   // ─── AUTH LOADING SKELETON ───
   if ((status as any) === "loading" || (status as any) === "unauthenticated") {
     return (
-      <div className="flex h-screen bg-[#050506] text-zinc-100 overflow-hidden">
+      <div className="flex h-screen bg-bg-base text-zinc-100 overflow-hidden">
         {/* Sidebar Skeleton */}
-        <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-zinc-800/50 bg-[#0a0a0d] flex-col h-full p-4 space-y-6">
+        <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-border-subtle bg-bg-surface flex-col h-full p-4 space-y-6">
           <div className="flex items-center gap-3 animate-pulse">
             <div className="w-8 h-8 rounded-lg bg-zinc-850" />
             <div className="w-24 h-4 rounded bg-zinc-850" />
@@ -1708,7 +1711,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               </div>
             ))}
           </div>
-          <div className="p-3 border-t border-zinc-800/50 space-y-3 animate-pulse">
+          <div className="p-3 border-t border-border-subtle space-y-3 animate-pulse">
             <div className="flex items-center gap-3 py-2">
               <div className="w-7 h-7 rounded-full bg-zinc-850" />
               <div className="space-y-1">
@@ -1723,7 +1726,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
         {/* Main Content Skeleton */}
         <main className="flex-1 flex flex-col min-w-0 h-full">
           {/* Top bar */}
-          <header className="h-14 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/80 backdrop-blur-xl flex items-center justify-between px-6 animate-pulse">
+          <header className="h-14 flex-shrink-0 border-b border-border-subtle bg-bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 animate-pulse">
             <div className="w-32 h-4 rounded bg-zinc-850" />
             <div className="w-8 h-8 rounded-full bg-zinc-850" />
           </header>
@@ -1733,7 +1736,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             {/* Stats row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-3 animate-pulse">
+                <div key={i} className="p-4 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-3 animate-pulse">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full bg-zinc-850" />
                     <div className="w-16 h-2 rounded bg-zinc-850" />
@@ -1744,8 +1747,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
             </div>
 
             {/* Table Area */}
-            <div className="p-6 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4 animate-pulse">
-              <div className="flex items-center justify-between border-b border-zinc-800/50 pb-4">
+            <div className="p-6 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-4 animate-pulse">
+              <div className="flex items-center justify-between border-b border-border-subtle pb-4">
                 <div className="w-32 h-4 rounded bg-zinc-850" />
                 <div className="w-20 h-8 rounded bg-zinc-850" />
               </div>
@@ -1767,10 +1770,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
   // ─── MAIN DASHBOARD ───
   return (
-    <div className="flex h-screen bg-[#050506] text-zinc-100 overflow-hidden selection:bg-blue-500/30">
+    <div className="flex h-screen bg-bg-base text-zinc-100 overflow-hidden selection:bg-blue-500/30">
 
       {/* Desktop Sidebar (hidden on mobile) */}
-      <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-zinc-800/50 bg-[#0a0a0d] flex flex-col h-full">
+      <aside className="hidden lg:flex w-[280px] flex-shrink-0 border-r border-border-subtle bg-bg-surface flex flex-col h-full">
         {renderSidebarContent(false)}
       </aside>
 
@@ -1792,7 +1795,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 z-50 w-[280px] bg-[#0a0a0d] border-r border-zinc-800/50 flex flex-col h-full lg:hidden shadow-2xl"
+              className="fixed inset-y-0 left-0 z-50 w-[280px] bg-bg-surface border-r border-border-subtle flex flex-col h-full lg:hidden shadow-2xl"
             >
               {renderSidebarContent(true)}
             </motion.aside>
@@ -1804,7 +1807,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
       <main className="flex-1 flex flex-col min-w-0 h-full">
 
         {/* ── Top Bar ── */}
-        <header className="h-14 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-6">
+        <header className="h-14 flex-shrink-0 border-b border-border-subtle bg-bg-surface/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
@@ -1819,28 +1822,38 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                 <span className="text-sm text-zinc-400 font-medium capitalize truncate max-w-[100px] sm:max-w-none">{activeTab === "db" ? "Database" : activeTab === "files" ? "Storage" : activeTab === "auth" ? "Authentication" : activeTab === "bots" ? "Bot Pool" : activeTab === "speed" ? "Performance" : "AI Connect"}</span>
               </>
             ) : (
-              <span className="text-sm text-zinc-500">Select a project</span>
+              <span className="text-sm text-text-muted">Select a project</span>
             )}
           </div>
 
-          {currentProject && (
-            <div className="flex items-center gap-2">
-              <div className="status-dot animate-pulse" />
-              <span className="text-[10px] text-emerald-400/80 font-semibold tracking-wide uppercase hidden sm:inline">Connected</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {currentProject && (
+              <div className="flex items-center gap-2 mr-2">
+                <div className="status-dot animate-pulse" />
+                <span className="text-[10px] text-emerald-400/80 font-semibold tracking-wide uppercase hidden sm:inline">Connected</span>
+              </div>
+            )}
+            
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="w-8 h-8 rounded-lg bg-bg-surface border border-border-subtle flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-zinc-800/20 transition-all"
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+          </div>
         </header>
 
         {/* ── Tab Navigation (Horizontally scrollable on Mobile) ── */}
         {currentProject && (
-          <nav className="h-12 flex-shrink-0 border-b border-zinc-800/50 bg-[#0a0a0d]/50 flex items-center gap-1 px-4 md:px-6 overflow-x-auto scrollbar-none whitespace-nowrap flex-nowrap">
+          <nav className="h-12 flex-shrink-0 border-b border-border-subtle bg-bg-surface/50 flex items-center gap-1 px-4 md:px-6 overflow-x-auto scrollbar-none whitespace-nowrap flex-nowrap">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${activeTab === tab.id
                     ? "bg-zinc-800/60 text-white border border-zinc-700/50"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20"
+                    : "text-text-muted hover:text-zinc-300 hover:bg-zinc-800/20"
                   }`}
               >
                 <tab.icon size={14} />
@@ -1857,7 +1870,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               {/* Stats row skeleton */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-3">
+                  <div key={i} className="p-4 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-3">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-zinc-850" />
                       <div className="w-16 h-2 rounded bg-zinc-850" />
@@ -1868,8 +1881,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               </div>
 
               {/* Main table content skeleton */}
-              <div className="p-6 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4 animate-pulse">
-                <div className="flex items-center justify-between border-b border-zinc-800/50 pb-4">
+              <div className="p-6 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-4 animate-pulse">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-4">
                   <div className="w-32 h-4 rounded bg-zinc-850" />
                   <div className="w-20 h-8 rounded bg-zinc-850" />
                 </div>
@@ -1891,7 +1904,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               </div>
               <div className="text-center">
                 <h2 className="text-lg font-bold text-zinc-300 mb-1.5">Create Your First Database</h2>
-                <p className="text-sm text-zinc-500 max-w-md leading-relaxed">Connect a private Telegram channel and start using it as a serverless database with full CRUD operations.</p>
+                <p className="text-sm text-text-muted max-w-md leading-relaxed">Connect a private Telegram channel and start using it as a serverless database with full CRUD operations.</p>
               </div>
               <button
                 onClick={() => setIsNewProjectModalOpen(true)}
@@ -1912,12 +1925,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   { label: "Bot Rotations", value: currentProject.bots.length, icon: Bot, color: "text-violet-400", bg: "from-violet-500/10 to-violet-500/5" },
                   { label: "Engine Status", value: "ACID", icon: Shield, color: "text-emerald-400", bg: "from-emerald-500/10 to-emerald-500/5" },
                 ].map((stat, i) => (
-                  <div key={i} className="relative group p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] hover:border-zinc-700/50 transition-all overflow-hidden">
+                  <div key={i} className="relative group p-4 rounded-xl border border-zinc-800/40 bg-bg-surface hover:border-zinc-700/50 transition-all overflow-hidden">
                     <div className={`absolute inset-0 bg-gradient-to-br ${stat.bg} opacity-0 group-hover:opacity-100 transition-opacity`} />
                     <div className="relative">
                       <div className="flex items-center gap-2 mb-2">
                         <stat.icon size={14} className={stat.color} />
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{stat.label}</span>
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">{stat.label}</span>
                       </div>
                       <div className="text-xl font-bold text-white">{stat.value}</div>
                     </div>
@@ -1926,9 +1939,9 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               </div>
 
               {/* ── Project Config Bar ── */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl border border-zinc-800/40 bg-bg-surface overflow-hidden">
                 <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 w-full">
-                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <div className="flex items-center gap-2 text-xs text-text-muted">
                     <Key size={12} className="flex-shrink-0" />
                     <span className="font-semibold whitespace-nowrap">API Key</span>
                   </div>
@@ -1936,14 +1949,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                     <code className="text-[11px] text-zinc-400 font-mono select-all truncate max-w-full">{currentProject.api_key}</code>
                     <button
                       onClick={() => copyToClipboard(currentProject.api_key)}
-                      className="text-zinc-500 hover:text-blue-400 transition-colors flex-shrink-0"
+                      className="text-text-muted hover:text-blue-400 transition-colors flex-shrink-0"
                     >
                       {copiedKey ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                     </button>
                   </div>
                 </div>
                 <div className="hidden sm:block h-6 w-px bg-zinc-800" />
-                <div className="flex items-center gap-2 text-xs text-zinc-500 w-full sm:w-auto">
+                <div className="flex items-center gap-2 text-xs text-text-muted w-full sm:w-auto">
                   <Hash size={12} className="flex-shrink-0" />
                   <span className="font-semibold whitespace-nowrap">Channel</span>
                   <code className="text-[11px] text-zinc-400 font-mono truncate max-w-full">{currentProject.channel_id || "Default"}</code>
@@ -1958,7 +1971,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   <div className="col-span-12 lg:col-span-3 space-y-4">
                     {dbSubTab === 'explorer' ? (
                       <>
-                        <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                        <div className="p-4 rounded-xl border border-zinc-800/40 bg-bg-surface">
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Tables</h3>
                             <div className="flex items-center gap-1.5">
@@ -1995,13 +2008,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 placeholder="Search tables..."
                                 value={searchTableQuery}
                                 onChange={(e) => setSearchTableQuery(e.target.value)}
-                                className="w-full bg-[#08080a] border border-zinc-800/50 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-blue-500/50 outline-none placeholder:text-zinc-600 font-mono"
+                                className="w-full bg-bg-input border border-border-subtle rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-blue-500/50 outline-none placeholder:text-zinc-600 font-mono"
                               />
-                              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
                               {searchTableQuery && (
                                 <button
                                   onClick={() => setSearchTableQuery('')}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-zinc-300"
                                 >
                                   <X size={10} />
                                 </button>
@@ -2048,7 +2061,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         </div>
 
                         {/* ACID Status */}
-                        <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                        <div className="p-4 rounded-xl border border-zinc-800/40 bg-bg-surface">
                           <div className="flex items-center gap-2 mb-3">
                             <Shield size={13} className="text-emerald-400" />
                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Engine Status</span>
@@ -2056,7 +2069,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           <div className="space-y-2">
                             {["Atomicity", "Consistency", "Isolation", "Durability"].map((prop, i) => (
                               <div key={i} className="flex items-center justify-between">
-                                <span className="text-[11px] text-zinc-500">{prop}</span>
+                                <span className="text-[11px] text-text-muted">{prop}</span>
                                 <div className="flex items-center gap-1.5">
                                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                                   <span className="text-[9px] font-bold text-emerald-400">ACTIVE</span>
@@ -2067,7 +2080,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         </div>
                       </>
                     ) : (
-                      <div className="p-4 rounded-xl border border-zinc-850 bg-[#0a0a0d]/80 backdrop-blur-md flex flex-col h-full space-y-4">
+                      <div className="p-4 rounded-xl border border-zinc-850 bg-bg-surface/80 backdrop-blur-md flex flex-col h-full space-y-4">
                         <div className="flex items-center justify-between pb-1">
                           <div className="flex items-center gap-2">
                             <div className="w-6.5 h-6.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -2075,7 +2088,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             </div>
                             <div>
                               <h3 className="text-xs font-bold text-zinc-200 tracking-tight">SQL Queries</h3>
-                              <p className="text-[9px] text-zinc-500 font-medium">Explore & manage scripts</p>
+                              <p className="text-[9px] text-text-muted font-medium">Explore & manage scripts</p>
                             </div>
                           </div>
                           <button
@@ -2109,13 +2122,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             placeholder="Filter queries..."
                             value={searchQueryText}
                             onChange={(e) => setSearchQueryText(e.target.value)}
-                            className="w-full bg-[#08080a] border border-zinc-800/70 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 outline-none placeholder:text-zinc-600 transition-all font-mono"
+                            className="w-full bg-bg-input border border-zinc-800/70 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 outline-none placeholder:text-zinc-600 transition-all font-mono"
                           />
-                          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
                           {searchQueryText && (
                             <button
                               onClick={() => setSearchQueryText('')}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-350"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-zinc-350"
                             >
                               <X size={10} />
                             </button>
@@ -2130,8 +2143,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             if (templates.length > 0) {
                               return (
                                 <div className="space-y-1.5">
-                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
-                                    <BookOpen size={10} className="text-zinc-500" />
+                                  <div className="px-2 text-[9px] font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <BookOpen size={10} className="text-text-muted" />
                                     <span>Templates</span>
                                     <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{templates.length}</span>
                                   </div>
@@ -2161,8 +2174,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             if (quickstarts.length > 0) {
                               return (
                                 <div className="space-y-1.5">
-                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
-                                    <Compass size={10} className="text-zinc-500" />
+                                  <div className="px-2 text-[9px] font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <Compass size={10} className="text-text-muted" />
                                     <span>Quickstarts</span>
                                     <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{quickstarts.length}</span>
                                   </div>
@@ -2192,7 +2205,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             if (favorites.length > 0) {
                               return (
                                 <div className="space-y-1.5">
-                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                  <div className="px-2 text-[9px] font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5 select-none">
                                     <Heart size={10} className="text-rose-500" />
                                     <span>Favorites</span>
                                     <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{favorites.length}</span>
@@ -2224,8 +2237,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             if (privates.length > 0) {
                               return (
                                 <div className="space-y-1.5">
-                                  <div className="px-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 select-none">
-                                    <Lock size={10} className="text-zinc-500" />
+                                  <div className="px-2 text-[9px] font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <Lock size={10} className="text-text-muted" />
                                     <span>Private</span>
                                     <span className="ml-auto text-[8px] bg-zinc-900 px-1 py-0.2 rounded border border-zinc-850 text-zinc-650">{privates.length}</span>
                                   </div>
@@ -2267,13 +2280,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   <div className="col-span-12 lg:col-span-9 space-y-6">
 
                     {/* DB Workspace Sub-Tabs Selector */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-1.5 md:p-1 bg-[#0a0a0d] border border-zinc-800/40 rounded-xl">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-1.5 md:p-1 bg-bg-surface border border-zinc-800/40 rounded-xl">
                       <div className="flex flex-wrap gap-1">
                         <button
                           onClick={() => setDbSubTab('explorer')}
                           className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${dbSubTab === 'explorer'
                               ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
-                              : "text-zinc-500 hover:text-zinc-300"
+                              : "text-text-muted hover:text-zinc-300"
                             }`}
                         >
                           <Table2 size={13} />
@@ -2283,7 +2296,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           onClick={() => setDbSubTab('terminal')}
                           className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${dbSubTab === 'terminal'
                               ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
-                              : "text-zinc-500 hover:text-zinc-300"
+                              : "text-text-muted hover:text-zinc-300"
                             }`}
                         >
                           <Terminal size={13} />
@@ -2306,7 +2319,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       <div className="space-y-6">
                         {/* Search and Filter Dock */}
                         {selectedTableName && (
-                          <div className="p-4 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] flex flex-col md:flex-row gap-4 items-center justify-between">
+                          <div className="p-4 rounded-xl border border-zinc-800/40 bg-bg-surface flex flex-col md:flex-row gap-4 items-center justify-between">
                             {/* Search and Filters */}
                             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                               {/* Search text input */}
@@ -2316,12 +2329,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   placeholder="Search records..."
                                   value={gridSearchQuery}
                                   onChange={(e) => setGridSearchQuery(e.target.value)}
-                                  className="w-full bg-[#08080a] border border-zinc-800/50 rounded-lg pl-3.5 pr-8 py-2 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                                  className="w-full bg-bg-input border border-border-subtle rounded-lg pl-3.5 pr-8 py-2 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                                 />
                                 {gridSearchQuery && (
                                   <button
                                     onClick={() => setGridSearchQuery('')}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-zinc-300"
                                   >
                                     <X size={12} />
                                   </button>
@@ -2335,7 +2348,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   setGridFilterCol(e.target.value);
                                   if (e.target.value === 'all') setGridFilterVal('');
                                 }}
-                                className="bg-[#08080a] border border-zinc-800/50 rounded-lg px-2.5 py-2 text-xs text-zinc-400 focus:border-blue-500/50 outline-none cursor-pointer font-sans"
+                                className="bg-bg-input border border-border-subtle rounded-lg px-2.5 py-2 text-xs text-zinc-400 focus:border-blue-500/50 outline-none cursor-pointer font-sans"
                               >
                                 <option value="all">All Columns</option>
                                 {(() => {
@@ -2359,7 +2372,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 <select
                                   value={gridFilterOp}
                                   onChange={(e) => setGridFilterOp(e.target.value as any)}
-                                  className="bg-[#08080a] border border-zinc-800/50 rounded-lg px-2 py-2 text-xs text-zinc-400 focus:border-blue-500/50 outline-none cursor-pointer"
+                                  className="bg-bg-input border border-border-subtle rounded-lg px-2 py-2 text-xs text-zinc-400 focus:border-blue-500/50 outline-none cursor-pointer"
                                 >
                                   <option value="contains">contains</option>
                                   <option value="eq">equals (=)</option>
@@ -2376,12 +2389,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     placeholder="Filter value..."
                                     value={gridFilterVal}
                                     onChange={(e) => setGridFilterVal(e.target.value)}
-                                    className="bg-[#08080a] border border-zinc-800/50 rounded-lg px-3 py-2 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700 w-28 md:w-36"
+                                    className="bg-bg-input border border-border-subtle rounded-lg px-3 py-2 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700 w-28 md:w-36"
                                   />
                                   {gridFilterVal && (
                                     <button
                                       onClick={() => setGridFilterVal('')}
-                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-zinc-300"
                                     >
                                       <X size={12} />
                                     </button>
@@ -2451,7 +2464,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                               <button
                                 onClick={handleTruncateTable}
-                                className="p-2 rounded-lg bg-zinc-900 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 border border-transparent hover:border-rose-500/20 transition-all"
+                                className="p-2 rounded-lg bg-zinc-900 hover:bg-rose-500/10 text-text-muted hover:text-rose-400 border border-transparent hover:border-rose-500/20 transition-all"
                                 title="Truncate Table Records"
                               >
                                 <Trash2 size={13} />
@@ -2459,7 +2472,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                               <button
                                 onClick={() => handleDeleteTable(selectedTableName)}
-                                className="p-2 rounded-lg bg-zinc-900 hover:bg-rose-500/15 text-zinc-500 hover:text-rose-400 border border-transparent hover:border-rose-500/25 transition-all"
+                                className="p-2 rounded-lg bg-zinc-900 hover:bg-rose-500/15 text-text-muted hover:text-rose-400 border border-transparent hover:border-rose-500/25 transition-all"
                                 title="Drop Table Schema"
                               >
                                 <Settings size={13} />
@@ -2469,7 +2482,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         )}
 
                         {/* Visual Table Data Grid */}
-                        <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                        <div className="rounded-xl border border-zinc-800/40 bg-bg-surface overflow-hidden">
                           <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40 bg-zinc-900/10">
                             <div className="flex items-center gap-2.5">
                               <Table2 size={15} className="text-blue-400" />
@@ -2525,7 +2538,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                         : Object.keys(tableRecords[0]);
 
                                       return fields.map((col) => (
-                                        <th key={col} className="group/head py-3.5 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider relative font-mono">
+                                        <th key={col} className="group/head py-3.5 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider relative font-mono">
                                           <div className="flex items-center justify-between gap-1.5 w-full">
                                             <div className="flex items-center gap-1.5">
                                               <span>{col}</span>
@@ -2548,7 +2561,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                         </th>
                                       ));
                                     })()}
-                                    <th className="py-3.5 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                                    <th className="py-3.5 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider text-right">Actions</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -2588,14 +2601,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                                 setRecordEditorMode('form');
                                                 setIsEditRecordModalOpen(true);
                                               }}
-                                              className="p-1.5 rounded-lg bg-zinc-900/60 hover:bg-blue-500/10 text-zinc-500 hover:text-blue-400 border border-zinc-800/40 transition-all"
+                                              className="p-1.5 rounded-lg bg-zinc-900/60 hover:bg-blue-500/10 text-text-muted hover:text-blue-400 border border-zinc-800/40 transition-all"
                                               title="Edit Record"
                                             >
                                               <Settings size={12} />
                                             </button>
                                             <button
                                               onClick={() => handleDeleteRecord(row.id)}
-                                              className="p-1.5 rounded-lg bg-zinc-900/60 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 border border-zinc-800/40 transition-all"
+                                              className="p-1.5 rounded-lg bg-zinc-900/60 hover:bg-rose-500/10 text-text-muted hover:text-rose-400 border border-zinc-800/40 transition-all"
                                               title="Delete record"
                                             >
                                               <Trash2 size={12} />
@@ -2615,10 +2628,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       /* ════════ ADVANCED SQL TERMINAL TAB ════════ */
                       <div className="space-y-6">
                         {/* SQL Console */}
-                        <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                        <div className="rounded-xl border border-zinc-800/40 bg-bg-surface overflow-hidden">
                           {/* Breadcrumbs Header */}
-                          <div className="flex items-center justify-between px-5 py-3 bg-[#0a0a0d]/40 border-b border-zinc-850">
-                            <div className="flex items-center gap-2 text-[11px] font-semibold text-zinc-500">
+                          <div className="flex items-center justify-between px-5 py-3 bg-bg-surface/40 border-b border-zinc-850">
+                            <div className="flex items-center gap-2 text-[11px] font-semibold text-text-muted">
                               <span className="text-zinc-400 hover:text-zinc-200 cursor-pointer transition-colors">Telebase Dev</span>
                               <span className="text-zinc-650 text-[10px]">/</span>
                               <span className="bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm shadow-indigo-500/5 select-none uppercase tracking-wide">Pro</span>
@@ -2633,13 +2646,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             <div className="flex items-center gap-4">
                               <button
                                 onClick={() => alert("Thank you for your feedback! The Telebase console continues to run cleanly.")}
-                                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-wider bg-zinc-900/60 hover:bg-zinc-850 px-2.5 py-1 rounded-md border border-zinc-800"
+                                className="text-[10px] font-bold text-text-muted hover:text-zinc-300 transition-colors uppercase tracking-wider bg-zinc-900/60 hover:bg-zinc-850 px-2.5 py-1 rounded-md border border-zinc-800"
                               >
                                 Feedback
                               </button>
                               <button
                                 onClick={() => alert("Telebase Advanced Console Redesign: This SQL editor is built to replicate the premium look and feel of modern developer suites.")}
-                                className="p-1 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                className="p-1 rounded-md hover:bg-zinc-800 text-text-muted hover:text-zinc-300 transition-colors"
                               >
                                 <HelpCircle size={14} />
                               </button>
@@ -2651,7 +2664,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             {/* Line Numbers Gutter */}
                             <div
                               ref={sqlGutterRef}
-                              className="w-11 py-4 pr-3 text-right bg-[#050506]/90 border-r border-zinc-900/60 select-none overflow-hidden font-mono text-[12px] leading-relaxed text-zinc-600 flex flex-col gap-0"
+                              className="w-11 py-4 pr-3 text-right bg-bg-base/90 border-r border-zinc-900/60 select-none overflow-hidden font-mono text-[12px] leading-relaxed text-zinc-600 flex flex-col gap-0"
                               style={{ maxHeight: '300px' }}
                             >
                               {Array.from({ length: Math.max(sqlQueryInput.split('\n').length, 12) }, (_, i) => (
@@ -2687,14 +2700,14 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           </div>
 
                           {/* Status and Action Bar (divider split) */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-3 border-t border-zinc-850 bg-[#08080a]/50">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-3 border-t border-zinc-850 bg-bg-input/50">
                             {/* Left side: Results & Chart tab buttons */}
                             <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => setSqlTerminalTab('results')}
                                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${sqlTerminalTab === 'results'
                                     ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50"
-                                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                                    : "text-text-muted hover:text-zinc-300 border border-transparent"
                                   }`}
                               >
                                 Results
@@ -2709,7 +2722,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 }}
                                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${sqlTerminalTab === 'templates'
                                     ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50"
-                                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                                    : "text-text-muted hover:text-zinc-300 border border-transparent"
                                   }`}
                               >
                                 Chart
@@ -2721,7 +2734,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               {/* Keyboard Shortcut Icon */}
                               <button
                                 onClick={() => alert("Query console shortcuts:\n• Ctrl + Enter: Run Active Query\n• Meta/Cmd + Enter: Run Active Query\n• Heart Icon: Toggle Favorite")}
-                                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors shadow-sm"
+                                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-text-muted hover:text-zinc-300 transition-colors shadow-sm"
                                 title="Keyboard Shortcuts"
                               >
                                 <Keyboard size={13} />
@@ -2736,7 +2749,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     alert(active.isFavorite ? "Removed from Favorites" : "Added to Favorites!");
                                   }
                                 }}
-                                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-rose-400 transition-colors shadow-sm"
+                                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-text-muted hover:text-rose-400 transition-colors shadow-sm"
                                 title="Toggle Favorite"
                               >
                                 <Heart size={13} className={sqlQueries.find(q => q.id === activeQueryId)?.isFavorite ? "fill-rose-500 text-rose-500" : ""} />
@@ -2749,7 +2762,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                 }}
                                 className={`p-2 rounded-lg border transition-all shadow-sm ${sqlTerminalTab === 'history'
                                     ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 font-bold"
-                                    : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                                    : "bg-zinc-900 border-zinc-800 text-text-muted hover:text-zinc-300"
                                   }`}
                                 title="Execution History"
                               >
@@ -2805,7 +2818,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   animate={{ opacity: 1, y: 0 }}
                                   exit={{ opacity: 0, y: -8 }}
                                   className={`p-5 rounded-xl border ${queryResult.success
-                                      ? "border-zinc-800/40 bg-[#0a0a0d]"
+                                      ? "border-zinc-800/40 bg-bg-surface"
                                       : "border-rose-500/20 bg-rose-500/5"
                                     }`}
                                 >
@@ -2820,7 +2833,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                         {queryResult.success ? "Query Successful" : "Query Failed"}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-500">
+                                    <div className="flex items-center gap-3 text-[10px] font-mono text-text-muted">
                                       <span>Latency: <strong className="text-zinc-300">{queryResult.latencyMs || 0}ms</strong></span>
                                       <span>Cache: <strong className={queryResult.cacheHit ? "text-emerald-400" : "text-amber-400"}>{queryResult.cacheHit ? "HIT" : "MISS"}</strong></span>
                                       {queryResult.affectedRows !== undefined && (
@@ -2834,13 +2847,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                       {/* Optimization Stats */}
                                       {queryResult.optimization && (
                                         <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800/30 text-[10px]">
-                                          <div className="text-zinc-500">
+                                          <div className="text-text-muted">
                                             Strategy: <strong className={queryResult.optimization.strategy === 'INDEX_SCAN' ? 'text-emerald-400' : 'text-amber-400'}>{queryResult.optimization.strategy}</strong>
                                           </div>
-                                          <div className="text-zinc-500">
+                                          <div className="text-text-muted">
                                             Index: <strong className="text-zinc-300">{queryResult.optimization.indexUsed || 'None'}</strong>
                                           </div>
-                                          <div className="text-zinc-500">
+                                          <div className="text-text-muted">
                                             Scanned: <strong className="text-zinc-300">{queryResult.optimization.statistics?.scannedRecords ?? 0}/{queryResult.optimization.statistics?.totalRecords ?? 0}</strong>
                                           </div>
                                         </div>
@@ -2848,13 +2861,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                                       {/* Grid output */}
                                       {queryResult.records && queryResult.records.length > 0 ? (
-                                        <div className="border border-zinc-800/40 rounded-xl bg-[#0a0a0d] overflow-hidden">
+                                        <div className="border border-zinc-800/40 rounded-xl bg-bg-surface overflow-hidden">
                                           <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
                                             <table className="w-full text-left">
                                               <thead>
                                                 <tr className="border-b border-zinc-850 bg-zinc-900/30">
                                                   {Object.keys(queryResult.records[0]).map((col) => (
-                                                    <th key={col} className="py-2.5 px-4 text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+                                                    <th key={col} className="py-2.5 px-4 text-[10px] font-bold text-text-muted uppercase tracking-wider font-mono">
                                                       {col}
                                                     </th>
                                                   ))}
@@ -2886,7 +2899,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                               </tbody>
                                             </table>
                                           </div>
-                                          <div className="p-3 bg-zinc-900/20 border-t border-zinc-850 flex items-center justify-between text-[10px] text-zinc-500">
+                                          <div className="p-3 bg-zinc-900/20 border-t border-zinc-850 flex items-center justify-between text-[10px] text-text-muted">
                                             <span>Returned {queryResult.records.length} row{queryResult.records.length > 1 ? 's' : ''}</span>
                                             <span>Execution time: {queryResult.latencyMs || 12}ms</span>
                                           </div>
@@ -2917,7 +2930,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                             {/* WAL & Recovery */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {/* WAL Logs */}
-                              <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                              <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface">
                                 <div className="flex items-center justify-between mb-4">
                                   <div className="flex items-center gap-2">
                                     <Activity size={14} className="text-blue-400" />
@@ -2929,13 +2942,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     </button>
                                   )}
                                 </div>
-                                <div className="bg-[#08080a] rounded-lg border border-zinc-800/30 max-h-[200px] overflow-y-auto p-3 space-y-1.5 font-mono text-[10px]">
+                                <div className="bg-bg-input rounded-lg border border-zinc-800/30 max-h-[200px] overflow-y-auto p-3 space-y-1.5 font-mono text-[10px]">
                                   {walLogs.length === 0 ? (
                                     <div className="text-zinc-700 text-center py-8">No active transaction logs</div>
                                   ) : (
                                     [...walLogs].reverse().map(log => (
                                       <div key={log.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/20 border border-zinc-800/20">
-                                        <div className="text-zinc-500 truncate">
+                                        <div className="text-text-muted truncate">
                                           <span className="text-zinc-400">{log.operation}</span> · {log.tableName}:{log.recordId}
                                         </div>
                                         <span className={`text-[9px] font-bold flex-shrink-0 ml-2 ${log.status === 'COMMITTED' ? 'text-emerald-400' :
@@ -2950,12 +2963,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               </div>
 
                               {/* Recovery */}
-                              <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                              <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface">
                                 <div className="flex items-center gap-2 mb-3">
                                   <RotateCcw size={14} className="text-indigo-400" />
                                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Crash Recovery</h3>
                                 </div>
-                                <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                                <p className="text-[11px] text-text-muted leading-relaxed mb-4">
                                   Enable "Simulate Crash" above, run a write query, then use recovery to restore the consistent state from WAL.
                                 </p>
                                 <button
@@ -2967,7 +2980,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   <span>Replay WAL & Recover</span>
                                 </button>
                                 {recoveryLogs.length > 0 && (
-                                  <div className="mt-3 bg-[#08080a] rounded-lg border border-zinc-800/30 p-2.5 font-mono text-[9px] text-zinc-500 space-y-1 max-h-[80px] overflow-y-auto">
+                                  <div className="mt-3 bg-bg-input rounded-lg border border-zinc-800/30 p-2.5 font-mono text-[9px] text-text-muted space-y-1 max-h-[80px] overflow-y-auto">
                                     {recoveryLogs.map((log, i) => (
                                       <div key={i}>{log}</div>
                                     ))}
@@ -2980,11 +2993,11 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                         {/* Templates tab slot repurposed as interactive Chart view */}
                         {sqlTerminalTab === 'templates' && (
-                          <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                          <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-4">
                             {(() => {
                               if (!queryResult || !queryResult.records || queryResult.records.length === 0) {
                                 return (
-                                  <div className="py-14 text-center text-zinc-500 text-xs">
+                                  <div className="py-14 text-center text-text-muted text-xs">
                                     No records available to plot a chart. Execute a query that returns rows first.
                                   </div>
                                 );
@@ -2995,7 +3008,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                               if (!numericCol) {
                                 return (
-                                  <div className="py-12 text-center text-zinc-500 text-xs border border-zinc-800/30 rounded-xl bg-zinc-900/10">
+                                  <div className="py-12 text-center text-text-muted text-xs border border-zinc-800/30 rounded-xl bg-zinc-900/10">
                                     <AlertCircle size={20} className="mx-auto mb-2 text-zinc-650" />
                                     No numeric columns found in the result set to render a chart visualization.
                                   </div>
@@ -3008,7 +3021,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
                                       Visualizing: <strong className="text-emerald-450 font-mono">{numericCol}</strong> by <strong className="text-zinc-400 font-mono">{labelCol}</strong>
                                     </h4>
-                                    <span className="text-[10px] text-zinc-500 font-mono bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">Chart View</span>
+                                    <span className="text-[10px] text-text-muted font-mono bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">Chart View</span>
                                   </div>
 
                                   <div className="space-y-3.5 pt-2">
@@ -3041,7 +3054,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         )}
 
                         {sqlTerminalTab === 'history' && (
-                          <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                          <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-4">
                             <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
                               <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
                                 <History size={13} className="text-blue-400" />
@@ -3121,7 +3134,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   </div>
 
                   {/* Storage Settings */}
-                  <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] mb-6">
+                  <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface mb-6">
                     <h3 className="text-sm font-bold text-zinc-200 mb-4 flex items-center gap-2">
                       <Settings size={15} className="text-zinc-400" />
                       Storage Settings
@@ -3132,7 +3145,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-[13px] font-semibold text-zinc-300">Compress Uploads (gzip)</h4>
-                          <p className="text-[11px] text-zinc-500 mt-0.5">Compresses file data using zlib before uploading. Disabling it speeds up uploads but consumes more Telegram storage.</p>
+                          <p className="text-[11px] text-text-muted mt-0.5">Compresses file data using zlib before uploading. Disabling it speeds up uploads but consumes more Telegram storage.</p>
                         </div>
                         <button
                           onClick={() => handleUpdateStorageSettings(!compressFiles, encryptFiles)}
@@ -3154,7 +3167,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-[13px] font-semibold text-zinc-300">End-to-End Encryption (AES-GCM)</h4>
-                          <p className="text-[11px] text-zinc-500 mt-0.5">Encrypts files before sending them to Telegram. Disabling it means Telegram servers can read the raw binary data.</p>
+                          <p className="text-[11px] text-text-muted mt-0.5">Encrypts files before sending them to Telegram. Disabling it means Telegram servers can read the raw binary data.</p>
                         </div>
                         <button
                           onClick={() => handleUpdateStorageSettings(compressFiles, !encryptFiles)}
@@ -3180,12 +3193,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                     onDrop={handleDrop}
                     className={`p-8 border-2 border-dashed rounded-2xl transition-all text-center ${isDragActive
                         ? "border-blue-500/50 bg-blue-500/5"
-                        : "border-zinc-800/50 bg-[#0a0a0d] hover:border-zinc-700/50"
+                        : "border-border-subtle bg-bg-surface hover:border-zinc-700/50"
                       }`}
                   >
                     {uploadStatus === "idle" ? (
                       <div className="flex flex-col items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-zinc-800/40 border border-zinc-700/30 flex items-center justify-center text-zinc-500">
+                        <div className="w-14 h-14 rounded-2xl bg-zinc-800/40 border border-zinc-700/30 flex items-center justify-center text-text-muted">
                           <UploadCloud size={24} />
                         </div>
                         <div>
@@ -3231,13 +3244,13 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   </div>
 
                   {/* Files List */}
-                  <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                  <div className="rounded-xl border border-zinc-800/40 bg-bg-surface overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40">
                       <div className="flex items-center gap-2.5">
                         <FileText size={15} className="text-blue-400" />
                         <h3 className="text-sm font-bold text-zinc-200">Stored Files</h3>
                       </div>
-                      <span className="text-[10px] text-zinc-500 font-semibold">{projectFiles.length} files</span>
+                      <span className="text-[10px] text-text-muted font-semibold">{projectFiles.length} files</span>
                     </div>
 
                     {projectFiles.length === 0 ? (
@@ -3250,11 +3263,11 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         <table className="w-full text-left">
                           <thead>
                             <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
-                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Filename</th>
-                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Size</th>
-                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Chunks</th>
-                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Integrity</th>
-                              <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Filename</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Size</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Chunks</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Integrity</th>
+                              <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider text-right">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3283,7 +3296,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       onClick={() => handleDownloadFile(file)}
-                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-blue-500/10 text-zinc-500 hover:text-blue-400 transition-all"
+                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-blue-500/10 text-text-muted hover:text-blue-400 transition-all"
                                       title="Download"
                                     >
                                       <Download size={13} />
@@ -3291,7 +3304,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     <button
                                       onClick={() => handleDeleteFile(file.uuid)}
                                       disabled={deletingUuid === file.uuid}
-                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-all disabled:opacity-40"
+                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-text-muted hover:text-rose-400 transition-all disabled:opacity-40"
                                       title="Delete"
                                     >
                                       <Trash2 size={13} className={deletingUuid === file.uuid ? "animate-pulse" : ""} />
@@ -3313,7 +3326,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Left Column: Users List */}
                   <div className="lg:col-span-2 space-y-6">
-                    <div className="rounded-xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                    <div className="rounded-xl border border-zinc-800/40 bg-bg-surface overflow-hidden">
                       <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/40">
                         <div className="flex items-center gap-2.5">
                           <Lock size={15} className="text-blue-400" />
@@ -3329,7 +3342,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       </div>
 
                       {isAuthLoading ? (
-                        <div className="py-16 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
+                        <div className="py-16 text-center text-xs text-text-muted flex items-center justify-center gap-2">
                           <RefreshCw className="animate-spin text-blue-500" size={14} />
                           <span>Loading end users...</span>
                         </div>
@@ -3343,10 +3356,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           <table className="w-full text-left">
                             <thead>
                               <tr className="border-b border-zinc-800/40 bg-zinc-900/20">
-                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">User ID</th>
-                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Email Address</th>
-                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Created At</th>
-                                <th className="py-3 px-5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">User ID</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Email Address</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Created At</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-text-muted uppercase tracking-wider text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3359,18 +3372,18 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                         onClick={() => {
                                           navigator.clipboard.writeText(user.id);
                                         }}
-                                        className="p-1 rounded bg-zinc-800/40 hover:bg-zinc-800 hover:text-white text-zinc-500 transition-colors"
+                                        className="p-1 rounded bg-zinc-800/40 hover:bg-zinc-800 hover:text-white text-text-muted transition-colors"
                                       >
                                         <Copy size={10} />
                                       </button>
                                     </div>
                                   </td>
                                   <td className="py-3.5 px-5 text-xs text-zinc-200 font-medium">{user.email}</td>
-                                  <td className="py-3.5 px-5 text-[11px] text-zinc-500">{new Date(user.created_at).toLocaleString()}</td>
+                                  <td className="py-3.5 px-5 text-[11px] text-text-muted">{new Date(user.created_at).toLocaleString()}</td>
                                   <td className="py-3.5 px-5 text-right">
                                     <button
                                       onClick={() => handleDeleteAuthUser(user.id)}
-                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-all"
+                                      className="p-2 rounded-lg bg-zinc-800/30 hover:bg-rose-500/10 text-text-muted hover:text-rose-400 transition-all"
                                       title="Delete User"
                                     >
                                       <Trash2 size={13} />
@@ -3387,12 +3400,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                   {/* Right Column: Code Snippets & SMTP Info */}
                   <div className="space-y-6">
-                    <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                    <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-4">
                       <div className="flex items-center gap-2 text-zinc-200">
                         <Key size={14} className="text-yellow-400" />
                         <h4 className="text-xs font-bold uppercase tracking-wider">Developer API Endpoints</h4>
                       </div>
-                      <p className="text-[11px] text-zinc-500 leading-relaxed">
+                      <p className="text-[11px] text-text-muted leading-relaxed">
                         Integrate Telebase authentication into your application. Use the signup/login HTTP endpoints to register users and fetch JWTs.
                       </p>
 
@@ -3413,7 +3426,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               Copy
                             </button>
                           </div>
-                          <pre className="p-3 bg-[#050506] border border-zinc-800/50 rounded-lg text-[9px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap select-all">
+                          <pre className="p-3 bg-bg-base border border-border-subtle rounded-lg text-[9px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap select-all">
                             {`curl -X POST https://telebase.pages.dev/api/v1/auth/signup \\
   -H "x-api-key: ${currentProject?.api_key || 'YOUR_API_KEY'}" \\
   -H "Content-Type: application/json" \\
@@ -3443,7 +3456,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               Copy
                             </button>
                           </div>
-                          <pre className="p-3 bg-[#050506] border border-zinc-800/50 rounded-lg text-[9px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap select-all">
+                          <pre className="p-3 bg-bg-base border border-border-subtle rounded-lg text-[9px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap select-all">
                             {`fetch('https://telebase.pages.dev/api/v1/auth/login', {
   method: 'POST',
   headers: {
@@ -3457,15 +3470,15 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       </div>
                     </div>
 
-                    <div className="p-5 rounded-xl border border-zinc-800/40 bg-[#0a0a0d] space-y-3">
+                    <div className="p-5 rounded-xl border border-zinc-800/40 bg-bg-surface space-y-3">
                       <div className="flex items-center gap-2 text-zinc-200">
                         <Shield className="text-emerald-400 w-3.5 h-3.5" />
                         <h4 className="text-xs font-bold uppercase tracking-wider">SMTP Server Settings</h4>
                       </div>
-                      <p className="text-[11px] text-zinc-500 leading-relaxed">
+                      <p className="text-[11px] text-text-muted leading-relaxed">
                         To enable OTP & Magic Link mailings directly to your end-users, set up your mailer configuration in environment variables:
                       </p>
-                      <div className="p-3 bg-[#050506] border border-zinc-800/50 rounded-lg text-[9px] font-mono text-zinc-400 leading-normal">
+                      <div className="p-3 bg-bg-base border border-border-subtle rounded-lg text-[9px] font-mono text-zinc-400 leading-normal">
                         <div>SMTP_HOST=your-smtp-host.com</div>
                         <div>SMTP_PORT=587</div>
                         <div>SMTP_USER=user@domain.com</div>
@@ -3479,12 +3492,12 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               {/* ════════ BOT POOL TAB ════════ */}
               {activeTab === "bots" && (
                 <div className="max-w-2xl space-y-6">
-                  <div className="p-6 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                  <div className="p-6 rounded-xl border border-zinc-800/40 bg-bg-surface">
                     <div className="flex items-center gap-2.5 mb-2">
                       <Bot size={16} className="text-violet-400" />
                       <h3 className="text-sm font-bold text-zinc-200">Bot Token Rotation Pool</h3>
                     </div>
-                    <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
+                    <p className="text-xs text-text-muted mb-6 leading-relaxed">
                       Rotated bots handle chunk fetches and uploads concurrently, circumventing Telegram API rate limits. Add multiple bot tokens for high-throughput workloads.
                     </p>
 
@@ -3523,7 +3536,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                         value={newBotTokenInput}
                         onChange={(e) => setNewBotTokenInput(e.target.value)}
                         placeholder="Enter bot token (e.g. 123456:ABCdef...)"
-                        className="flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl px-4 py-2.5 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                        className="flex-1 bg-bg-input border border-border-subtle rounded-xl px-4 py-2.5 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                       />
                       <button
                         type="submit"
@@ -3537,7 +3550,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                     {currentProject && currentProject.bots.length > 0 ? (
                       <div className="space-y-2">
                         {currentProject.bots.map((bot, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-[#08080a] border border-zinc-800/30 group">
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-bg-input border border-zinc-800/30 group">
                             <div className="flex items-center gap-3">
                               <div className="w-7 h-7 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
                                 <Bot size={12} className="text-violet-400" />
@@ -3569,7 +3582,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               {/* ════════ PERFORMANCE TAB ════════ */}
               {activeTab === "speed" && (
                 <div className="max-w-2xl space-y-6">
-                  <div className="p-6 rounded-xl border border-zinc-800/40 bg-[#0a0a0d]">
+                  <div className="p-6 rounded-xl border border-zinc-800/40 bg-bg-surface">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-2.5">
                         <Zap size={16} className="text-amber-400" />
@@ -3668,7 +3681,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
               {activeTab === "ai" && (
                 <div className="space-y-6">
                   {/* Top Header Card */}
-                  <div className="relative group p-6 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] overflow-hidden">
+                  <div className="relative group p-6 rounded-2xl border border-zinc-800/40 bg-bg-surface overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-violet-500/10 opacity-70" />
                     <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                       <div className="space-y-2">
@@ -3707,24 +3720,24 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                   <div className="grid grid-cols-12 gap-6">
                     {/* Left Column: Live Config Map */}
                     <div className="col-span-5 space-y-6">
-                      <div className="p-5 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                      <div className="p-5 rounded-2xl border border-zinc-800/40 bg-bg-surface space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b border-zinc-800/40">
-                          <Shield size={13} className="text-zinc-500" />
+                          <Shield size={13} className="text-text-muted" />
                           <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Credentials Map</h4>
                         </div>
 
                         <div className="space-y-3.5">
                           {/* Endpoint */}
                           <div className="space-y-1.5">
-                            <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">API Endpoint Base</span>
-                            <div className="bg-[#07070a] border border-zinc-800/50 rounded-xl px-3 py-2 flex items-center justify-between">
+                            <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wider">API Endpoint Base</span>
+                            <div className="bg-[#07070a] border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between">
                               <code className="text-xs text-zinc-300 font-mono">http://https://telebase.pages.dev/</code>
                               <button
                                 onClick={() => {
                                   navigator.clipboard.writeText("http://https://telebase.pages.dev/");
                                   alert("Endpoint base URL copied!");
                                 }}
-                                className="text-zinc-500 hover:text-blue-400 transition-colors"
+                                className="text-text-muted hover:text-blue-400 transition-colors"
                               >
                                 <Copy size={11} />
                               </button>
@@ -3733,8 +3746,8 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
 
                           {/* Key */}
                           <div className="space-y-1.5">
-                            <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Project API Key</span>
-                            <div className="bg-[#07070a] border border-zinc-800/50 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wider">Project API Key</span>
+                            <div className="bg-[#07070a] border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between gap-2">
                               <div className="flex-1 min-w-0 flex items-center gap-1.5">
                                 {showAPIKeyInAI ? (
                                   <Key size={11} className="text-amber-400 flex-shrink-0" />
@@ -3757,7 +3770,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                                     navigator.clipboard.writeText(currentProject.api_key);
                                     alert("API Key copied!");
                                   }}
-                                  className="text-zinc-500 hover:text-blue-400 transition-colors"
+                                  className="text-text-muted hover:text-blue-400 transition-colors"
                                 >
                                   <Copy size={11} />
                                 </button>
@@ -3768,11 +3781,11 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           {/* Stats */}
                           <div className="grid grid-cols-2 gap-3 pt-2">
                             <div className="bg-zinc-900/30 p-2.5 rounded-xl border border-zinc-800/40">
-                              <span className="block text-[9px] text-zinc-500 font-semibold uppercase">Active Tables</span>
+                              <span className="block text-[9px] text-text-muted font-semibold uppercase">Active Tables</span>
                               <span className="text-sm font-bold text-white font-mono">{dbTables.length}</span>
                             </div>
                             <div className="bg-zinc-900/30 p-2.5 rounded-xl border border-zinc-800/40">
-                              <span className="block text-[9px] text-zinc-500 font-semibold uppercase">Storage Pool</span>
+                              <span className="block text-[9px] text-text-muted font-semibold uppercase">Storage Pool</span>
                               <span className="text-sm font-bold text-white font-mono">{currentProject.storage_type}</span>
                             </div>
                           </div>
@@ -3780,10 +3793,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                       </div>
 
                       {/* Schema summary view */}
-                      <div className="p-5 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] space-y-4">
+                      <div className="p-5 rounded-2xl border border-zinc-800/40 bg-bg-surface space-y-4">
                         <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
                           <div className="flex items-center gap-2">
-                            <Table2 size={13} className="text-zinc-500" />
+                            <Table2 size={13} className="text-text-muted" />
                             <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Dynamic Tables</h4>
                           </div>
                           <span className="text-[10px] bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 text-blue-400 font-mono">Live</span>
@@ -3800,7 +3813,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               <div key={t.uuid} className="p-2.5 rounded-xl bg-zinc-900/30 border border-zinc-800/30 flex flex-col gap-1.5">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-zinc-200 font-mono font-semibold">{t.name}</span>
-                                  <span className="text-[9px] text-zinc-500">{formatBytes(t.sizeBytes)}</span>
+                                  <span className="text-[9px] text-text-muted">{formatBytes(t.sizeBytes)}</span>
                                 </div>
                                 {t.schema?.fields ? (
                                   <div className="flex flex-wrap gap-1">
@@ -3821,7 +3834,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                     </div>
 
                     {/* Right Column: Code snippets preview */}
-                    <div className="col-span-7 p-5 rounded-2xl border border-zinc-800/40 bg-[#0a0a0d] flex flex-col h-full min-h-[480px]">
+                    <div className="col-span-7 p-5 rounded-2xl border border-zinc-800/40 bg-bg-surface flex flex-col h-full min-h-[480px]">
                       <div className="flex items-center justify-between pb-3 border-b border-zinc-800/40">
                         <div className="flex items-center gap-2">
                           <Terminal size={14} className="text-blue-400" />
@@ -3896,7 +3909,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                             onClick={() => setAiSnippetTab(subTab.id)}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${aiSnippetTab === subTab.id
                                 ? "bg-zinc-800 text-white border-zinc-700/60"
-                                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                                : "text-text-muted hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
                               }`}
                           >
                             {subTab.label}
@@ -4001,7 +4014,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-lg bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-lg bg-bg-elevated border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
                 <div className="flex items-center justify-between">
@@ -4011,10 +4024,10 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white">New Project</h3>
-                      <p className="text-[11px] text-zinc-500">Connect a Telegram channel as database storage</p>
+                      <p className="text-[11px] text-text-muted">Connect a Telegram channel as database storage</p>
                     </div>
                   </div>
-                  <button onClick={() => setIsNewProjectModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                  <button onClick={() => setIsNewProjectModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors">
                     <X size={16} />
                   </button>
                 </div>
@@ -4029,7 +4042,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
                     placeholder="e.g. My Production DB"
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
@@ -4041,7 +4054,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     value={newChannelId}
                     onChange={(e) => setNewChannelId(e.target.value)}
                     placeholder="e.g. -1003959092433"
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                   />
                 </div>
 
@@ -4066,7 +4079,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                         value={token}
                         onChange={(e) => handleNewBotChange(i, e.target.value)}
                         placeholder={i === 0 ? "e.g. 8743065502:AAGDjQ2PM..." : `Bot Token #${i + 1}`}
-                        className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                        className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                       />
                     ))}
                   </div>
@@ -4076,7 +4089,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   <button
                     type="button"
                     onClick={() => setIsNewProjectModalOpen(false)}
-                    className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                    className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                   >
                     Cancel
                   </button>
@@ -4101,7 +4114,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-lg bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-lg bg-bg-elevated border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
                 <div className="flex items-center justify-between">
@@ -4111,10 +4124,10 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white">Create Table</h3>
-                      <p className="text-[11px] text-zinc-500">Define your schema and column types</p>
+                      <p className="text-[11px] text-text-muted">Define your schema and column types</p>
                     </div>
                   </div>
-                  <button onClick={() => setIsNewTableModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                  <button onClick={() => setIsNewTableModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors">
                     <X size={16} />
                   </button>
                 </div>
@@ -4129,7 +4142,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     value={newTableName}
                     onChange={(e) => setNewTableName(e.target.value)}
                     placeholder="e.g. users"
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                   />
                 </div>
 
@@ -4171,12 +4184,12 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                           value={field.name}
                           onChange={(e) => handleSchemaFieldChange(i, 'name', e.target.value)}
                           placeholder="Column Name"
-                          className="flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl p-2.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none placeholder:text-zinc-700"
+                          className="flex-1 bg-bg-input border border-border-subtle rounded-xl p-2.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none placeholder:text-zinc-700"
                         />
                         <select
                           value={field.type}
                           onChange={(e) => handleSchemaFieldChange(i, 'type', e.target.value)}
-                          className="bg-[#08080a] border border-zinc-800/50 rounded-xl p-2.5 text-xs text-white focus:border-blue-500/50 outline-none"
+                          className="bg-bg-input border border-border-subtle rounded-xl p-2.5 text-xs text-white focus:border-blue-500/50 outline-none"
                         >
                           <option value="string">string</option>
                           <option value="number">number</option>
@@ -4199,7 +4212,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   <button
                     type="button"
                     onClick={() => setIsNewTableModalOpen(false)}
-                    className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                    className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                   >
                     Cancel
                   </button>
@@ -4512,7 +4525,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="w-full max-w-2xl bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+                className="w-full max-w-2xl bg-bg-elevated border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
               >
                 {/* Header */}
                 <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
@@ -4523,7 +4536,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-white">Import Table</h3>
-                        <p className="text-[11px] text-zinc-500">
+                        <p className="text-[11px] text-text-muted">
                           {importStep === 'upload' && 'Upload a CSV or JSON file to create a table'}
                           {importStep === 'preview' && 'Review detected schema and data preview'}
                           {importStep === 'importing' && 'Importing records into your database...'}
@@ -4532,7 +4545,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                         </p>
                       </div>
                     </div>
-                    <button onClick={() => setIsImportModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                    <button onClick={() => setIsImportModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors">
                       <X size={16} />
                     </button>
                   </div>
@@ -4569,7 +4582,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                         className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
                           isDragOver
                             ? 'border-emerald-400 bg-emerald-500/5 scale-[1.01]'
-                            : 'border-zinc-800/60 hover:border-zinc-600/60 bg-[#08080a]'
+                            : 'border-zinc-800/60 hover:border-zinc-600/60 bg-bg-input'
                         }`}
                         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                         onDragLeave={() => setIsDragOver(false)}
@@ -4596,7 +4609,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
                             isDragOver ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-zinc-800/30 border-zinc-700/30'
                           } border`}>
-                            <FileUp size={24} className={isDragOver ? 'text-emerald-400' : 'text-zinc-500'} />
+                            <FileUp size={24} className={isDragOver ? 'text-emerald-400' : 'text-text-muted'} />
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-zinc-300">Drop your file here or <span className="text-emerald-400">browse</span></p>
@@ -4639,7 +4652,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-white font-mono truncate">{importFile?.name}</p>
-                          <p className="text-[10px] text-zinc-500">{importFile ? (importFile.size / 1024).toFixed(1) + ' KB' : ''} · {importData.length.toLocaleString()} rows · {importColumns.length} columns</p>
+                          <p className="text-[10px] text-text-muted">{importFile ? (importFile.size / 1024).toFixed(1) + ' KB' : ''} · {importData.length.toLocaleString()} rows · {importColumns.length} columns</p>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <div className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
@@ -4655,7 +4668,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                           type="text"
                           value={importTableName}
                           onChange={(e) => setImportTableName(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())}
-                          className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-emerald-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                          className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-emerald-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                           placeholder="e.g. users"
                         />
                         {dbTables.some(t => t.name === importTableName) && (
@@ -4669,10 +4682,10 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       {/* Detected columns */}
                       <div>
                         <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Detected Columns ({importColumns.length})</label>
-                        <div className="max-h-[140px] overflow-y-auto rounded-xl border border-zinc-800/40 bg-[#08080a]">
+                        <div className="max-h-[140px] overflow-y-auto rounded-xl border border-zinc-800/40 bg-bg-input">
                           <table className="w-full">
                             <thead>
-                              <tr className="text-[10px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+                              <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-zinc-800/30">
                                 <th className="text-left px-3 py-2 font-semibold">Column</th>
                                 <th className="text-left px-3 py-2 font-semibold">Detected Type</th>
                               </tr>
@@ -4706,10 +4719,10 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       {/* Data preview */}
                       <div>
                         <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Data Preview (first 5 rows)</label>
-                        <div className="overflow-x-auto rounded-xl border border-zinc-800/40 bg-[#08080a]">
+                        <div className="overflow-x-auto rounded-xl border border-zinc-800/40 bg-bg-input">
                           <table className="w-full text-left">
                             <thead>
-                              <tr className="text-[10px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+                              <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-zinc-800/30">
                                 {importColumns.slice(0, 6).map((col, i) => (
                                   <th key={i} className="px-3 py-2 font-semibold whitespace-nowrap">{col.name}</th>
                                 ))}
@@ -4736,7 +4749,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       <div className="flex items-center gap-3 pt-1">
                         <button
                           onClick={() => { setImportStep('upload'); setImportFile(null); setImportData([]); setImportColumns([]); setImportErrors([]); }}
-                          className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                          className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                         >
                           Back
                         </button>
@@ -4763,7 +4776,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                         </div>
                         <div className="text-center">
                           <p className="text-sm font-semibold text-white">Importing Records...</p>
-                          <p className="text-[11px] text-zinc-500 mt-1">{importProgress.current.toLocaleString()} of {importProgress.total.toLocaleString()} records</p>
+                          <p className="text-[11px] text-text-muted mt-1">{importProgress.current.toLocaleString()} of {importProgress.total.toLocaleString()} records</p>
                         </div>
                       </div>
                       <div className="max-w-sm mx-auto">
@@ -4775,7 +4788,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                             transition={{ duration: 0.3 }}
                           />
                         </div>
-                        <p className="text-center text-[11px] text-zinc-500 mt-2 font-mono">{importProgress.percent}%</p>
+                        <p className="text-center text-[11px] text-text-muted mt-2 font-mono">{importProgress.percent}%</p>
                       </div>
                     </div>
                   )}
@@ -4795,7 +4808,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       <div className="flex items-center gap-3 max-w-sm mx-auto">
                         <button
                           onClick={() => setIsImportModalOpen(false)}
-                          className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                          className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                         >
                           Close
                         </button>
@@ -4827,7 +4840,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                       <div className="flex items-center gap-3 max-w-sm mx-auto">
                         <button
                           onClick={() => setIsImportModalOpen(false)}
-                          className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                          className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                         >
                           Close
                         </button>
@@ -4862,7 +4875,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-bg-elevated border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
                 <div className="flex items-center justify-between">
@@ -4872,10 +4885,10 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white">Add End-User</h3>
-                      <p className="text-[11px] text-zinc-500">Create a new credentials-based user</p>
+                      <p className="text-[11px] text-text-muted">Create a new credentials-based user</p>
                     </div>
                   </div>
-                  <button onClick={() => setIsAddUserModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                  <button onClick={() => setIsAddUserModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors">
                     <X size={16} />
                   </button>
                 </div>
@@ -4897,7 +4910,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
                     placeholder="user@example.com"
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
@@ -4909,7 +4922,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white placeholder:text-zinc-700"
                   />
                 </div>
 
@@ -4954,7 +4967,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 190 }}
-              className="fixed top-0 right-0 h-full w-full sm:w-[450px] max-w-full z-50 bg-[#0c0c0f]/95 border-l border-zinc-800/80 backdrop-blur-xl shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 h-full w-full sm:w-[450px] max-w-full z-50 bg-bg-elevated/95 border-l border-zinc-800/80 backdrop-blur-xl shadow-2xl flex flex-col"
             >
               {/* Header */}
               <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40 flex-shrink-0">
@@ -4965,12 +4978,12 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white">{isEditRecordModalOpen ? "Edit Record" : "Add Record"}</h3>
-                      <p className="text-[11px] text-zinc-500">Insert or update data in table "{selectedTableName}"</p>
+                      <p className="text-[11px] text-text-muted">Insert or update data in table "{selectedTableName}"</p>
                     </div>
                   </div>
                   <button
                     onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }}
-                    className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors"
+                    className="p-2 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors"
                   >
                     <X size={16} />
                   </button>
@@ -4984,7 +4997,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   onClick={() => setRecordEditorMode('form')}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${recordEditorMode === 'form'
                       ? "bg-zinc-800 text-white border-zinc-700/60"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                      : "text-text-muted hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
                     }`}
                 >
                   Form Builder
@@ -4998,7 +5011,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   }}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${recordEditorMode === 'json'
                       ? "bg-zinc-800 text-white border-zinc-700/60"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
+                      : "text-text-muted hover:text-zinc-300 hover:bg-zinc-900 border-transparent"
                     }`}
                 >
                   Raw JSON Editor
@@ -5013,7 +5026,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     <textarea
                       value={rawJsonInput}
                       onChange={(e) => setRawJsonInput(e.target.value)}
-                      className="w-full flex-1 bg-[#08080a] border border-zinc-800/50 rounded-xl p-3.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none resize-none leading-relaxed min-h-[250px]"
+                      className="w-full flex-1 bg-bg-input border border-border-subtle rounded-xl p-3.5 text-xs text-white font-mono focus:border-blue-500/50 outline-none resize-none leading-relaxed min-h-[250px]"
                     />
                     {jsonError && (
                       <p className="text-rose-400 text-[10px] font-mono">{jsonError}</p>
@@ -5031,12 +5044,12 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                           if (isEditRecordModalOpen) {
                             return (
                               <div key={fieldName} className="space-y-1.5">
-                                <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Record ID (PK)</label>
+                                <label className="block text-[11px] font-bold text-text-muted uppercase tracking-wider">Record ID (PK)</label>
                                 <input
                                   type="text"
                                   disabled
                                   value={editingRecordId || ""}
-                                  className="w-full bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-3 text-xs text-zinc-500 font-mono cursor-not-allowed"
+                                  className="w-full bg-zinc-900/50 border border-zinc-800/30 rounded-xl p-3 text-xs text-text-muted font-mono cursor-not-allowed"
                                 />
                               </div>
                             );
@@ -5064,7 +5077,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                                   ...modalRecordData,
                                   [fieldName]: e.target.value === 'true'
                                 })}
-                                className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono"
+                                className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono"
                               >
                                 <option value="false">false</option>
                                 <option value="true">true</option>
@@ -5078,7 +5091,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                                   [fieldName]: e.target.value
                                 })}
                                 placeholder={`Enter ${fieldName}...`}
-                                className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                                className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-xs focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                               />
                             )}
                           </div>
@@ -5090,11 +5103,11 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               </div>
 
               {/* Actions Footer */}
-              <div className="px-6 py-4 bg-[#0a0a0d] border-t border-zinc-800/40 flex items-center gap-3 flex-shrink-0 mt-auto">
+              <div className="px-6 py-4 bg-bg-surface border-t border-zinc-800/40 flex items-center gap-3 flex-shrink-0 mt-auto">
                 <button
                   type="button"
                   onClick={() => { setIsAddRecordModalOpen(false); setIsEditRecordModalOpen(false); }}
-                  className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all text-center"
+                  className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all text-center"
                 >
                   Cancel
                 </button>
@@ -5119,7 +5132,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-[#0c0c0f] border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-bg-elevated border border-zinc-800/60 rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
                 <div className="flex items-center justify-between">
@@ -5129,10 +5142,10 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white">Add Column visually</h3>
-                      <p className="text-[11px] text-zinc-500 font-medium">Add field type to table "{selectedTableName}"</p>
+                      <p className="text-[11px] text-text-muted font-medium">Add field type to table "{selectedTableName}"</p>
                     </div>
                   </div>
-                  <button onClick={() => setIsAddColumnModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-zinc-500 transition-colors">
+                  <button onClick={() => setIsAddColumnModalOpen(false)} className="p-2 rounded-lg hover:bg-zinc-800/50 text-text-muted transition-colors">
                     <X size={16} />
                   </button>
                 </div>
@@ -5147,7 +5160,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                     value={newColName}
                     onChange={(e) => setNewColName(e.target.value)}
                     placeholder="e.g. email"
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white font-mono placeholder:text-zinc-700"
                   />
                 </div>
 
@@ -5156,7 +5169,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   <select
                     value={newColType}
                     onChange={(e) => setNewColType(e.target.value as any)}
-                    className="w-full bg-[#08080a] border border-zinc-800/50 rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white"
+                    className="w-full bg-bg-input border border-border-subtle rounded-xl p-3 text-sm focus:border-blue-500/50 outline-none text-white"
                   >
                     <option value="string">string</option>
                     <option value="number">number</option>
@@ -5168,7 +5181,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   <button
                     type="button"
                     onClick={() => setIsAddColumnModalOpen(false)}
-                    className="w-full py-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
+                    className="w-full py-3 rounded-xl border border-border-subtle hover:bg-zinc-800/30 text-sm font-semibold text-zinc-400 transition-all"
                   >
                     Cancel
                   </button>
@@ -5193,7 +5206,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-lg bg-[#0c0c0f] border border-zinc-800/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="w-full max-w-lg bg-bg-elevated border border-zinc-800/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             >
               <div className="px-6 pt-6 pb-4 border-b border-zinc-800/40">
                 <div className="flex items-center gap-3">
@@ -5202,30 +5215,30 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white tracking-tight">Welcome to TeleBase</h3>
-                    <p className="text-xs text-zinc-500 font-medium">Let's get your first serverless database running</p>
+                    <p className="text-xs text-text-muted font-medium">Let's get your first serverless database running</p>
                   </div>
                 </div>
               </div>
               <div className="p-6 space-y-4 flex-1">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">1</div>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-text-muted">1</div>
                     <span>Create Project</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">2</div>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-text-muted">2</div>
                     <span>Add Telegram Channel</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">3</div>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-text-muted">3</div>
                     <span>Generate API Key</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">4</div>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-text-muted">4</div>
                     <span>Create First Table</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm font-medium text-zinc-300">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-zinc-500">5</div>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center text-xs text-text-muted">5</div>
                     <span>Upload First File</span>
                   </div>
                 </div>
@@ -5233,7 +5246,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
               <div className="px-6 py-4 border-t border-zinc-800/40 bg-zinc-900/30 flex items-center justify-between gap-3">
                 <button
                   onClick={dismissOnboarding}
-                  className="text-xs font-semibold text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="text-xs font-semibold text-text-muted hover:text-zinc-300 transition-colors"
                 >
                   Don't Show Again
                 </button>
