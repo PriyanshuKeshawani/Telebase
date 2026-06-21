@@ -1,3 +1,11 @@
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Architecture Overview - Telebase",
+  description: "Understand how Telebase combines Telegram private channels and Cloudflare Workers to deliver high-availability, zero-latency serverless storage.",
+  path: "/docs/architecture",
+});
+
 export default function ArchitectureDocs() {
   return (
     <div className="space-y-6">

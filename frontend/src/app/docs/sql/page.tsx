@@ -1,3 +1,11 @@
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "SQL Queries Console and Execution - Telebase",
+  description: "Run SQL queries, manage table structures, and compile schema migrations in real-time through the Telebase admin dashboard.",
+  path: "/docs/sql",
+});
+
 export default function SqlDocs() {
   return (
     <div className="space-y-6">

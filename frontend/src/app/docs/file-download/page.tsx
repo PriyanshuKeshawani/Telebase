@@ -1,3 +1,11 @@
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Secure File Downloads and Decryption - Telebase",
+  description: "Stream files from Telegram on-the-fly with secure local AES-256 decryption and integrity checks.",
+  path: "/docs/file-download",
+});
+
 export default function FileDownloadDocs() {
   return (
     <div className="space-y-6">

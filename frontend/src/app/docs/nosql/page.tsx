@@ -1,3 +1,11 @@
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "NoSQL API Reference and Queries - Telebase",
+  description: "Programmatically query your database using MongoDB-style JSON documents and NoSQL key-value lookups.",
+  path: "/docs/nosql",
+});
+
 export default function NoSqlDocs() {
   return (
     <div className="space-y-6">

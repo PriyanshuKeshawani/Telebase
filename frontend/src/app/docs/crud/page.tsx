@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Structured SQL & NoSQL CRUD Operations - Telebase",
+  description: "How to insert, select, update, and delete data from your Telegram-backed database using SQL query language or NoSQL JSON commands.",
+  path: "/docs/crud",
+});
 
 export default function CrudDocs() {
   return (

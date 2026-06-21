@@ -1,4 +1,11 @@
 import { Database, Zap, Key, Table2, UploadCloud, Bot, ArrowRight, Play } from "lucide-react";
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Onboarding & Setup Guide - Telebase",
+  description: "A step-by-step checklist to configure your first serverless database, establish Telegram secure permanent storage, and generate authentication credentials.",
+  path: "/docs/onboarding",
+});
 
 export default function OnboardingDocs() {
   return (

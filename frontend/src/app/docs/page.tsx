@@ -1,4 +1,11 @@
 import { Play } from "lucide-react";
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Getting Started - Telebase Documentation",
+  description: "Learn how to connect your Telegram channels to a robust, production-ready serverless database layer using Telebase.",
+  path: "/docs",
+});
 
 export default function DocsPage() {
   return (

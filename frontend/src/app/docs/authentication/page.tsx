@@ -1,3 +1,11 @@
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Authentication and Identity Provider - Telebase",
+  description: "Learn about the cryptographically secure NextAuth login flow and Telegram identity provider used in Telebase.",
+  path: "/docs/authentication",
+});
+
 export default function AuthDocs() {
   return (
     <div className="space-y-6">

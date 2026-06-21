@@ -1,3 +1,11 @@
+import { getSEOMetadata } from "@/lib/seo";
+
+export const metadata = getSEOMetadata({
+  title: "Encrypted File Uploads and Chunking - Telebase",
+  description: "Upload multi-gigabyte files. Telebase compresses, encrypts, and chunks them into Telegram-compatible documents.",
+  path: "/docs/file-upload",
+});
+
 export default function FileUploadDocs() {
   return (
     <div className="space-y-6">
