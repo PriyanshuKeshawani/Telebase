@@ -48,7 +48,7 @@ export default function ContactPage() {
 
           {/* Telegram Card */}
           <a
-            href="https://telegram.org"
+            href="https://t.me/+mSyoFxg97MIwNGZl"
             target="_blank"
             rel="noreferrer"
             className="p-6 rounded-2xl bg-bg-surface border border-border-subtle hover:border-blue-500/30 transition-all space-y-3 group"
@@ -77,7 +77,7 @@ export default function ContactPage() {
             <Mail className="w-8 h-8 text-indigo-400" />
             <h3 className="text-lg font-bold text-white">Direct Email</h3>
             <p className="text-xs text-text-secondary leading-relaxed">
-              For security disclosures or administrative queries, contact us at: <span className="font-semibold text-white">support@telebase.dev</span>
+              For security disclosures or administrative queries, contact us at: <span className="font-semibold text-white">domainexpanders7@gmail.com</span>
             </p>
           </div>
         </section>

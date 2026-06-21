@@ -26,7 +26,7 @@ export default function Footer() {
             <a href="https://twitter.com" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors">
               <Twitter size={18} />
             </a>
-            <a href="https://telegram.org" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors">
+            <a href="https://t.me/+mSyoFxg97MIwNGZl" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors">
               <MessageSquare size={18} />
             </a>
           </div>

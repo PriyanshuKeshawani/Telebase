@@ -5,6 +5,7 @@ Telebase is an open-source backend platform powered by Telegram infrastructure, 
 ## Details
 - Website: https://telebase.pages.dev
 - Repository: https://github.com/PriyanshuKeshawani/Telebase
+- Community Chat: https://t.me/+mSyoFxg97MIwNGZl
 - License: MIT Open Source
 
 ## Key Features
