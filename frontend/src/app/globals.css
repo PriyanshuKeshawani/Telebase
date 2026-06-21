@@ -144,159 +144,303 @@
   background-clip: text;
 }
 
-/* Docs content theme overrides to handle hardcoded styles in markdown/tsx files */
-html:not(.dark) .docs-content {
-  color: var(--text-secondary);
-}
-html:not(.dark) .docs-content h1,
-html:not(.dark) .docs-content h2,
-html:not(.dark) .docs-content h3,
-html:not(.dark) .docs-content h4,
-html:not(.dark) .docs-content .text-white {
-  color: var(--text-primary) !important;
-}
-html:not(.dark) .docs-content .text-zinc-200,
-html:not(.dark) .docs-content .text-zinc-300 {
-  color: var(--text-secondary) !important;
-}
-html:not(.dark) .docs-content .text-zinc-400,
-html:not(.dark) .docs-content .text-zinc-500 {
-  color: var(--text-muted) !important;
-}
-html:not(.dark) .docs-content .bg-\[\#0a0a0d\],
-html:not(.dark) .docs-content .bg-zinc-900\/50 {
-  background-color: var(--bg-surface) !important;
-  border-color: var(--border-subtle) !important;
-}
-html:not(.dark) .docs-content .border-zinc-800\/40,
-html:not(.dark) .docs-content .border-zinc-800\/50,
-html:not(.dark) .docs-content .border-zinc-800\/60,
-html:not(.dark) .docs-content .border-zinc-900\/50,
-html:not(.dark) .docs-content .border-zinc-900 {
-  border-color: var(--border-subtle) !important;
-}
-html:not(.dark) .docs-content pre {
-  background-color: var(--bg-input) !important;
-  border: 1px solid var(--border-subtle);
-}
-html:not(.dark) .docs-content code {
-  color: #1e3a8a !important; /* dark blue for contrast */
-}
-html:not(.dark) .docs-content .hover\:border-zinc-700\/60:hover {
-  border-color: var(--color-brand-500) !important;
-}
-
-/* Dashboard Container Light Mode Overrides */
-html:not(.dark) .dashboard-container {
-  color: var(--text-primary);
+/* Global Light Mode Overrides (when dark class is not present on html) */
+html:not(.dark) {
+  color-scheme: light;
 }
 
 /* Background overrides */
-html:not(.dark) .dashboard-container .bg-zinc-950,
-html:not(.dark) .dashboard-container .bg-zinc-900,
-html:not(.dark) .dashboard-container .bg-zinc-900\/30,
-html:not(.dark) .dashboard-container .bg-zinc-900\/50,
-html:not(.dark) .dashboard-container .bg-zinc-900\/60,
-html:not(.dark) .dashboard-container .bg-zinc-900\/80,
-html:not(.dark) .dashboard-container .bg-zinc-900\/10 {
+html:not(.dark) .bg-zinc-950,
+html:not(.dark) .bg-zinc-900,
+html:not(.dark) .bg-zinc-900\/10,
+html:not(.dark) .bg-zinc-900\/20,
+html:not(.dark) .bg-zinc-900\/30,
+html:not(.dark) .bg-zinc-900\/50,
+html:not(.dark) .bg-zinc-900\/60,
+html:not(.dark) .bg-zinc-900\/80,
+html:not(.dark) .bg-zinc-900\/90,
+html:not(.dark) .bg-black\/20,
+html:not(.dark) .bg-black\/30,
+html:not(.dark) .bg-black\/40,
+html:not(.dark) .bg-black\/50,
+html:not(.dark) .bg-black\/60,
+html:not(.dark) .bg-\[\#0a0a0d\] {
   background-color: var(--bg-base) !important;
 }
 
-html:not(.dark) .dashboard-container .bg-zinc-800,
-html:not(.dark) .dashboard-container .bg-zinc-800\/80,
-html:not(.dark) .dashboard-container .bg-zinc-800\/60,
-html:not(.dark) .dashboard-container .bg-zinc-800\/50,
-html:not(.dark) .dashboard-container .bg-zinc-800\/30,
-html:not(.dark) .dashboard-container .bg-zinc-800\/40,
-html:not(.dark) .dashboard-container .bg-zinc-900\/40,
-html:not(.dark) .dashboard-container .bg-bg-surface {
+html:not(.dark) .bg-zinc-800,
+html:not(.dark) .bg-zinc-800\/10,
+html:not(.dark) .bg-zinc-800\/20,
+html:not(.dark) .bg-zinc-800\/30,
+html:not(.dark) .bg-zinc-800\/40,
+html:not(.dark) .bg-zinc-800\/50,
+html:not(.dark) .bg-zinc-800\/60,
+html:not(.dark) .bg-zinc-800\/70,
+html:not(.dark) .bg-zinc-800\/80,
+html:not(.dark) .bg-zinc-800\/90,
+html:not(.dark) .bg-zinc-700,
+html:not(.dark) .bg-zinc-700\/10,
+html:not(.dark) .bg-zinc-700\/20,
+html:not(.dark) .bg-zinc-700\/30,
+html:not(.dark) .bg-zinc-700\/40,
+html:not(.dark) .bg-zinc-700\/50,
+html:not(.dark) .bg-zinc-700\/60,
+html:not(.dark) .bg-zinc-700\/80,
+html:not(.dark) .bg-zinc-700\/90,
+html:not(.dark) .bg-bg-surface {
   background-color: var(--bg-surface) !important;
 }
 
-html:not(.dark) .dashboard-container .bg-zinc-850 {
-  background-color: var(--bg-input) !important;
+/* Skeletons/inputs soft gray overrides */
+html:not(.dark) .bg-zinc-850,
+html:not(.dark) .bg-zinc-850\/10,
+html:not(.dark) .bg-zinc-850\/20,
+html:not(.dark) .bg-zinc-850\/30,
+html:not(.dark) .bg-zinc-850\/40,
+html:not(.dark) .bg-zinc-850\/50,
+html:not(.dark) .bg-zinc-850\/60,
+html:not(.dark) .bg-zinc-850\/70,
+html:not(.dark) .bg-zinc-850\/80,
+html:not(.dark) .bg-zinc-850\/90 {
+  background-color: var(--border-subtle) !important; /* Visible light-gray contrast for skeletons/input background templates */
 }
 
-/* Text overrides */
-html:not(.dark) .dashboard-container .text-zinc-50,
-html:not(.dark) .dashboard-container .text-zinc-100,
-html:not(.dark) .dashboard-container .text-zinc-200 {
+/* Text overrides (ensuring absolute visibility on white backgrounds) */
+html:not(.dark) .text-white,
+html:not(.dark) .text-zinc-50,
+html:not(.dark) .text-zinc-100,
+html:not(.dark) .text-zinc-150,
+html:not(.dark) .text-zinc-200,
+html:not(.dark) .text-zinc-250 {
   color: var(--text-primary) !important;
 }
 
-html:not(.dark) .dashboard-container .text-zinc-300,
-html:not(.dark) .dashboard-container .text-zinc-450,
-html:not(.dark) .dashboard-container .text-zinc-400 {
+html:not(.dark) .text-zinc-300,
+html:not(.dark) .text-zinc-350,
+html:not(.dark) .text-zinc-400,
+html:not(.dark) .text-zinc-450 {
   color: var(--text-secondary) !important;
 }
 
-html:not(.dark) .dashboard-container .text-zinc-500,
-html:not(.dark) .dashboard-container .text-zinc-650,
-html:not(.dark) .dashboard-container .text-zinc-600 {
+html:not(.dark) .text-zinc-500,
+html:not(.dark) .text-zinc-550,
+html:not(.dark) .text-zinc-600,
+html:not(.dark) .text-zinc-650,
+html:not(.dark) .text-zinc-700 {
   color: var(--text-muted) !important;
 }
 
+/* Protect white text/icons on solid colored backgrounds (buttons, alert banners, gradients) */
+html:not(.dark) .bg-blue-600 .text-white,
+html:not(.dark) .bg-blue-600 .text-zinc-50,
+html:not(.dark) .bg-blue-600 .text-zinc-100,
+html:not(.dark) .bg-blue-500 .text-white,
+html:not(.dark) .bg-blue-500 .text-zinc-50,
+html:not(.dark) .bg-blue-500 .text-zinc-100,
+html:not(.dark) .bg-emerald-600 .text-white,
+html:not(.dark) .bg-emerald-600 .text-zinc-50,
+html:not(.dark) .bg-emerald-600 .text-zinc-100,
+html:not(.dark) .bg-indigo-600 .text-white,
+html:not(.dark) .bg-indigo-600 .text-zinc-50,
+html:not(.dark) .bg-indigo-600 .text-zinc-100,
+html:not(.dark) .bg-rose-600 .text-white,
+html:not(.dark) .bg-rose-600 .text-zinc-50,
+html:not(.dark) .bg-rose-600 .text-zinc-100,
+html:not(.dark) .bg-red-600 .text-white,
+html:not(.dark) .bg-red-600 .text-zinc-50,
+html:not(.dark) .bg-red-600 .text-zinc-100,
+html:not(.dark) .bg-purple-600 .text-white,
+html:not(.dark) .bg-purple-600 .text-zinc-50,
+html:not(.dark) .bg-purple-600 .text-zinc-100,
+html:not(.dark) .bg-gradient-to-r .text-white,
+html:not(.dark) .bg-gradient-to-r .text-zinc-50,
+html:not(.dark) .bg-gradient-to-r .text-zinc-100,
+html:not(.dark) .bg-gradient-to-br .text-white,
+html:not(.dark) .bg-gradient-to-br .text-zinc-50,
+html:not(.dark) .bg-gradient-to-br .text-zinc-100,
+html:not(.dark) .bg-blue-600.text-white,
+html:not(.dark) .bg-blue-600.text-zinc-50,
+html:not(.dark) .bg-blue-600.text-zinc-100,
+html:not(.dark) .bg-blue-500.text-white,
+html:not(.dark) .bg-blue-500.text-zinc-50,
+html:not(.dark) .bg-blue-500.text-zinc-100,
+html:not(.dark) .bg-emerald-600.text-white,
+html:not(.dark) .bg-emerald-600.text-zinc-50,
+html:not(.dark) .bg-emerald-600.text-zinc-100,
+html:not(.dark) .bg-indigo-600.text-white,
+html:not(.dark) .bg-indigo-600.text-zinc-50,
+html:not(.dark) .bg-indigo-600.text-zinc-100,
+html:not(.dark) .bg-rose-600.text-white,
+html:not(.dark) .bg-rose-600.text-zinc-50,
+html:not(.dark) .bg-rose-600.text-zinc-100,
+html:not(.dark) .bg-red-600.text-white,
+html:not(.dark) .bg-red-600.text-zinc-50,
+html:not(.dark) .bg-red-600.text-zinc-100,
+html:not(.dark) .bg-purple-600.text-white,
+html:not(.dark) .bg-purple-600.text-zinc-50,
+html:not(.dark) .bg-purple-600.text-zinc-100,
+html:not(.dark) .bg-gradient-to-r.text-white,
+html:not(.dark) .bg-gradient-to-r.text-zinc-50,
+html:not(.dark) .bg-gradient-to-r.text-zinc-100,
+html:not(.dark) .bg-gradient-to-br.text-white,
+html:not(.dark) .bg-gradient-to-br.text-zinc-50,
+html:not(.dark) .bg-gradient-to-br.text-zinc-100,
+html:not(.dark) button.bg-blue-600,
+html:not(.dark) button.bg-blue-500,
+html:not(.dark) button.bg-emerald-600,
+html:not(.dark) button.bg-indigo-600,
+html:not(.dark) button.bg-rose-600,
+html:not(.dark) button.bg-red-600,
+html:not(.dark) button.bg-purple-600,
+html:not(.dark) button.bg-gradient-to-r,
+html:not(.dark) button.bg-gradient-to-br,
+html:not(.dark) a.bg-blue-600,
+html:not(.dark) a.bg-blue-500,
+html:not(.dark) a.bg-emerald-600,
+html:not(.dark) a.bg-indigo-600,
+html:not(.dark) a.bg-rose-600,
+html:not(.dark) a.bg-red-600,
+html:not(.dark) a.bg-purple-600,
+html:not(.dark) a.bg-gradient-to-r,
+html:not(.dark) a.bg-gradient-to-br {
+  color: #ffffff !important;
+}
+
 /* Border overrides */
-html:not(.dark) .dashboard-container .border-zinc-800,
-html:not(.dark) .dashboard-container .border-zinc-800\/30,
-html:not(.dark) .dashboard-container .border-zinc-800\/40,
-html:not(.dark) .dashboard-container .border-zinc-800\/50,
-html:not(.dark) .dashboard-container .border-zinc-800\/60,
-html:not(.dark) .dashboard-container .border-zinc-900,
-html:not(.dark) .dashboard-container .border-zinc-900\/50,
-html:not(.dark) .dashboard-container .border-zinc-700,
-html:not(.dark) .dashboard-container .border-zinc-700\/50,
-html:not(.dark) .dashboard-container .border-zinc-700\/30,
-html:not(.dark) .dashboard-container .border-zinc-850 {
+html:not(.dark) .border-zinc-950,
+html:not(.dark) .border-zinc-900,
+html:not(.dark) .border-zinc-900\/10,
+html:not(.dark) .border-zinc-900\/20,
+html:not(.dark) .border-zinc-900\/30,
+html:not(.dark) .border-zinc-900\/40,
+html:not(.dark) .border-zinc-900\/50,
+html:not(.dark) .border-zinc-900\/60,
+html:not(.dark) .border-zinc-900\/80,
+html:not(.dark) .border-zinc-850,
+html:not(.dark) .border-zinc-850\/10,
+html:not(.dark) .border-zinc-850\/20,
+html:not(.dark) .border-zinc-850\/30,
+html:not(.dark) .border-zinc-850\/40,
+html:not(.dark) .border-zinc-850\/50,
+html:not(.dark) .border-zinc-850\/60,
+html:not(.dark) .border-zinc-850\/80,
+html:not(.dark) .border-zinc-800,
+html:not(.dark) .border-zinc-800\/10,
+html:not(.dark) .border-zinc-800\/20,
+html:not(.dark) .border-zinc-800\/30,
+html:not(.dark) .border-zinc-800\/40,
+html:not(.dark) .border-zinc-800\/50,
+html:not(.dark) .border-zinc-800\/60,
+html:not(.dark) .border-zinc-800\/80,
+html:not(.dark) .border-zinc-700,
+html:not(.dark) .border-zinc-700\/10,
+html:not(.dark) .border-zinc-700\/20,
+html:not(.dark) .border-zinc-700\/30,
+html:not(.dark) .border-zinc-700\/40,
+html:not(.dark) .border-zinc-700\/50,
+html:not(.dark) .border-zinc-700\/60,
+html:not(.dark) .border-zinc-700\/80,
+html:not(.dark) .border-white\/10,
+html:not(.dark) .border-white\/20 {
   border-color: var(--border-subtle) !important;
 }
 
 /* Hover background and text overrides */
-html:not(.dark) .dashboard-container .hover\:bg-zinc-800:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/50:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/30:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/20:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-800\/40:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-700:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-700\/50:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-900\/10:hover,
-html:not(.dark) .dashboard-container .hover\:bg-zinc-900:hover {
+html:not(.dark) .hover\:bg-zinc-800:hover,
+html:not(.dark) .hover\:bg-zinc-800\/50:hover,
+html:not(.dark) .hover\:bg-zinc-800\/30:hover,
+html:not(.dark) .hover\:bg-zinc-800\/20:hover,
+html:not(.dark) .hover\:bg-zinc-800\/40:hover,
+html:not(.dark) .hover\:bg-zinc-700:hover,
+html:not(.dark) .hover\:bg-zinc-700\/50:hover,
+html:not(.dark) .hover\:bg-zinc-900\/10:hover,
+html:not(.dark) .hover\:bg-zinc-900:hover,
+html:not(.dark) .hover\:bg-zinc-950:hover,
+html:not(.dark) .docs-content .hover\:border-zinc-700\/60:hover {
   background-color: var(--bg-input) !important;
 }
 
-html:not(.dark) .dashboard-container .hover\:text-zinc-100:hover,
-html:not(.dark) .dashboard-container .hover\:text-zinc-200:hover,
-html:not(.dark) .dashboard-container .hover\:text-zinc-300:hover,
-html:not(.dark) .dashboard-container .hover\:text-white:hover {
+html:not(.dark) .hover\:text-zinc-50:hover,
+html:not(.dark) .hover\:text-zinc-100:hover,
+html:not(.dark) .hover\:text-zinc-150:hover,
+html:not(.dark) .hover\:text-zinc-200:hover,
+html:not(.dark) .hover\:text-zinc-300:hover,
+html:not(.dark) .hover\:text-zinc-400:hover,
+html:not(.dark) .hover\:text-white:hover {
   color: var(--text-primary) !important;
 }
 
-/* Core typography overrides for Light Mode */
-html:not(.dark) .dashboard-container h1,
-html:not(.dark) .dashboard-container h2,
-html:not(.dark) .dashboard-container h3,
-html:not(.dark) .dashboard-container h4,
-html:not(.dark) .dashboard-container h5,
-html:not(.dark) .dashboard-container h6,
-html:not(.dark) .dashboard-container strong,
-html:not(.dark) .dashboard-container td,
-html:not(.dark) .dashboard-container th,
-html:not(.dark) .dashboard-container input,
-html:not(.dark) .dashboard-container textarea,
-html:not(.dark) .dashboard-container select {
+/* Placeholder support */
+html:not(.dark) ::placeholder,
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 1 !important;
+}
+
+/* Core typography tag overrides */
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4,
+html:not(.dark) h5,
+html:not(.dark) h6,
+html:not(.dark) strong,
+html:not(.dark) td,
+html:not(.dark) th,
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
   color: var(--text-primary) !important;
 }
 
-/* code tags style in Light Mode */
-html:not(.dark) .dashboard-container code {
+html:not(.dark) code {
   color: var(--text-secondary) !important;
 }
 
+/* Color accents adjustments in Light Mode for high contrast readability */
+html:not(.dark) .text-blue-400 {
+  color: #2563eb !important;
+}
+html:not(.dark) .text-emerald-400 {
+  color: #059669 !important;
+}
+html:not(.dark) .text-amber-400 {
+  color: #d97706 !important;
+}
+html:not(.dark) .text-rose-400 {
+  color: #e11d48 !important;
+}
+html:not(.dark) .text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
 /* Active tab override */
-html:not(.dark) .dashboard-container .bg-zinc-800\/60 {
+html:not(.dark) .bg-zinc-800\/60 {
   background-color: var(--bg-input) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-subtle) !important;
+}
+
+/* Code blocks & code syntax highlighting inside docs and dashboard panels */
+html:not(.dark) pre {
+  background-color: var(--bg-input) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+html:not(.dark) pre .text-blue-300,
+html:not(.dark) pre .text-blue-400,
+html:not(.dark) code .text-blue-300,
+html:not(.dark) code .text-blue-400 {
+  color: #1e40af !important; /* dark blue */
+}
+
+html:not(.dark) pre .text-emerald-300,
+html:not(.dark) pre .text-emerald-400,
+html:not(.dark) code .text-emerald-300,
+html:not(.dark) code .text-emerald-400 {
+  color: #065f46 !important; /* dark green */
 }
 
 /* Light mode shimmer support */

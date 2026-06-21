@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const API_BASE_URL = 'http://https://telebase.pages.dev/';
+const API_BASE_URL = 'https://telebase.pages.dev';
 
 async function runDBCrudTests() {
   console.log('🧪 Starting Telebase Real Database CRUD Pillars Verification Test...\n');

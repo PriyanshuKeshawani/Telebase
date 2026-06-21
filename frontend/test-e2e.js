@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const API_BASE_URL = 'http://https://telebase.pages.dev/';
+const API_BASE_URL = 'https://telebase.pages.dev';
 
 async function runE2ETests() {
   console.log('🧪 Starting Telebase 100% Database-less E2E Integration Test...\n');

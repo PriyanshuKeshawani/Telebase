@@ -38,7 +38,7 @@ export const PROJECT_AUTH_CONFIG: ProjectAuthConfig = {
   allowMagicLink: true,
 
   // For Magic Links, the verification token is appended to this URL
-  magicLinkUrlTemplate: "http://https://telebase.pages.dev//api/auth/project/verify?token={{token}}",
+  magicLinkUrlTemplate: "https://telebase.pages.dev/api/auth/project/verify?token={{token}}",
 
   // Email subjects
   emailSubjectOTP: "🔐 Your Verification Code: {{code}}",

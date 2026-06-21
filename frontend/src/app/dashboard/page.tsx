@@ -3731,10 +3731,10 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           <div className="space-y-1.5">
                             <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wider">API Endpoint Base</span>
                             <div className="bg-bg-input border border-border-subtle rounded-xl px-3 py-2 flex items-center justify-between">
-                              <code className="text-xs text-text-secondary font-mono">http://https://telebase.pages.dev/</code>
+                              <code className="text-xs text-text-secondary font-mono">https://telebase.pages.dev/</code>
                               <button
                                 onClick={() => {
-                                  navigator.clipboard.writeText("http://https://telebase.pages.dev/");
+                                  navigator.clipboard.writeText("https://telebase.pages.dev/");
                                   alert("Endpoint base URL copied!");
                                 }}
                                 className="text-text-muted hover:text-blue-500 transition-colors"
@@ -3844,7 +3844,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                           onClick={() => {
                             let snippet = "";
                             if (aiSnippetTab === 'js_sql') {
-                              snippet = `fetch('http://https://telebase.pages.dev//api/db', {
+                              snippet = `fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3856,7 +3856,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
   })
 }).then(r => r.json()).then(data => console.log(data.records));`;
                             } else if (aiSnippetTab === 'js_nosql') {
-                              snippet = `fetch('http://https://telebase.pages.dev//api/db', {
+                              snippet = `fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3875,7 +3875,7 @@ const fileUrl = \`$TELEBASE_HOST_URL/api/data/\${fileUuid}?apiKey=$TELEBASE_API_
                               snippet = `const formData = new FormData();
 formData.append('file', fileInput.files[0]);
 
-fetch('http://https://telebase.pages.dev//api/data/upload', {
+fetch('https://telebase.pages.dev/api/data/upload', {
   method: 'POST',
   headers: {
     'x-api-key': '${currentProject.api_key}'
@@ -3884,7 +3884,7 @@ fetch('http://https://telebase.pages.dev//api/data/upload', {
 }).then(r => r.json()).then(data => console.log(data.file.uuid));`;
                             } else if (aiSnippetTab === 'retrieve') {
                               snippet = `// Decrypts & streams binary payloads on the fly:
-const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;`;
+const fileUrl = \`https://telebase.pages.dev/api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;`;
                             }
                             navigator.clipboard.writeText(snippet);
                             alert("Snippet copied to clipboard!");
@@ -3922,7 +3922,7 @@ const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKe
                         {aiSnippetTab === "js_sql" && (
                           <pre className="text-blue-600 dark:text-blue-300/90 whitespace-pre-wrap select-all">
                             {`// 1. Fetch records using standard SQL SELECT query
-const response = await fetch('http://https://telebase.pages.dev//api/db', {
+const response = await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3941,7 +3941,7 @@ console.log('Query records:', data.records);`}
                         {aiSnippetTab === "js_nosql" && (
                           <pre className="text-violet-600 dark:text-violet-300/90 whitespace-pre-wrap select-all">
                             {`// 2. Insert records using Mongo-style NoSQL payload
-const response = await fetch('http://https://telebase.pages.dev//api/db', {
+const response = await fetch('https://telebase.pages.dev/api/db', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -3968,7 +3968,7 @@ console.log('Insert success:', data.success);`}
 const formData = new FormData();
 formData.append('file', fileSelectorInput.files[0]);
 
-const response = await fetch('http://https://telebase.pages.dev//api/data/upload', {
+const response = await fetch('https://telebase.pages.dev/api/data/upload', {
   method: 'POST',
   headers: {
     'x-api-key': '${currentProject.api_key}'
@@ -3984,7 +3984,7 @@ console.log('Decrypted File UUID in DB:', data.file.uuid);`}
                           <pre className="text-amber-600 dark:text-amber-300/90 whitespace-pre-wrap select-all">
                             {`// 4. Retrieve/Stream media link with dynamic decryption
 const fileUuid = 'your-file-uuid';
-const fileUrl = \`http://https://telebase.pages.dev//api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;
+const fileUrl = \`https://telebase.pages.dev/api/data/\${fileUuid}?apiKey=${currentProject.api_key}\`;
 
 // Directly use in HTML tags (e.g. <img src={fileUrl} />)`}
                           </pre>
