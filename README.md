@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Security-AES--256--GCM-blueviolet?style=for-the-badge" alt="Security Badge">
 </p>
 
-**Telebase** is an infinitely scalable, production-ready serverless database and blob storage engine designed for the modern Edge. It uses **Telegram as the ultimate, free persistent storage backend** and **Cloudflare KV as an ultra-fast edge cache** to achieve sub-15ms reads, sub-150ms writes, and zero-cost infinite storage.
+**Telebase** is an open-source backend platform powered by Telegram infrastructure, designed for students, hackathons and side projects. It uses **Telegram as the ultimate, free persistent storage backend** and **Cloudflare KV as an ultra-fast edge cache** to achieve sub-15ms reads, sub-150ms writes, and zero-cost infinite storage.
 
 ---
 
