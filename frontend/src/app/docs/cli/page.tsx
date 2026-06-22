@@ -270,5 +270,6 @@ npm publish --access public`}
 
       </div>
     </div>
+  </div>
   );
 }
