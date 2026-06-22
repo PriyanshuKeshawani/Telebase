@@ -1,0 +1,27 @@
+{
+  "name": "telebase-cli",
+  "version": "1.0.0",
+  "description": "CLI tool to interact with Telebase - the Telegram-powered serverless database layer.",
+  "main": "bin/index.js",
+  "bin": {
+    "telebase": "./bin/index.js"
+  },
+  "scripts": {
+    "start": "node bin/index.js"
+  },
+  "keywords": [
+    "telebase",
+    "telegram",
+    "database",
+    "cli",
+    "serverless",
+    "student-projects",
+    "hackathons"
+  ],
+  "author": "Telebase Community",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "dotenv": "^16.4.5"
+  }
+}
