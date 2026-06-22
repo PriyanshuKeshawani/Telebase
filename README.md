@@ -133,6 +133,14 @@ npm run dev
 ```
 Open `http://localhost:3000` to access the administrator console.
 
+### 4. Optional: Setup and run CLI locally
+```bash
+cd ../cli
+npm install
+npm link
+# Initialize CLI configuration
+telebase init
+```
 ---
 
 ## 💡 Example Usage
@@ -161,6 +169,7 @@ const { records } = await sqlRes.json();
 ## 📁 Project Structure
 
 ```text
+├── cli/                      # Command-Line Interface binary executable
 ├── docs/                     # Detailed technical guides and references
 ├── frontend/                 # Next.js web portal dashboard & backend API
 │   ├── src/

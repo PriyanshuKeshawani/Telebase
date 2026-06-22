@@ -4,7 +4,7 @@
   "description": "CLI tool to interact with Telebase - the Telegram-powered serverless database layer.",
   "main": "bin/index.js",
   "bin": {
-    "telebase": "./bin/index.js"
+    "telebase": "bin/index.js"
   },
   "scripts": {
     "start": "node bin/index.js"
