@@ -131,6 +131,22 @@ export default function HomeClient() {
               {
                 q: "Is Telebase open source?",
                 a: "Yes! The core engine, CLI tool, developer console, and client adapters are entirely open source under the MIT License on GitHub."
+              },
+              {
+                q: "What commands are available in the Telebase CLI?",
+                a: "The Telebase CLI supports 'init' to configure connection details, 'status' to check server online connectivity, 'query <sql>' to run database commands directly, 'upload <filePath>' to store files on Telegram, and 'download <uuid>' to retrieve them locally."
+              },
+              {
+                q: "How do I install the CLI tool?",
+                a: "You can download the package globally by running: npm install -g telebase-cli"
+              },
+              {
+                q: "How does the CLI handle authentication?",
+                a: "Running 'telebase init' prompts you for your project API URL and unique API Key, securely saving them inside a local '.env' file in your current working directory to authorize subsequent commands."
+              },
+              {
+                q: "How do I diagnose connection errors or check updates?",
+                a: "You can execute 'telebase diagnose' to run a full diagnostic suite (Node.js version check, configuration variables validation, endpoint ping latency, query functionality, and package version verification against the public NPM registry)."
               }
             ].map((faq, i) => (
               <div key={i} className="p-6 rounded-2xl bg-bg-surface border border-border-subtle hover:border-blue-500/30 transition-all space-y-2">

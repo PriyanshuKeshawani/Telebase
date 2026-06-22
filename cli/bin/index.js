@@ -20,10 +20,30 @@ const log = {
   header: (msg) => console.log(`\n\x1b[35m⚡ ${msg}\x1b[0m\n`)
 };
 
+const pkg = require(path.join(__dirname, '../package.json'));
+
+// Version update checker
+async function checkVersion() {
+  try {
+    const response = await fetch('https://registry.npmjs.org/telebase-cli/latest', {
+      signal: AbortSignal.timeout(1500)
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.version && data.version !== pkg.version) {
+        log.warn(`A new version of telebase-cli is available: ${data.version} (current: ${pkg.version})`);
+        log.warn('Run "npm install -g telebase-cli" to update!\n');
+      }
+    }
+  } catch (err) {
+    // Silently ignore registry check failures
+  }
+}
+
 program
   .name('telebase')
   .description('Telebase Command Line Interface')
-  .version('1.0.0');
+  .version(pkg.version);
 
 // Command: init
 program
@@ -60,6 +80,7 @@ program
   .command('status')
   .description('Check connectivity to the Telebase backend server')
   .action(async () => {
+    await checkVersion();
     const apiUrl = process.env.TELEBASE_API_URL;
     const apiKey = process.env.TELEBASE_API_KEY;
 
@@ -232,6 +253,97 @@ program
     } catch (err) {
       log.error(`Network error during download: ${err.message}`);
     }
+// Command: diagnose
+program
+  .command('diagnose')
+  .description('Run a complete suite of diagnostic tests on your Telebase CLI environment')
+  .action(async () => {
+    log.header('Telebase Environment Diagnostics');
+    
+    // Test 1: Node.js version verification
+    log.info(`Node.js Version: ${process.version}`);
+    const nodeMajor = parseInt(process.version.replace('v', '').split('.')[0]);
+    if (nodeMajor < 18) {
+      log.warn('Node.js version is below recommended v18. Some features may not function correctly.');
+    } else {
+      log.success('Node.js version is compatible.');
+    }
+
+    // Test 2: Local config (.env) existence check
+    log.info(`Checking configuration in: ${envPath}`);
+    if (!fs.existsSync(envPath)) {
+      log.error('Local .env file not found! Run "telebase init" to link a project.');
+      process.exit(1);
+    }
+    log.success('Local .env file exists.');
+
+    const apiUrl = process.env.TELEBASE_API_URL;
+    const apiKey = process.env.TELEBASE_API_KEY;
+
+    if (!apiUrl) {
+      log.error('TELEBASE_API_URL is missing in your .env file!');
+      process.exit(1);
+    }
+    if (!apiKey) {
+      log.error('TELEBASE_API_KEY is missing in your .env file!');
+      process.exit(1);
+    }
+    log.success('Required environment variables are set.');
+
+    // Test 3: Ping & Latency check
+    log.info(`Pinging API server: ${apiUrl}...`);
+    const startTime = Date.now();
+    try {
+      const response = await fetch(`${apiUrl}/api/db`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey
+        },
+        body: JSON.stringify({ sqlQuery: 'SELECT 1' })
+      });
+      const latency = Date.now() - startTime;
+
+      if (response.ok) {
+        log.success(`Server is online and responding (Latency: ${latency}ms).`);
+        
+        // Test 4: Database query engine test
+        const result = await response.json();
+        if (result.records) {
+          log.success('Database query engine is functioning correctly.');
+        } else {
+          log.warn(`Unexpected query engine response structure: ${JSON.stringify(result)}`);
+        }
+      } else {
+        log.error(`API connection failed with status code: ${response.status}`);
+      }
+    } catch (err) {
+      log.error(`Failed to connect to the server: ${err.message}`);
+    }
+
+    // Test 5: Version verification check
+    log.info('Checking for updates from npm registry...');
+    try {
+      const res = await fetch('https://registry.npmjs.org/telebase-cli/latest', {
+        signal: AbortSignal.timeout(2000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const latestVersion = data.version;
+        if (latestVersion === pkg.version) {
+          log.success(`You are running the latest version of telebase-cli (${pkg.version}).`);
+        } else {
+          log.warn(`An update is available: ${latestVersion} (installed: ${pkg.version})`);
+          log.warn('Run "npm install -g telebase-cli" to upgrade.');
+        }
+      } else {
+        log.warn('Could not contact npm registry to check for updates.');
+      }
+    } catch (err) {
+      log.warn(`Could not verify CLI version: ${err.message}`);
+    }
+    
+    log.info('Diagnostics complete!');
   });
 
 program.parse(process.argv);

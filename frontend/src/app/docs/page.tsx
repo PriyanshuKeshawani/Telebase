@@ -59,6 +59,54 @@ export default function DocsPage() {
           "@type": "Answer",
           "text": "Yes. Telebase exposes a standard HTTP API that works with Next.js server components, client components, API routes, or standard node services."
         }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I install the Telebase CLI?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You can install the Telebase CLI globally via npm using: npm install -g telebase-cli"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What commands does the Telebase CLI support?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The CLI supports: init (link project credentials), status (check server availability), query (run SQL statements), upload (send files to Telegram), and download (retrieve files by UUID)."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I execute SQL queries directly from the command line?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, you can run SQL queries by executing: telebase query \"SELECT * FROM table_name\". The results are neatly displayed in a console table format."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does the CLI handle large file uploads?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "When you run: telebase upload <path>, the CLI automatically chunks any files larger than 19MB into individual packets, uploads them to the Telegram channel, and returns a unique Asset UUID for download."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I diagnose connection errors in Telebase?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Run 'telebase diagnose' in your command prompt. It evaluates Node.js compatibility, configuration settings, API ping latency, database query integrity, and updates availability."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I check if my Telebase CLI is up to date?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Running 'telebase status' or 'telebase diagnose' automatically queries the NPM registry and alerts you with a update recommendation banner if a newer version is available."
+        }
       }
     ]
   };
@@ -157,6 +205,30 @@ export default function DocsPage() {
             <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
               <h4 className="text-sm font-bold text-white">Can Telebase be used with Next.js?</h4>
               <p className="text-xs text-zinc-400 leading-relaxed font-normal">Yes. Telebase exposes a standard HTTP API that works with Next.js server components, client components, API routes, or standard node services.</p>
+            </div>
+            <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
+              <h4 className="text-sm font-bold text-white">How do I install the Telebase CLI?</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">You can install the Telebase CLI globally via npm using the command: <code className="text-blue-400 font-mono">npm install -g telebase-cli</code></p>
+            </div>
+            <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
+              <h4 className="text-sm font-bold text-white">What commands does the Telebase CLI support?</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">The CLI supports: <code className="text-blue-400 font-mono">init</code> (link project credentials), <code className="text-blue-400 font-mono">status</code> (check server connectivity), <code className="text-blue-400 font-mono">query &lt;sql&gt;</code> (run SQL queries directly), <code className="text-blue-400 font-mono">upload &lt;path&gt;</code> (upload files to Telegram), and <code className="text-blue-400 font-mono">download &lt;uuid&gt;</code> (retrieve files by UUID).</p>
+            </div>
+            <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
+              <h4 className="text-sm font-bold text-white">Can I execute SQL queries directly from the command line?</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">Yes, you can run SQL queries by executing: <code className="text-blue-400 font-mono">telebase query "SELECT * FROM users"</code>. The results are formatted and displayed as a clean console table.</p>
+            </div>
+            <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
+              <h4 className="text-sm font-bold text-white">How does the CLI handle large file uploads?</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">When executing <code className="text-blue-400 font-mono">telebase upload &lt;filePath&gt;</code>, the CLI automatically chunks any file larger than 19MB into individual packets, uploads them to the Telegram channel, and outputs a unique Asset UUID that allows you to download and reconstruct the file later.</p>
+            </div>
+            <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
+              <h4 className="text-sm font-bold text-white">How do I diagnose connection errors in Telebase?</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">Simply execute <code className="text-blue-400 font-mono">telebase diagnose</code> in your terminal. This runs an integrated diagnostic suite checking Node.js compatibility, local <code className="text-blue-400 font-mono">.env</code> configurations, API latency, mock query health, and version freshness.</p>
+            </div>
+            <div className="bg-[#0a0a0d] border border-zinc-800/50 rounded-xl p-5 space-y-2">
+              <h4 className="text-sm font-bold text-white">How do I check if my Telebase CLI is up to date?</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">Running <code className="text-blue-400 font-mono">telebase status</code> or <code className="text-blue-400 font-mono">telebase diagnose</code> checks your local version against the latest package on the NPM registry. A notification banner is printed if an update is recommended.</p>
             </div>
           </div>
         </div>
