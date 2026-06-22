@@ -167,3 +167,40 @@ Enable client-side Zero-Knowledge Encryption in settings to secure data at rest.
 - Encryption key remains strictly client-side.
 - Payloads are encrypted using AES-256-GCM prior to transmission.
 - Telegram servers only store and transmit encrypted binary ciphertext blocks.
+
+---
+
+## 6. Command Line Interface (CLI)
+
+Install the global command-line helper:
+```bash
+npm install -g telebase-cli
+```
+
+### Commands
+
+#### Initialize Config
+```bash
+telebase init
+```
+Prompts for target API Server URL and Project API Key, writing values to a local `.env` configuration file.
+
+#### Check Status
+```bash
+telebase status
+```
+
+#### SQL Console Query
+```bash
+telebase query "SELECT * FROM users LIMIT 10"
+```
+
+#### Asset Upload
+```bash
+telebase upload <filePath>
+```
+
+#### Asset Download
+```bash
+telebase download <uuid> [customOutputName]
+```

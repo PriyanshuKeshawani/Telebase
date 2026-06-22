@@ -10,6 +10,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   const links = [
     { href: "/docs", label: "Getting Started", icon: Zap },
     { href: "/docs/onboarding", label: "Onboarding & Setup", icon: Compass },
+    { href: "/docs/cli", label: "Command Line (CLI)", icon: Terminal },
     { href: "/docs/architecture", label: "Architecture", icon: Layers },
     { href: "/docs/authentication", label: "Authentication", icon: Shield },
     { href: "/docs/crud", label: "CRUD Operations", icon: Database },

@@ -20,6 +20,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://telebase.pages.dev/docs/cli</loc>
+    <lastmod>2026-06-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://telebase.pages.dev/docs/architecture</loc>
     <lastmod>2026-06-21</lastmod>
     <changefreq>weekly</changefreq>

@@ -18,6 +18,7 @@ Telebase is an open-source backend platform powered by Telegram infrastructure, 
 ## Documentation Index
 - [Getting Started](https://telebase.pages.dev/docs)
 - [Onboarding & Setup](https://telebase.pages.dev/docs/onboarding)
+- [CLI Tool Reference](https://telebase.pages.dev/docs/cli)
 - [System Architecture](https://telebase.pages.dev/docs/architecture)
 - [Authentication API](https://telebase.pages.dev/docs/authentication)
 - [CRUD Operations Reference](https://telebase.pages.dev/docs/crud)
